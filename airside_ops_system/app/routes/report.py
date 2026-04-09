@@ -9,6 +9,8 @@ from app.models.form import FormSubmission, FormTemplate
 from app.services.export_service import ExportService
 from app.services.analytics_service import AnalyticsService
 from app.services.pdf_generator import PDFGeneratorService
+from app.services.workflow_service import WorkflowService
+from flask_login import current_user
 
 report_bp = Blueprint('report', __name__)
 
@@ -24,11 +26,12 @@ def daily_ops_report():
             submission = FormSubmission(
                 form_template_id=template.id,
                 status='submitted',
-                submitted_by_user_id=request.form.get('submitted_by_user_id') or None,
+                submitted_by_user_id=current_user.id,
                 location_ref='Airside Ops',
                 data=request.form.to_dict(flat=False),
             )
             db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
             db.session.commit()
             flash('Daily operational report submitted.', 'success')
         return redirect(url_for('report.daily_ops_report'))

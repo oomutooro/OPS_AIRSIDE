@@ -30,10 +30,191 @@
 </div>
 
 <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-blue">
+            <div class="kpi-label">Open Backlog</div>
+            <div class="kpi-value">{{ workflow_stats.open_backlog }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-red">
+            <div class="kpi-label">Pending To You</div>
+            <div class="kpi-value">{{ pending_directed|length }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-gold">
+            <div class="kpi-label">Resolved (30d)</div>
+            <div class="kpi-value">{{ workflow_stats.closed_current_30d }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-green">
+            <div class="kpi-label">Resolution Rate</div>
+            <div class="kpi-value">{{ workflow_stats.resolution_rate }}%</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
     <div class="col-6 col-md-3"><a class="btn btn-primary w-100 btn-touch" href="{{ url_for('inspection.generic_form', form_number=18) }}">New ESSAT Inspection</a></div>
     <div class="col-6 col-md-3"><a class="btn btn-warning w-100 btn-touch" href="{{ url_for('safety.incident_report') }}">Report Incident</a></div>
     <div class="col-6 col-md-3"><a class="btn btn-danger w-100 btn-touch" href="{{ url_for('safety.violation_form') }}">File Violation</a></div>
     <div class="col-6 col-md-3"><a class="btn btn-success w-100 btn-touch" href="{{ url_for('inspection.generic_form', form_number=21) }}">Start FOD Walk</a></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card panel-card h-100">
+            <div class="card-header">Pending Activities Directed To Your Level</div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Ref</th>
+                            <th>Issue</th>
+                            <th>Department</th>
+                            <th>Current Level</th>
+                            <th>Escalation</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for w in pending_directed %}
+                        <tr>
+                            <td>{{ w.submission.reference_number or ('SUB-' ~ w.submission_id) }}</td>
+                            <td>{{ w.summary }}</td>
+                            <td>{{ w.department or '-' }}</td>
+                            <td><span class="badge bg-primary">{{ w.current_owner_role|title }}</span></td>
+                            <td>L{{ w.escalation_level }}</td>
+                            <td class="text-end">
+                                {% if current_user.role == 'admin' or current_user.role == w.current_owner_role %}
+                                <div class="d-flex justify-content-end gap-2">
+                                    <form method="post" action="{{ url_for('dashboard.advance_issue', issue_id=w.id) }}">
+                                        <button class="btn btn-sm btn-outline-warning">Escalate</button>
+                                    </form>
+                                    <form method="post" action="{{ url_for('dashboard.close_issue', issue_id=w.id) }}">
+                                        <input type="hidden" name="closure_notes" value="Closed from dashboard workflow queue">
+                                        <button class="btn btn-sm btn-outline-success">Close</button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small">Awaiting {{ w.current_owner_role|title }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">No pending activities currently directed to your level.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card panel-card h-100">
+            <div class="card-header">Improvement Snapshot</div>
+            <div class="card-body">
+                <div class="mb-2"><strong>Opened (30d):</strong> {{ workflow_stats.opened_current_30d }}</div>
+                <div class="mb-2"><strong>Closed (30d):</strong> {{ workflow_stats.closed_current_30d }}</div>
+                <div class="mb-2"><strong>Resolution Rate:</strong> {{ workflow_stats.resolution_rate }}%</div>
+                <div class="mb-2">
+                    <strong>Trend:</strong>
+                    {% if workflow_stats.improvement_delta > 0 %}
+                    <span class="text-success">+{{ workflow_stats.improvement_delta }}% improvement</span>
+                    {% elif workflow_stats.improvement_delta < 0 %}
+                    <span class="text-danger">{{ workflow_stats.improvement_delta }}% decline</span>
+                    {% else %}
+                    <span class="text-muted">No change</span>
+                    {% endif %}
+                </div>
+                <hr>
+                <h6>Pending by Level</h6>
+                <ul class="mb-0">
+                    <li>Operator: {{ role_breakdown.get('operator', 0) }}</li>
+                    <li>Inspector (SOO): {{ role_breakdown.get('inspector', 0) }}</li>
+                    <li>Auditor (Principal): {{ role_breakdown.get('auditor', 0) }}</li>
+                    <li>Supervisor (Manager): {{ role_breakdown.get('supervisor', 0) }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user.role in ['admin', 'supervisor'] %}
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header">Departmental Overview (Manager View)</div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Department</th>
+                            <th>Total Issues</th>
+                            <th>Open</th>
+                            <th>Closed</th>
+                            <th>Closure Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for d in department_overview %}
+                        <tr>
+                            <td>{{ d.department }}</td>
+                            <td>{{ d.total }}</td>
+                            <td><span class="badge bg-warning text-dark">{{ d.open }}</span></td>
+                            <td><span class="badge bg-success">{{ d.closed }}</span></td>
+                            <td>
+                                {% if d.total %}
+                                {{ ((d.closed / d.total) * 100)|round(1) }}%
+                                {% else %}
+                                0.0%
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">No departmental workflow data available yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header">Recently Closed Activities</div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Ref</th>
+                            <th>Issue</th>
+                            <th>Department</th>
+                            <th>Closed At</th>
+                            <th>Closed By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for w in closed_recent %}
+                        <tr>
+                            <td>{{ w.submission.reference_number or ('SUB-' ~ w.submission_id) }}</td>
+                            <td>{{ w.summary }}</td>
+                            <td>{{ w.department or '-' }}</td>
+                            <td>{{ w.closed_at|datetime_fmt }}</td>
+                            <td>{{ w.closed_by.full_name if w.closed_by else '-' }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">No closed activities yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row g-3 mb-3">

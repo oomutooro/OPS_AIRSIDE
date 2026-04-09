@@ -8,6 +8,7 @@ from app import db
 from app.models.permit import ADPApplication, ADPPermit
 from app.models.reference import AirsideVehicle, Company
 from app.models.form import FormSubmission, FormTemplate
+from app.services.workflow_service import WorkflowService
 
 permit_bp = Blueprint('permit', __name__)
 
@@ -44,6 +45,7 @@ def adp_application():
                 data=request.form.to_dict(flat=False),
             )
             db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
 
         db.session.commit()
         flash('ADP application submitted.', 'success')

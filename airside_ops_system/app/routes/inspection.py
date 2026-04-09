@@ -6,6 +6,7 @@ from flask_login import current_user, login_required
 from app import db
 from app.models.form import FormSubmission, FormTemplate
 from app.models.inspection import ESSTATMotorisedInspection, ESSTATNonMotorisedInspection
+from app.services.workflow_service import WorkflowService
 from app.utils.decorators import role_required
 from app.utils.form_schemas import FORM_SCHEMAS
 
@@ -31,6 +32,7 @@ def _save_generic_form(form_number: int, location='Airside'):
         data=data,
     )
     db.session.add(submission)
+    WorkflowService.ensure_issue_for_submission(submission, current_user)
     db.session.commit()
     return True, 'Submitted successfully.'
 

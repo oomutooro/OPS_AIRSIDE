@@ -8,6 +8,7 @@ from app import db
 from app.models.form import FormSubmission, FormTemplate
 from app.models.incident import Incident, Violation, ViolationType
 from app.models.inspection import FODWalk
+from app.services.workflow_service import WorkflowService
 
 safety_bp = Blueprint('safety', __name__)
 
@@ -40,6 +41,7 @@ def incident_report():
                 data=request.form.to_dict(flat=True),
             )
             db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
 
         db.session.commit()
         flash('Incident report submitted.', 'success')
@@ -91,6 +93,19 @@ def violation_form():
             status='open',
         )
         db.session.add(violation)
+
+        template = FormTemplate.query.filter_by(form_number=15).first()
+        if template:
+            submission = FormSubmission(
+                form_template_id=template.id,
+                status='submitted',
+                submitted_by_user_id=current_user.id,
+                location_ref=violation.violation_location,
+                data=request.form.to_dict(flat=True),
+            )
+            db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
+
         db.session.commit()
         flash('Violation recorded.', 'success')
         return redirect(url_for('safety.violation_form'))
@@ -117,6 +132,19 @@ def spot_check():
             status='open',
         )
         db.session.add(violation)
+
+        template = FormTemplate.query.filter_by(form_number=16).first()
+        if template:
+            submission = FormSubmission(
+                form_template_id=template.id,
+                status='submitted',
+                submitted_by_user_id=current_user.id,
+                location_ref=violation.violation_location,
+                data=request.form.to_dict(flat=True),
+            )
+            db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
+
         db.session.commit()
         flash('Spot check report captured.', 'success')
         return redirect(url_for('safety.spot_check'))

@@ -9,6 +9,7 @@ from app.models.apron import StandAllocation, Shift, ShiftRoster, HandoverReport
 from app.models.reference import ParkingStand
 from app.models.user import User
 from app.models.form import FormSubmission, FormTemplate
+from app.services.workflow_service import WorkflowService
 from app.utils.decorators import role_required
 
 apron_bp = Blueprint('apron', __name__)
@@ -125,6 +126,7 @@ def shift_handover():
                 },
             )
             db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
 
         db.session.commit()
         flash('Shift handover report submitted.', 'success')
@@ -225,6 +227,7 @@ def staff_deployment():
                 data=data,
             )
             db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
             db.session.commit()
             flash('Staff deployment plan submitted.', 'success')
         return redirect(url_for('apron.staff_deployment'))
@@ -257,6 +260,7 @@ def tpbb_operations():
                 data=data,
             )
             db.session.add(submission)
+            WorkflowService.ensure_issue_for_submission(submission, current_user)
             db.session.commit()
             flash('TPBB operation recorded.', 'success')
         return redirect(url_for('apron.tpbb_operations'))

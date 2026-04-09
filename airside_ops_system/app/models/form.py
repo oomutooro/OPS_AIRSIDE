@@ -65,6 +65,12 @@ class FormSubmission(db.Model):
     approver = db.relationship('User', foreign_keys=[approved_by_user_id], backref='approved_forms')
     attachments = db.relationship('Attachment', backref='submission', lazy='dynamic',
                                    cascade='all, delete-orphan')
+    workflow_item = db.relationship(
+        'IssueWorkflow',
+        backref='submission',
+        uselist=False,
+        cascade='all, delete-orphan',
+    )
 
     def generate_reference_number(self, prefix='FORM'):
         """Generate a unique reference number."""
@@ -171,3 +177,131 @@ class AuditLog(db.Model):
 
     def __repr__(self):
         return f'<AuditLog {self.action} by User#{self.user_id} at {self.timestamp}>'
+
+
+class IssueWorkflow(db.Model):
+    """Hierarchical escalation tracker for submitted reports/issues."""
+    __tablename__ = 'issue_workflow'
+
+    ROLE_CHAIN = ['operator', 'inspector', 'auditor', 'supervisor']
+
+    id = db.Column(db.Integer, primary_key=True)
+    submission_id = db.Column(db.Integer, db.ForeignKey('form_submissions.id'), nullable=False, unique=True)
+    reporter_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    current_owner_role = db.Column(db.String(32), nullable=False, index=True)
+    next_owner_role = db.Column(db.String(32), nullable=True)
+    status = db.Column(db.String(32), nullable=False, default='pending', index=True)
+    # pending|in_review|closed
+
+    escalation_level = db.Column(db.Integer, nullable=False, default=1)
+    department = db.Column(db.String(128), nullable=True, index=True)
+    summary = db.Column(db.String(256), nullable=True)
+
+    opened_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    last_transition_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    closed_at = db.Column(db.DateTime, nullable=True, index=True)
+    closed_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    closure_notes = db.Column(db.Text, nullable=True)
+
+    history = db.Column(db.JSON, default=list)
+
+    reporter = db.relationship('User', foreign_keys=[reporter_user_id], backref='reported_issues')
+    closed_by = db.relationship('User', foreign_keys=[closed_by_user_id], backref='closed_issues')
+
+    @classmethod
+    def _normalize_role(cls, role):
+        if role == 'viewer':
+            return 'auditor'
+        if role == 'admin':
+            return 'supervisor'
+        return role
+
+    @classmethod
+    def _next_role(cls, role):
+        role = cls._normalize_role(role)
+        try:
+            idx = cls.ROLE_CHAIN.index(role)
+        except ValueError:
+            return 'supervisor'
+        return cls.ROLE_CHAIN[idx + 1] if idx < len(cls.ROLE_CHAIN) - 1 else None
+
+    @classmethod
+    def create_from_submission(cls, submission, reporter):
+        """Create initial workflow entry based on reporter hierarchy."""
+        current_owner = cls._next_role(reporter.role) or 'supervisor'
+        next_owner = cls._next_role(current_owner)
+        summary = submission.template.title if submission.template else f'Submission {submission.id}'
+        item = cls(
+            submission_id=submission.id,
+            reporter_user_id=reporter.id,
+            current_owner_role=current_owner,
+            next_owner_role=next_owner,
+            status='pending',
+            escalation_level=1,
+            department=reporter.department,
+            summary=summary,
+            history=[
+                {
+                    'at': datetime.utcnow().isoformat(),
+                    'action': 'created',
+                    'from_role': reporter.role,
+                    'to_role': current_owner,
+                }
+            ],
+        )
+        return item
+
+    def can_user_act(self, user):
+        if user.role == 'admin':
+            return True
+        return self.status != 'closed' and user.role == self.current_owner_role
+
+    def advance(self, actor, note=''):
+        if not self.can_user_act(actor):
+            return False, 'Not authorized to escalate this issue.'
+        if self.status == 'closed':
+            return False, 'Issue is already closed.'
+
+        from_role = self.current_owner_role
+        if self.next_owner_role:
+            self.current_owner_role = self.next_owner_role
+            self.next_owner_role = self._next_role(self.next_owner_role)
+            self.status = 'pending'
+            self.escalation_level += 1
+            self.last_transition_at = datetime.utcnow()
+            self.history = (self.history or []) + [
+                {
+                    'at': datetime.utcnow().isoformat(),
+                    'action': 'escalated',
+                    'actor': actor.username,
+                    'from_role': from_role,
+                    'to_role': self.current_owner_role,
+                    'note': note,
+                }
+            ]
+            return True, f'Escalated to {self.current_owner_role}.'
+
+        return self.close(actor, note or 'Closed at final hierarchy level.')
+
+    def close(self, actor, note=''):
+        if not self.can_user_act(actor):
+            return False, 'Not authorized to close this issue.'
+        self.status = 'closed'
+        self.closed_at = datetime.utcnow()
+        self.closed_by_user_id = actor.id
+        self.closure_notes = note
+        self.last_transition_at = datetime.utcnow()
+        self.history = (self.history or []) + [
+            {
+                'at': datetime.utcnow().isoformat(),
+                'action': 'closed',
+                'actor': actor.username,
+                'role': actor.role,
+                'note': note,
+            }
+        ]
+        return True, 'Issue closed.'
+
+    def __repr__(self):
+        return f'<IssueWorkflow submission={self.submission_id} owner={self.current_owner_role} status={self.status}>'
