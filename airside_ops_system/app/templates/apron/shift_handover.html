@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}Shift Handover (Form 2){% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0"><i class="fa fa-exchange-alt me-2"></i>Form 2 – Shift Handover / Takeover</h5>
+  <form method="get" class="d-flex gap-2 align-items-center mb-0">
+    <label class="form-label mb-0 small text-muted">Handover date:</label>
+    <input type="date" name="handover_date" class="form-control form-control-sm" value="{{ handover_date.isoformat() }}">
+    <button class="btn btn-sm btn-outline-secondary">Load Roster</button>
+  </form>
+</div>
+
+{% if not day_users and not night_users %}
+<div class="alert alert-warning">
+  <i class="fa fa-exclamation-triangle me-2"></i>
+  No shift roster found for <strong>{{ handover_date.strftime('%d %B %Y') }}</strong>.
+  You must <a href="{{ url_for('apron.shift_roster') }}">generate a roster</a> for this date before submitting a handover.
+</div>
+{% endif %}
+
+<div class="card panel-card mb-3">
+  <div class="card-header">New Handover Report — {{ handover_date.strftime('%A, %d %B %Y') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-3 signature-enabled-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="handover_date" value="{{ handover_date.isoformat() }}">
+
+      <!-- Outgoing -->
+      <div class="col-md-6">
+        <label class="form-label">Outgoing Officer <span class="badge bg-warning text-dark ms-1">Day Shift</span></label>
+        <select name="outgoing_user_id" class="form-select form-select-lg" required>
+          <option value="">-- Select outgoing officer --</option>
+          {% for u in day_users %}
+          <option value="{{ u.id }}">{{ u.full_name }}{% if u.badge_number %} ({{ u.badge_number }}){% endif %}</option>
+          {% endfor %}
+          {% if not day_users %}
+          <option disabled>No officers rostered for day shift on this date</option>
+          {% endif %}
+        </select>
+        <input type="hidden" name="outgoing_shift_type" value="day">
+      </div>
+
+      <!-- Incoming -->
+      <div class="col-md-6">
+        <label class="form-label">Incoming Officer <span class="badge bg-dark ms-1">Night Shift</span></label>
+        <select name="incoming_user_id" class="form-select form-select-lg" required>
+          <option value="">-- Select incoming officer --</option>
+          {% for u in night_users %}
+          <option value="{{ u.id }}">{{ u.full_name }}{% if u.badge_number %} ({{ u.badge_number }}){% endif %}</option>
+          {% endfor %}
+          {% if not night_users %}
+          <option disabled>No officers rostered for night shift on this date</option>
+          {% endif %}
+        </select>
+        <input type="hidden" name="incoming_shift_type" value="night">
+      </div>
+
+      <div class="col-12">
+        <label class="form-label">Major Events / Incidents During Shift</label>
+        <textarea name="major_events" class="form-control" rows="4" placeholder="Describe any incidents, unusual events, or noteworthy activities that occurred during the shift..."></textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label">Pending Issues / Action Items</label>
+        <textarea name="pending_issues" class="form-control" rows="3" placeholder="List any unresolved issues, follow-up actions, or items that require attention by the incoming shift..."></textarea>
+      </div>
+
+      <!-- Signatures -->
+      <div class="col-md-6">
+        <label class="form-label">Outgoing Officer Signature</label>
+        <canvas class="signature-pad border rounded w-100" data-target="outgoing_signature" height="150"></canvas>
+        <input type="hidden" name="outgoing_signature">
+        <div class="mt-1"><button type="button" class="btn btn-outline-secondary btn-sm clear-sig" data-target="outgoing_signature"><i class="fa fa-eraser me-1"></i>Clear</button></div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Incoming Officer Signature</label>
+        <canvas class="signature-pad border rounded w-100" data-target="incoming_signature" height="150"></canvas>
+        <input type="hidden" name="incoming_signature">
+        <div class="mt-1"><button type="button" class="btn btn-outline-secondary btn-sm clear-sig" data-target="incoming_signature"><i class="fa fa-eraser me-1"></i>Clear</button></div>
+      </div>
+
+      <div class="col-12">
+        <button class="btn btn-primary btn-touch" {% if not day_users and not night_users %}disabled title="Roster not yet generated for this date"{% endif %}>
+          <i class="fa fa-check-circle me-2"></i>Submit Handover Report
+        </button>
+        <a href="{{ url_for('apron.shift_roster') }}" class="btn btn-outline-secondary btn-touch ms-2">
+          <i class="fa fa-calendar me-2"></i>Manage Roster
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Past Reports -->
+{% if reports %}
+<div class="card panel-card">
+  <div class="card-header"><i class="fa fa-history me-2"></i>Recent Handover Reports</div>
+  <div class="card-body table-responsive p-0">
+    <table class="table table-sm table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Outgoing</th>
+          <th>Incoming</th>
+          <th>Status</th>
+          <th>Submitted</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reports %}
+        <tr>
+          <td>{{ r.handover_date.strftime('%d %b %Y') if r.handover_date else '-' }}</td>
+          <td>{{ r.outgoing_name }}{% if r.outgoing_badge %} <small class="text-muted">({{ r.outgoing_badge }})</small>{% endif %}</td>
+          <td>{{ r.incoming_name }}{% if r.incoming_badge %} <small class="text-muted">({{ r.incoming_badge }})</small>{% endif %}</td>
+          <td><span class="badge bg-{{ 'success' if r.status == 'complete' else 'warning text-dark' }}">{{ r.status|title }}</span></td>
+          <td>{{ r.created_at.strftime('%d %b %Y %H:%M') if r.created_at else '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

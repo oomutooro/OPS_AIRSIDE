@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}ADP Renewal{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">ADP Renewal</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-6"><label class="form-label">Select Permit</label><select name="permit_id" class="form-select form-select-lg">{% for p in permits %}<option value="{{ p.id }}">{{ p.adp_number }} - {{ p.holder_name }} (exp {{ p.expiry_date|date_fmt }})</option>{% endfor %}</select></div>
+            <div class="col-12"><button class="btn btn-warning btn-touch">Renew Permit</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

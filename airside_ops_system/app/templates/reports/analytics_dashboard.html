@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Analytics Dashboard{% endblock %}
+{% block content %}
+<div class="row g-3">
+    <div class="col-md-3"><div class="kpi-card kpi-blue"><div class="kpi-label">Movements</div><div class="kpi-value">{{ kpis.today_movements }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card kpi-gold"><div class="kpi-label">Inspections</div><div class="kpi-value">{{ kpis.active_inspections }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card kpi-red"><div class="kpi-label">Violations</div><div class="kpi-value">{{ kpis.pending_violations }}</div></div></div>
+    <div class="col-md-3"><div class="kpi-card kpi-green"><div class="kpi-label">ESSAT Rate</div><div class="kpi-value">{{ kpis.essat_compliance_rate }}%</div></div></div>
+</div>
+<div class="card panel-card mt-3"><div class="card-header">Incident Trend (30 days)</div><div class="card-body"><canvas id="incidentTrendChart" height="120"></canvas></div></div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const ctx = document.getElementById('incidentTrendChart');
+if (ctx) {
+  new Chart(ctx, {type: 'line', data: {labels: {{ trend.labels|tojson }}, datasets: [{label: 'Incidents', data: {{ trend.values|tojson }}, borderColor: '#1a56db', tension: 0.3}]}});
+}
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}TPBB Operations (Form 5){% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header">Form 5 - TPBB Docking Record and Inspection</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-3"><label class="form-label">Bridge No</label><input name="bridge_no" class="form-control form-control-lg" required></div>
+            <div class="col-md-3"><label class="form-label">Flight Number</label><input name="flight_number" class="form-control form-control-lg" required></div>
+            <div class="col-md-3"><label class="form-label">Pre-Arrival Test</label><select name="pre_arrival_test" class="form-select form-select-lg"><option>PASS</option><option>FAIL</option></select></div>
+            <div class="col-md-3"><label class="form-label">Docking Time</label><input type="time" name="docking_time" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Back-off Time</label><input type="time" name="backoff_time" class="form-control form-control-lg"></div>
+            <div class="col-12"><label class="form-label">Remarks</label><textarea name="remarks" class="form-control" rows="3"></textarea></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Save TPBB Record</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Violation Form (Form 15){% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Form 15 - Airside Violation</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Offender Name</label><input name="offender_name" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Offender Badge</label><input name="offender_badge" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Vehicle Registration</label><input name="vehicle_registration" class="form-control form-control-lg"></div>
+            <div class="col-md-6"><label class="form-label">Violation Type</label><select name="violation_type_id" class="form-select form-select-lg">{% for v in violation_types %}<option value="{{ v.id }}">{{ v.description }}</option>{% endfor %}</select></div>
+            <div class="col-md-3"><label class="form-label">Penalty</label><input name="penalty_amount" type="number" step="0.01" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Currency</label><select name="penalty_currency" class="form-select form-select-lg"><option>UGX</option><option>USD</option></select></div>
+            <div class="col-md-6"><label class="form-label">Location</label><input name="violation_location" class="form-control form-control-lg" required></div>
+            <div class="col-12"><label class="form-label">Description</label><textarea name="violation_description" rows="4" class="form-control" required></textarea></div>
+            <div class="col-12"><button class="btn btn-danger btn-touch">Issue Violation</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

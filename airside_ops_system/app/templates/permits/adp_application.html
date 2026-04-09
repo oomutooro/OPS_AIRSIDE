@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}ADP Application (Form 17){% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Form 17 - Airside Driving Permit Application</div>
+    <div class="card-body">
+        <form method="post" class="row g-3 signature-enabled-form">
+            <div class="col-md-4"><label class="form-label">Applicant Name</label><input name="applicant_name" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Badge</label><input name="applicant_badge" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Company</label><select name="company_id" class="form-select form-select-lg">{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+            <div class="col-md-6"><label class="form-label">National Driving License No</label><input name="national_driving_license_no" class="form-control form-control-lg"></div>
+            <div class="col-md-6"><label class="form-label">License Expiry</label><input type="date" name="ndl_expiry" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Theory Score (%)</label><input type="number" name="theory_test_score" class="form-control form-control-lg" min="0" max="100"></div>
+            <div class="col-md-3 d-flex align-items-end"><div class="form-check"><input type="checkbox" class="form-check-input" id="practicalPass" name="practical_test_passed"><label class="form-check-label" for="practicalPass">Practical Passed</label></div></div>
+            <div class="col-md-6"><label class="form-label">Vehicle Categories</label><select name="vehicle_categories" class="form-select form-select-lg" multiple><option value="brown">BROWN</option><option value="green">GREEN</option><option value="blue">BLUE</option><option value="red">RED</option></select></div>
+            <div class="col-md-6"><label class="form-label">Sponsor Name</label><input name="sponsor_name" class="form-control form-control-lg"></div>
+            <div class="col-md-6"><label class="form-label">Sponsor Title</label><input name="sponsor_title" class="form-control form-control-lg"></div>
+            <div class="col-12">
+                <label class="form-label">Applicant Signature</label>
+                <canvas class="signature-pad border rounded w-100" data-target="applicant_signature" height="150"></canvas>
+                <input type="hidden" name="applicant_signature">
+            </div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Submit ADP Application</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

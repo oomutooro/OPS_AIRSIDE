@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Custom Report Builder{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Custom Report Builder</div>
+    <div class="card-body row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Form Type</label>
+            <select class="form-select form-select-lg" id="reportFormType">
+                {% for t in templates %}
+                <option value="{{ t.form_number }}">Form {{ t.form_number }} - {{ t.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4"><label class="form-label">From</label><input type="date" class="form-control form-control-lg"></div>
+        <div class="col-md-4"><label class="form-label">To</label><input type="date" class="form-control form-control-lg"></div>
+        <div class="col-12 d-flex gap-2">
+            <a class="btn btn-outline-primary btn-touch" href="{{ url_for('report.export_submissions_csv') }}">Export CSV</a>
+            <a class="btn btn-outline-success btn-touch" href="{{ url_for('report.export_submissions_excel') }}">Export Excel</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}User Management{% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+	<div class="card-header">Create User</div>
+	<div class="card-body">
+		<form method="post" class="row g-3">
+			<div class="col-md-3"><input name="username" class="form-control form-control-lg" placeholder="Username" required></div>
+			<div class="col-md-3"><input name="full_name" class="form-control form-control-lg" placeholder="Full Name" required></div>
+			<div class="col-md-3"><input name="email" type="email" class="form-control form-control-lg" placeholder="Email" required></div>
+			<div class="col-md-3"><input name="badge_number" class="form-control form-control-lg" placeholder="Badge"></div>
+			<div class="col-md-3"><input name="department" class="form-control form-control-lg" placeholder="Department"></div>
+			<div class="col-md-3">
+				<select name="role" class="form-select form-select-lg">
+					{% for role in assignable_roles %}
+					<option value="{{ role }}">{{ role_labels[role] }}</option>
+					{% endfor %}
+				</select>
+			</div>
+			<div class="col-md-3"><input name="password" type="password" class="form-control form-control-lg" placeholder="Password" required></div>
+			<div class="col-md-3 d-flex align-items-center"><div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="is_active" id="create_is_active" checked><label class="form-check-label" for="create_is_active">Active</label></div></div>
+			<div class="col-12"><button class="btn btn-primary btn-touch">Create User</button></div>
+		</form>
+	</div>
+</div>
+<div class="card panel-card">
+	<div class="card-header">Users</div>
+	<div class="card-body table-responsive">
+		<table class="table table-striped align-middle">
+			<thead>
+				<tr>
+					<th>Username</th>
+					<th>Name</th>
+					<th>Role</th>
+					<th>Email</th>
+					<th>Status</th>
+					<th class="text-end">Action</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for u in users %}
+				<tr>
+					<td>{{ u.username }}</td>
+					<td>{{ u.full_name }}</td>
+					<td>{{ role_labels.get(u.role, u.role|title) }}</td>
+					<td>{{ u.email }}</td>
+					<td>{{ 'Active' if u.is_active else 'Inactive' }}</td>
+					<td class="text-end">
+						{% if current_user.role == 'admin' or u.role != 'admin' %}
+						<a href="{{ url_for('admin.edit_user', user_id=u.id) }}" class="btn btn-sm btn-outline-primary">Edit Rights</a>
+						{% else %}
+						<span class="text-muted small">Admin only</span>
+						{% endif %}
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+</div>
+{% endblock %}

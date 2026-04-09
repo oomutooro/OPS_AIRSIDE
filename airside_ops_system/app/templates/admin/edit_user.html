@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}Edit User Rights{% endblock %}
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card panel-card">
+            <div class="card-header">Edit User Rights</div>
+            <div class="card-body">
+                <form method="post" class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Username</label>
+                        <input name="username" class="form-control form-control-lg" value="{{ user.username }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Full Name</label>
+                        <input name="full_name" class="form-control form-control-lg" value="{{ user.full_name }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email</label>
+                        <input name="email" type="email" class="form-control form-control-lg" value="{{ user.email }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Badge Number</label>
+                        <input name="badge_number" class="form-control form-control-lg" value="{{ user.badge_number or '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Department</label>
+                        <input name="department" class="form-control form-control-lg" value="{{ user.department or '' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">System Role</label>
+                        <select name="role" class="form-select form-select-lg">
+                            {% for role in assignable_roles %}
+                            <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role_labels[role] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Reset Password</label>
+                        <input name="password" type="password" class="form-control form-control-lg" placeholder="Leave blank to keep current password">
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="is_active" {% if user.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Account is active</label>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex gap-2">
+                        <button class="btn btn-primary btn-touch">Save Changes</button>
+                        <a href="{{ url_for('admin.user_management') }}" class="btn btn-outline-secondary btn-touch">Back to Users</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card panel-card">
+            <div class="card-header">Role Guide</div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>Operator</strong>: AOO / OO form entry and routine operations.</li>
+                    <li><strong>Inspector</strong>: SOO field oversight, inspections, incidents, violations.</li>
+                    <li><strong>Auditor</strong>: Principal review and reporting access.</li>
+                    <li><strong>Supervisor</strong>: Manager approvals, roster control, operational administration.</li>
+                    <li><strong>Admin</strong>: System administration only.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

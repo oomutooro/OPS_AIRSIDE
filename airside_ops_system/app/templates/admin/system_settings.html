@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}System Settings{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">System Settings</div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">Session Timeout (minutes)</label><input class="form-control form-control-lg" value="30" disabled></div>
+            <div class="col-md-6"><label class="form-label">Default Rate Limit</label><input class="form-control form-control-lg" value="100 requests/min" disabled></div>
+            <div class="col-12"><div class="alert alert-info">This page provides structure for production settings integration.</div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

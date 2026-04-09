@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Incident Report (Form 10){% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Form 10 - Airside Incident Report</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Occurrence Date</label><input type="date" name="occurrence_date" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Type</label><select name="incident_type" class="form-select form-select-lg"><option>incident</option><option>accident</option><option>near_miss</option><option>runway_incursion</option></select></div>
+            <div class="col-md-4"><label class="form-label">Severity</label><select name="severity" class="form-select form-select-lg"><option>minor</option><option>moderate</option><option>major</option><option>critical</option></select></div>
+            <div class="col-12"><label class="form-label">Location</label><input name="location" class="form-control form-control-lg" required></div>
+            <div class="col-12"><label class="form-label">Description</label><textarea name="description" rows="4" class="form-control" required></textarea></div>
+            <div class="col-12"><label class="form-label">Sequence of Events</label><textarea name="sequence_of_events" rows="4" class="form-control"></textarea></div>
+            <div class="col-12"><label class="form-label">Immediate Actions</label><textarea name="immediate_actions" rows="3" class="form-control"></textarea></div>
+            <div class="col-12"><button class="btn btn-warning btn-touch">Submit Incident Report</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

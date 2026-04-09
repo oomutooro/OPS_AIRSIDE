@@ -1,0 +1,16 @@
+#airsideMap {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.widget-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.weather-widget {
+  background: linear-gradient(135deg, #0ea5e9, #1d4ed8);
+  color: #fff;
+}

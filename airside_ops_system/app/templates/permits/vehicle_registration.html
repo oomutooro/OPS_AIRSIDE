@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Vehicle Registration{% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header">Airside Vehicle Registration</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-3"><label class="form-label">Registration</label><input name="registration" class="form-control form-control-lg" required></div>
+            <div class="col-md-3"><label class="form-label">Call Sign</label><input name="call_sign" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Company</label><select name="company_id" class="form-select form-select-lg">{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+            <div class="col-md-3"><label class="form-label">Vehicle Type</label><input name="vehicle_type" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Model</label><input name="make_model" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Colour</label><input name="colour" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Beacon</label><select name="beacon_colour" class="form-select form-select-lg"><option>yellow</option><option>blue</option></select></div>
+            <div class="col-md-3"><label class="form-label">ADP Code</label><select name="adp_code" class="form-select form-select-lg"><option>brown</option><option>green</option><option>blue</option><option>red</option></select></div>
+            <div class="col-md-6"><label class="form-label">ESSAT Sticker No</label><input name="essat_sticker_no" class="form-control form-control-lg"></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Register Vehicle</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

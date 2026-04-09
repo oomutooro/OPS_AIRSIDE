@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}FOD Walk Schedule{% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header">Schedule Quarterly FOD Walk</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Walk Date</label><input type="date" name="walk_date" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Quarter</label><select name="quarter" class="form-select form-select-lg"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
+            <div class="col-md-4"><label class="form-label">Year</label><input type="number" name="year" class="form-control form-control-lg" value="2026"></div>
+            <div class="col-12"><label class="form-label">Areas Covered</label><input name="areas_covered" class="form-control form-control-lg" placeholder="Apron 1, Taxiway A1, Runway 17/35"></div>
+            <div class="col-12"><button class="btn btn-success btn-touch">Schedule FOD Walk</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

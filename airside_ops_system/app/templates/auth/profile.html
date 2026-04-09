@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">My Profile</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Full Name</label>
+                <input name="full_name" class="form-control form-control-lg" value="{{ current_user.full_name }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <input class="form-control form-control-lg" value="{{ current_user.email }}" disabled>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Phone</label>
+                <input name="phone" class="form-control form-control-lg" value="{{ current_user.phone or '' }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Department</label>
+                <input name="department" class="form-control form-control-lg" value="{{ current_user.department or '' }}">
+            </div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Update Profile</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

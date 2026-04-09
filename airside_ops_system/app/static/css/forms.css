@@ -1,0 +1,37 @@
+.generic-form .card,
+.form-section {
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.form-section-title {
+  font-weight: 700;
+  color: #1e3a8a;
+  margin-bottom: 0.5rem;
+}
+
+.progress-form {
+  height: 8px;
+}
+
+.validation-ok {
+  border-color: #22c55e !important;
+}
+
+.validation-bad {
+  border-color: #ef4444 !important;
+}
+
+.signature-pad {
+  touch-action: none;
+  background: #f8fafc;
+}
+
+.conditional-field {
+  display: none;
+}
+
+.conditional-field.active {
+  display: block;
+}

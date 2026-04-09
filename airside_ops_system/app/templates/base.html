@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#1a56db">
+    <title>{% block title %}Airside Ops System{% endblock %}</title>
+
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+    <link rel="icon" href="{{ url_for('static', filename='images/logo.svg') }}">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}" media="print">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app-shell">
+    <nav class="topbar navbar navbar-expand-lg">
+        <div class="container-fluid">
+            <button class="btn btn-outline-light d-lg-none me-2" id="sidebarToggle" type="button">
+                <i class="fa fa-bars"></i>
+            </button>
+            <a class="navbar-brand text-white fw-bold" href="{{ url_for('dashboard.index') }}">
+                <i class="fa-solid fa-plane-departure me-2"></i>{{ app_name }}
+            </a>
+            <div class="d-flex align-items-center gap-3 ms-auto">
+                {% if current_user.is_authenticated %}
+                <div class="text-white small d-none d-md-block">
+                    <div>Shift: <span class="fw-bold" id="currentShiftLabel">Current Shift</span></div>
+                </div>
+                <button class="btn btn-sm btn-light position-relative" id="notificationBtn">
+                    <i class="fa fa-bell"></i>
+                    {% if unread_notifications > 0 %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ unread_notifications }}</span>
+                    {% endif %}
+                </button>
+                <div class="dropdown">
+                    <button class="btn btn-light btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fa fa-user-circle me-1"></i>{{ current_user.full_name }}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Profile</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.two_factor') }}">Two-Factor</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-layout">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">Operations Menu</div>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('dashboard.index') }}"><i class="fa fa-gauge me-2"></i>Dashboard</a>
+
+                <div class="menu-group">Apron Management</div>
+                <a href="{{ url_for('apron.stand_allocation') }}">Stand Allocation</a>
+                <a href="{{ url_for('apron.shift_handover') }}">Shift Handover (Form 2)</a>
+                {% if current_user.role in ['admin', 'supervisor'] %}<a href="{{ url_for('apron.shift_roster') }}"><i class="fa fa-calendar-alt me-2"></i>Shift Roster</a>{% endif %}
+                <a href="{{ url_for('apron.staff_deployment') }}">Staff Deployment (Form 23)</a>
+                <a href="{{ url_for('apron.tpbb_operations') }}">TPBB Ops (Form 5)</a>
+
+                <div class="menu-group">Inspections</div>
+                <a href="{{ url_for('inspection.form_list') }}">All Inspection Forms</a>
+                <a href="{{ url_for('inspection.generic_form', form_number=18) }}">ESSAT Motorised (Form 18)</a>
+                <a href="{{ url_for('inspection.generic_form', form_number=22) }}">Fueling Safety (Form 22)</a>
+
+                <div class="menu-group">Safety</div>
+                <a href="{{ url_for('safety.incident_report') }}">Incident Report (Form 10)</a>
+                <a href="{{ url_for('safety.incident_investigation') }}">Investigation (Form 11)</a>
+                <a href="{{ url_for('safety.violation_form') }}">Violation Form (Form 15)</a>
+                <a href="{{ url_for('safety.spot_check') }}">Spot Check (Form 16)</a>
+
+                <div class="menu-group">Permits</div>
+                <a href="{{ url_for('permit.adp_application') }}">ADP Application (Form 17)</a>
+                <a href="{{ url_for('permit.adp_renewal') }}">ADP Renewal</a>
+                <a href="{{ url_for('permit.vehicle_registration') }}">Vehicle Registration</a>
+                <a href="{{ url_for('permit.company_management') }}">Company Management</a>
+
+                <div class="menu-group">Reports</div>
+                <a href="{{ url_for('report.daily_ops_report') }}">Daily Ops Report (Form 12)</a>
+                <a href="{{ url_for('report.analytics_dashboard') }}">Analytics Dashboard</a>
+                <a href="{{ url_for('report.custom_report_builder') }}">Custom Reports</a>
+
+                {% if current_user.is_authenticated and current_user.role in ['admin', 'supervisor', 'auditor', 'inspector'] %}
+                <div class="menu-group">Admin</div>
+                <a href="{{ url_for('admin.user_management') }}">User Management</a>
+                {% endif %}
+
+                {% if current_user.is_authenticated and current_user.role in ['admin', 'supervisor'] %}
+                <a href="{{ url_for('admin.reference_data') }}">Reference Data</a>
+                <a href="{{ url_for('admin.form_builder') }}">Form Builder</a>
+                <a href="{{ url_for('admin.system_settings') }}">System Settings</a>
+                {% endif %}
+            </nav>
+        </aside>
+
+        <main class="content-area">
+            <div class="container-fluid py-3">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/dropzone@6.0.0-beta.2/dist/dropzone-min.js"></script>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ url_for('static', filename='js/form_validation.js') }}"></script>
+<script src="{{ url_for('static', filename='js/signature_pad.js') }}"></script>
+<script src="{{ url_for('static', filename='js/offline_sync.js') }}"></script>
+<script src="{{ url_for('static', filename='js/camera_capture.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gps_tracker.js') }}"></script>
+<script>
+    (function () {
+        const csrfToken = "{{ csrf_token() }}";
+        if (!csrfToken) return;
+
+        document.querySelectorAll('form').forEach(function (form) {
+            const method = (form.getAttribute('method') || 'get').toLowerCase();
+            if (method !== 'post') return;
+            if (form.querySelector('input[name="csrf_token"]')) return;
+
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'csrf_token';
+            input.value = csrfToken;
+            form.appendChild(input);
+        });
+    })();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

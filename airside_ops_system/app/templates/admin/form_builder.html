@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Form Builder{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Form Template Builder</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Template</label><select name="template_id" class="form-select form-select-lg">{% for t in templates %}<option value="{{ t.id }}">Form {{ t.form_number }} - {{ t.title }}</option>{% endfor %}</select></div>
+            <div class="col-md-4"><label class="form-label">Version</label><input name="version" class="form-control form-control-lg" placeholder="1.0"></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Update Template</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

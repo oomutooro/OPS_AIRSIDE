@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - Airside Ops{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-blue">
+            <div class="kpi-label">Today's Movements</div>
+            <div class="kpi-value">{{ kpis.today_movements }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-gold">
+            <div class="kpi-label">Active Inspections</div>
+            <div class="kpi-value">{{ kpis.active_inspections }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-red">
+            <div class="kpi-label">Pending Violations</div>
+            <div class="kpi-value">{{ kpis.pending_violations }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="kpi-card kpi-green">
+            <div class="kpi-label">FOD Collected (kg)</div>
+            <div class="kpi-value">{{ kpis.fod_collected_kg }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><a class="btn btn-primary w-100 btn-touch" href="{{ url_for('inspection.generic_form', form_number=18) }}">New ESSAT Inspection</a></div>
+    <div class="col-6 col-md-3"><a class="btn btn-warning w-100 btn-touch" href="{{ url_for('safety.incident_report') }}">Report Incident</a></div>
+    <div class="col-6 col-md-3"><a class="btn btn-danger w-100 btn-touch" href="{{ url_for('safety.violation_form') }}">File Violation</a></div>
+    <div class="col-6 col-md-3"><a class="btn btn-success w-100 btn-touch" href="{{ url_for('inspection.generic_form', form_number=21) }}">Start FOD Walk</a></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card panel-card h-100">
+            <div class="card-header">Weekly Incident Trends</div>
+            <div class="card-body"><canvas id="incidentTrendChart" height="120"></canvas></div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card panel-card h-100">
+            <div class="card-header">ESSAT Compliance</div>
+            <div class="card-body d-flex align-items-center justify-content-center">
+                <div class="display-5 fw-bold text-success">{{ kpis.essat_compliance_rate }}%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card panel-card">
+            <div class="card-header">Recent Submissions</div>
+            <div class="card-body table-responsive">
+                <table class="table table-hover" id="recentSubmissionsTable">
+                    <thead><tr><th>Ref</th><th>Form</th><th>Status</th><th>Location</th><th>Date</th></tr></thead>
+                    <tbody>
+                    {% for s in recent_submissions %}
+                    <tr>
+                        <td>{{ s.reference_number or ('SUB-' ~ s.id) }}</td>
+                        <td>{{ s.template.form_number if s.template else '-' }}</td>
+                        <td>{{ s.status }}</td>
+                        <td>{{ s.location_ref or '-' }}</td>
+                        <td>{{ s.created_at|datetime_fmt }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card panel-card mb-3">
+            <div class="card-header">Current Shift</div>
+            <div class="card-body">
+                {% if current_shift %}
+                <div class="fw-bold">{{ current_shift.shift_type|title }} Shift</div>
+                <div>Date: {{ current_shift.shift_date|date_fmt }}</div>
+                <div>Leader: {{ current_shift.leader_name or 'Unassigned' }}</div>
+                <div>Status: {{ current_shift.status }}</div>
+                {% else %}
+                <div class="text-muted">No active shift found.</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card panel-card">
+            <div class="card-header">Airside Activity Map</div>
+            <div class="card-body"><div id="airsideMap" style="height: 220px;"></div></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Daily Operations Report (Form 12){% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header">Form 12 - Airside Daily Operational Report</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Shift Date</label><input type="date" name="shift_date" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Shift Type</label><select name="shift_type" class="form-select form-select-lg"><option>day</option><option>night</option></select></div>
+            <div class="col-md-4"><label class="form-label">Attendance Count</label><input type="number" name="attendance_count" class="form-control form-control-lg"></div>
+            <div class="col-12"><label class="form-label">Operational Issues</label><textarea name="issues" class="form-control" rows="4"></textarea></div>
+            <div class="col-12"><label class="form-label">Incidents Summary</label><textarea name="incidents_summary" class="form-control" rows="4"></textarea></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Submit Daily Report</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

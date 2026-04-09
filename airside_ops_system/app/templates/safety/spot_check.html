@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}On Spot Report (Form 16){% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Form 16 - On Spot Equipment and Personnel Report</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Offender Name</label><input name="offender_name" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Offender Badge</label><input name="offender_badge" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Vehicle</label><input name="vehicle_registration" class="form-control form-control-lg"></div>
+            <div class="col-md-6"><label class="form-label">Location</label><input name="location" class="form-control form-control-lg"></div>
+            <div class="col-12"><label class="form-label">Observation</label><textarea name="observation" rows="4" class="form-control"></textarea></div>
+            <div class="col-12"><button class="btn btn-danger btn-touch">Submit Spot Check</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

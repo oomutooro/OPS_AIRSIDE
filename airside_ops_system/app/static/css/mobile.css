@@ -1,0 +1,35 @@
+@media (max-width: 768px) {
+  .container-fluid {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .card-header {
+    font-size: 1rem;
+  }
+
+  .table {
+    font-size: 0.9rem;
+  }
+
+  .kpi-value {
+    font-size: 1.5rem;
+  }
+
+  .btn,
+  .form-control,
+  .form-select {
+    font-size: 16px !important;
+  }
+}
+
+@media (pointer: coarse) {
+  .btn, .form-control, .form-select {
+    min-height: 48px;
+  }
+
+  .sidebar-nav a {
+    padding-top: 0.85rem;
+    padding-bottom: 0.85rem;
+  }
+}

@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block title %}Shift Roster Management{% endblock %}
+{% block content %}
+
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card panel-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fa fa-calendar-alt me-2"></i>Shift Roster Management</span>
+        <small class="text-muted">Cycle: Day → Night → Off → Off (repeat)</small>
+      </div>
+      <div class="card-body">
+        <form method="post" class="row g-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-md-3">
+            <label class="form-label">Roster Start Date</label>
+            <input type="date" name="start_date" class="form-control form-control-lg" required value="{{ target_date.isoformat() }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Roster End Date</label>
+            <input type="date" name="end_date" class="form-control form-control-lg" required value="{{ target_date.isoformat() }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">First Day of Cycle</label>
+            <select name="start_cycle" class="form-select form-select-lg">
+              <option value="day">Day Shift</option>
+              <option value="night">Night Shift</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Personnel</label>
+            <select name="user_ids" class="form-select form-select-lg" multiple size="5" style="min-height:56px;" required>
+              {% for u in users %}
+              <option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }}) — {{ u.role }}</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Hold Ctrl/Cmd to select multiple</small>
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="overwrite_existing" id="overwrite">
+              <label class="form-check-label" for="overwrite">Overwrite existing roster entries for the selected period</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary btn-touch"><i class="fa fa-magic me-2"></i>Generate Roster</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card panel-card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Roster for {{ target_date.strftime('%A, %d %B %Y') }}</span>
+        <form method="get" class="d-flex gap-2 align-items-center mb-0">
+          <input type="date" name="date" class="form-control form-control-sm" value="{{ target_date.isoformat() }}">
+          <button class="btn btn-sm btn-outline-primary">View</button>
+        </form>
+      </div>
+      <div class="card-body table-responsive">
+        {% if roster_entries %}
+        <table class="table table-sm table-hover" id="rosterTable">
+          <thead>
+            <tr>
+              <th>Officer</th>
+              <th>Badge</th>
+              <th>Role</th>
+              <th>Duty Type</th>
+              <th>Cycle Day</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in roster_entries %}
+            <tr>
+              <td>{{ entry.user.full_name }}</td>
+              <td>{{ entry.user.badge_number or '-' }}</td>
+              <td><span class="badge bg-secondary">{{ entry.user.role }}</span></td>
+              <td>
+                {% if entry.duty_type == 'day' %}<span class="badge bg-warning text-dark"><i class="fa fa-sun me-1"></i>Day</span>
+                {% elif entry.duty_type == 'night' %}<span class="badge bg-dark"><i class="fa fa-moon me-1"></i>Night</span>
+                {% else %}<span class="badge bg-light text-muted"><i class="fa fa-bed me-1"></i>Off</span>{% endif %}
+              </td>
+              <td>{{ ['Day', 'Night', 'Off', 'Off'][entry.cycle_day_index] }} ({{ entry.cycle_day_index + 1 }}/4)</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-info">No roster entries found for {{ target_date.strftime('%d %B %Y') }}. Use the form above to generate a roster.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card panel-card">
+  <div class="card-header"><i class="fa fa-info-circle me-2"></i>Duty Cycle Reference</div>
+  <div class="card-body">
+    <table class="table table-sm table-bordered w-auto">
+      <thead><tr><th>Cycle Day</th><th>Type</th><th>Hours</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><span class="badge bg-warning text-dark">Day</span></td><td>06:00 – 18:00</td></tr>
+        <tr><td>2</td><td><span class="badge bg-dark">Night</span></td><td>18:00 – 06:00 (+1)</td></tr>
+        <tr><td>3</td><td><span class="badge bg-light text-muted">Off</span></td><td>Rest day after night duty</td></tr>
+        <tr><td>4</td><td><span class="badge bg-light text-muted">Off</span></td><td>Full off day</td></tr>
+      </tbody>
+    </table>
+    <p class="text-muted small mt-2">After day 4, the cycle repeats from day 1. Officers must be rostered for their duty type before they can sign or fill forms for that shift.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>$(document).ready(function() { $('#rosterTable').DataTable({pageLength: 25}); });</script>
+{% endblock %}

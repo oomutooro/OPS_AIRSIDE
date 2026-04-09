@@ -1,0 +1,21 @@
+@media print {
+  .topbar,
+  .sidebar,
+  .btn,
+  .no-print {
+    display: none !important;
+  }
+
+  .main-layout,
+  .content-area,
+  .container-fluid {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  .card {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+}

@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %}Form {{ form_number }} - {{ schema.title }}{% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+  <div class="card-header">Form {{ form_number }} - {{ schema.title }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-3 generic-form signature-enabled-form" enctype="multipart/form-data">
+      <div class="col-md-3"><label class="form-label">Date</label><input type="date" name="inspection_date" class="form-control form-control-lg" required></div>
+      <div class="col-md-3"><label class="form-label">Time</label><input type="time" name="inspection_time" class="form-control form-control-lg" required></div>
+      <div class="col-md-3"><label class="form-label">Location</label><input name="location_ref" class="form-control form-control-lg" required></div>
+      <div class="col-md-3"><label class="form-label">Status</label><select name="status" class="form-select form-select-lg"><option value="draft">Draft</option><option value="submitted" selected>Submitted</option></select></div>
+
+      {% for section in schema.sections %}
+      <div class="col-12">
+        <div class="form-section p-3">
+          <div class="form-section-title">{{ section.name }}</div>
+          {% if section.fields %}
+          <div class="row g-2">
+            {% for field in section.fields %}
+            <div class="col-md-4">
+              <label class="form-label">{{ field.replace('_', ' ').title() }}</label>
+              <input name="{{ field }}" class="form-control form-control-lg">
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if section.checklist %}
+          <div class="row g-2 mt-1">
+            {% for item in section.checklist %}
+            <div class="col-md-6">
+              <div class="border rounded p-2">
+                <div class="small fw-semibold">{{ item }}</div>
+                <div class="d-flex gap-2 mt-2">
+                  <select name="check_{{ loop.index0 }}_{{ section.name|replace(' ', '_') }}" class="form-select form-select-lg">
+                    <option value="GOOD">GOOD</option>
+                    <option value="FAIR">FAIR</option>
+                    <option value="BAD">BAD</option>
+                    {% if section.scale == '1-5' %}
+                    <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                    {% endif %}
+                  </select>
+                  <input name="remark_{{ loop.index0 }}_{{ section.name|replace(' ', '_') }}" class="form-control form-control-lg" placeholder="Remark">
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="col-md-4"><label class="form-label">Weather</label><input name="weather" class="form-control form-control-lg"></div>
+      <div class="col-md-4"><label class="form-label">Photo Evidence</label><input type="file" name="photo" class="form-control form-control-lg" accept="image/*" capture="environment"></div>
+      <div class="col-md-2"><label class="form-label">Latitude</label><input name="gps_latitude" class="form-control form-control-lg gps-lat" readonly></div>
+      <div class="col-md-2"><label class="form-label">Longitude</label><input name="gps_longitude" class="form-control form-control-lg gps-lng" readonly></div>
+
+      <div class="col-12">
+        <label class="form-label">Inspector Signature</label>
+        <canvas class="signature-pad border rounded w-100" data-target="signature_data" height="140"></canvas>
+        <input type="hidden" name="signature_data">
+      </div>
+
+      <div class="col-12 d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-touch btn-capture-gps">Capture GPS</button>
+        <button type="button" class="btn btn-outline-info btn-touch btn-save-draft">Save Draft</button>
+        <button class="btn btn-primary btn-touch">Submit Form</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card panel-card">
+  <div class="card-header">Recent Entries</div>
+  <div class="card-body table-responsive">
+    <table class="table table-sm table-hover">
+      <thead><tr><th>Reference</th><th>Status</th><th>Location</th><th>Date</th></tr></thead>
+      <tbody>
+      {% for s in recent %}
+      <tr><td>{{ s.reference_number or ('SUB-' ~ s.id) }}</td><td>{{ s.status }}</td><td>{{ s.location_ref }}</td><td>{{ s.created_at|datetime_fmt }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

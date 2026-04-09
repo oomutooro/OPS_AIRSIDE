@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Company Management{% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header">Register Company</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-4"><label class="form-label">Name</label><input name="name" class="form-control form-control-lg" required></div>
+            <div class="col-md-2"><label class="form-label">Code</label><input name="code" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Type</label><select name="company_type" class="form-select form-select-lg"><option>airline</option><option>GHA</option><option>fuel</option><option>catering</option><option>maintenance</option><option>security</option></select></div>
+            <div class="col-md-3"><label class="form-label">Contact Person</label><input name="contact_person" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Phone</label><input name="phone" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Email</label><input name="email" class="form-control form-control-lg"></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Create Company</button></div>
+        </form>
+    </div>
+</div>
+<div class="card panel-card">
+    <div class="card-header">Companies</div>
+    <div class="card-body table-responsive">
+        <table class="table table-striped" id="companiesTable"><thead><tr><th>Name</th><th>Type</th><th>Contact</th><th>Status</th></tr></thead><tbody>{% for c in companies %}<tr><td>{{ c.name }}</td><td>{{ c.company_type }}</td><td>{{ c.contact_person or '-' }}</td><td>{{ 'Active' if c.is_active else 'Inactive' }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Reference Data{% endblock %}
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-4"><div class="card panel-card"><div class="card-header">Companies</div><div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>{% for c in companies %}<tr><td>{{ c.name }}</td><td>{{ c.company_type }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+    <div class="col-lg-4"><div class="card panel-card"><div class="card-header">Locations</div><div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Code</th><th>Zone</th></tr></thead><tbody>{% for l in locations %}<tr><td>{{ l.code }}</td><td>{{ l.zone }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+    <div class="col-lg-4"><div class="card panel-card"><div class="card-header">Parking Stands</div><div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Stand</th><th>Apron</th></tr></thead><tbody>{% for s in stands %}<tr><td>{{ s.stand_code }}</td><td>{{ s.apron }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+</div>
+{% endblock %}

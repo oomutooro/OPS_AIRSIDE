@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Staff Deployment (Form 23){% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">Form 23 - Staff Deployment / Parking Plan</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-3"><label class="form-label">Shift Date</label><input type="date" name="shift_date" class="form-control form-control-lg" required></div>
+            <div class="col-md-3"><label class="form-label">Shift</label><select name="shift_type" class="form-select form-select-lg"><option>day</option><option>night</option></select></div>
+            <div class="col-md-3"><label class="form-label">Scheduled Movements</label><input type="number" name="scheduled_movements" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Non-Scheduled Movements</label><input type="number" name="non_scheduled_movements" class="form-control form-control-lg"></div>
+            <div class="col-12"><label class="form-label">Deployed Officers (comma-separated)</label><input name="deployed_officers" class="form-control form-control-lg"></div>
+            <div class="col-12"><label class="form-label">Other Deployments</label><textarea name="other_deployments" class="form-control" rows="4"></textarea></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Submit Deployment</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}
