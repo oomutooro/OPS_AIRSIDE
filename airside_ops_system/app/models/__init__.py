@@ -6,6 +6,7 @@ from app.models.inspection import ESSTATMotorisedInspection, ESSTATNonMotorisedI
 from app.models.permit import ADPApplication, ADPPermit
 from app.models.incident import Incident, Violation, ViolationType
 from app.models.apron import Shift, ShiftRoster, HandoverReport, StandAllocation
+from app.models.flight import FlightMovement
 
 __all__ = [
     'User', 'Role',
@@ -15,4 +16,5 @@ __all__ = [
     'ScheduledInspection', 'ADPApplication', 'ADPPermit',
     'Incident', 'Violation', 'ViolationType',
     'Shift', 'ShiftRoster', 'HandoverReport', 'StandAllocation',
+    'FlightMovement',
 ]

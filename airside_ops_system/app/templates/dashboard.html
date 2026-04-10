@@ -218,6 +218,42 @@
 </div>
 
 <div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Today's Flights — AODB Live Schedule</span>
+                <div class="d-flex gap-2 align-items-center">
+                    {% if last_sync %}<small class="text-muted">Synced {{ last_sync|datetime_fmt }}</small>{% endif %}
+                    <a href="{{ url_for('apron.aodb_sync') }}" class="btn btn-sm btn-outline-primary">Sync AODB</a>
+                </div>
+            </div>
+            <div class="card-body table-responsive p-0" style="max-height:280px;overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr><th>Type</th><th>Flight</th><th>Airline</th><th>Route</th><th>Stand</th><th>Scheduled</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for f in today_flights %}
+                        <tr>
+                            <td><span class="badge {% if f.arr_or_dep == 'ARR' %}bg-info{% else %}bg-warning text-dark{% endif %}">{{ f.arr_or_dep }}</span></td>
+                            <td><strong>{{ f.flight_number or '-' }}</strong></td>
+                            <td>{{ f.airline_name or '-' }}</td>
+                            <td>{% if f.arr_or_dep == 'ARR' %}{{ f.origin_airport or '?' }} → EBB{% else %}EBB → {{ f.destination_airport or '?' }}{% endif %}</td>
+                            <td>{{ f.stand or '—' }}</td>
+                            <td>{{ f.scheduled_datetime.strftime('%H:%M') if f.scheduled_datetime else '—' }}</td>
+                            <td><span class="badge bg-secondary">{{ f.operation_status or '—' }}</span></td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-2">No AODB data for today. <a href="{{ url_for('apron.aodb_sync') }}">Run a sync</a>.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
     <div class="col-lg-8">
         <div class="card panel-card h-100">
             <div class="card-header">Weekly Incident Trends</div>

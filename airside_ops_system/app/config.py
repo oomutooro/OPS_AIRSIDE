@@ -73,6 +73,14 @@ class Config:
     # Two-factor auth
     TOTP_ISSUER = 'EBB Airside Ops'
 
+    # AODB REST API integration
+    AODB_BASE_URL = os.environ.get('AODB_BASE_URL', 'http://localhost:8080')
+    AODB_USER_ID  = os.environ.get('AODB_USER_ID', 'placeholder_user')
+    AODB_PASSWORD = os.environ.get('AODB_PASSWORD', 'placeholder_password')
+    AODB_TIMEOUT_SECONDS = int(os.environ.get('AODB_TIMEOUT_SECONDS', 30))
+    # Sync interval in minutes (APScheduler)
+    AODB_SYNC_INTERVAL_MINUTES = int(os.environ.get('AODB_SYNC_INTERVAL_MINUTES', 15))
+
 
 class DevelopmentConfig(Config):
     """Development configuration."""

@@ -6,6 +6,8 @@ from app.services.pdf_generator import PDFGeneratorService
 from app.services.scheduler_service import SchedulerService
 from app.services.validation_service import ValidationService
 from app.services.workflow_service import WorkflowService
+from app.services.aodb_client import AodbClient
+from app.services.aodb_sync import AodbSyncService
 
 __all__ = [
     'AnalyticsService',
@@ -15,4 +17,6 @@ __all__ = [
     'SchedulerService',
     'ValidationService',
     'WorkflowService',
+    'AodbClient',
+    'AodbSyncService',
 ]

@@ -2,14 +2,16 @@
 Apron management routes: stand allocation, shift handover, staff deployment, TPBB ops.
 """
 from datetime import date, datetime, timedelta
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from app import db
 from app.models.apron import StandAllocation, Shift, ShiftRoster, HandoverReport
 from app.models.reference import ParkingStand
 from app.models.user import User
 from app.models.form import FormSubmission, FormTemplate
+from app.models.flight import FlightMovement
 from app.services.workflow_service import WorkflowService
+from app.services.aodb_sync import AodbSyncService
 from app.utils.decorators import role_required
 
 apron_bp = Blueprint('apron', __name__)
@@ -63,7 +65,74 @@ def stand_allocation():
 
     stands = ParkingStand.query.filter_by(is_active=True).order_by(ParkingStand.stand_code).all()
     allocations = StandAllocation.query.order_by(StandAllocation.created_at.desc()).limit(20).all()
-    return render_template('apron/stand_allocation.html', stands=stands, allocations=allocations)
+    alloc_date = _parse_iso_date(request.args.get('date'))
+    aodb_flights = AodbSyncService.flights_for_date(alloc_date)
+    last_sync = AodbSyncService.last_sync_time()
+    return render_template(
+        'apron/stand_allocation.html',
+        stands=stands,
+        allocations=allocations,
+        aodb_flights=aodb_flights,
+        alloc_date=alloc_date,
+        last_sync=last_sync,
+        timedelta=timedelta,
+    )
+
+
+# ---------------------------------------------------------------------------
+# AODB Sync management  (admin/supervisor only)
+# ---------------------------------------------------------------------------
+
+@apron_bp.route('/aodb-sync', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def aodb_sync():
+    """Manual AODB flight data sync page."""
+    sync_result = None
+    if request.method == 'POST':
+        raw_date = request.form.get('sync_date', date.today().isoformat())
+        sync_date = _parse_iso_date(raw_date)
+        sync_result = AodbSyncService.sync_date(sync_date)
+        if sync_result['errors']:
+            flash(f"Sync completed with errors: {'; '.join(sync_result['errors'])}", 'warning')
+        else:
+            flash(
+                f"Sync OK \u2014 {sync_result['arrivals']} arrivals, "
+                f"{sync_result['departures']} departures, "
+                f"{sync_result['upserted']} records upserted.",
+                'success',
+            )
+    last_sync = AodbSyncService.last_sync_time()
+    recent = FlightMovement.query.order_by(FlightMovement.synced_at.desc()).limit(30).all()
+    return render_template(
+        'apron/aodb_sync.html',
+        sync_result=sync_result,
+        last_sync=last_sync,
+        recent=recent,
+        today=date.today().isoformat(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# AODB Flights JSON API  (used by form dropdowns)
+# ---------------------------------------------------------------------------
+
+@apron_bp.route('/api/flights')
+@login_required
+def api_flights():
+    """
+    Return JSON list of flight numbers for a given date.
+    Query params:
+      date=YYYY-MM-DD  (defaults to today)
+      type=arr|dep|all (defaults to all)
+    """
+    raw_date = request.args.get('date', date.today().isoformat())
+    query_date = _parse_iso_date(raw_date)
+    arr_or_dep = (request.args.get('type') or 'all').upper()
+    if arr_or_dep == 'ALL':
+        arr_or_dep = None
+    flights = AodbSyncService.flights_for_date(query_date, arr_or_dep)
+    return jsonify([f.to_dict() for f in flights])
 
 
 @apron_bp.route('/shift-handover', methods=['GET', 'POST'])

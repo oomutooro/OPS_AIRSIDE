@@ -71,7 +71,42 @@ def create_app(config_name='default'):
     with app.app_context():
         db.create_all()
 
+    # Start background scheduler (skip in test mode and reloader parent process)
+    if not app.config.get('TESTING'):
+        _start_aodb_scheduler(app)
+
     return app
+
+
+def _start_aodb_scheduler(app):
+    """Start APScheduler background job for AODB flight sync."""
+    import os
+    # In debug/reloader mode only start in the worker process, not the watcher parent
+    if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        return
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.interval import IntervalTrigger
+        from app.services.aodb_sync import AodbSyncService
+
+        interval_minutes = app.config.get('AODB_SYNC_INTERVAL_MINUTES', 15)
+
+        def _sync_job():
+            with app.app_context():
+                AodbSyncService.scheduled_sync()
+
+        scheduler = BackgroundScheduler(daemon=True)
+        scheduler.add_job(
+            _sync_job,
+            trigger=IntervalTrigger(minutes=interval_minutes),
+            id='aodb_flight_sync',
+            name='AODB Flight Sync',
+            replace_existing=True,
+        )
+        scheduler.start()
+        app.logger.info('AODB flight sync scheduler started (every %d min).', interval_minutes)
+    except Exception as exc:
+        app.logger.warning('Could not start AODB scheduler: %s', exc)
 
 
 def _create_upload_dirs(app):

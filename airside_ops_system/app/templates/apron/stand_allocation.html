@@ -1,21 +1,86 @@
 {% extends 'base.html' %}
 {% block title %}Stand Allocation{% endblock %}
 {% block content %}
+
+{# ── Date navigator ──────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center gap-3 mb-3">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('apron.stand_allocation', date=(alloc_date - timedelta(days=1)).isoformat()) }}">&#8592; Prev</a>
+    <strong>{{ alloc_date.strftime('%A, %d %B %Y') }}</strong>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('apron.stand_allocation', date=(alloc_date + timedelta(days=1)).isoformat()) }}">Next &#8594;</a>
+    {% if last_sync %}
+    <span class="ms-auto text-muted small">AODB last synced: {{ last_sync|datetime_fmt }}</span>
+    {% endif %}
+</div>
+
+{# ── AODB Live Flight Schedule ────────────────────────────────────────── #}
+<div class="card panel-card mb-3">
+    <div class="card-header d-flex justify-content-between">
+        <span>Live Flight Schedule — {{ alloc_date.strftime('%d %b %Y') }}</span>
+        <a href="{{ url_for('apron.aodb_sync') }}" class="btn btn-sm btn-outline-primary">Sync AODB</a>
+    </div>
+    <div class="card-body table-responsive p-0" style="max-height:320px;overflow-y:auto;">
+        <table class="table table-sm table-hover mb-0 sticky-header">
+            <thead class="table-dark">
+                <tr>
+                    <th>Type</th>
+                    <th>Flight</th>
+                    <th>Airline</th>
+                    <th>Route</th>
+                    <th>Stand (AODB)</th>
+                    <th>Scheduled</th>
+                    <th>ETA/ETD</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for f in aodb_flights %}
+                <tr>
+                    <td><span class="badge {% if f.arr_or_dep == 'ARR' %}bg-info{% else %}bg-warning text-dark{% endif %}">{{ f.arr_or_dep }}</span></td>
+                    <td><strong>{{ f.flight_number or '-' }}</strong></td>
+                    <td>{{ f.airline_name or '-' }}</td>
+                    <td>{% if f.arr_or_dep == 'ARR' %}{{ f.origin_airport or '?' }} → EBB{% else %}EBB → {{ f.destination_airport or '?' }}{% endif %}</td>
+                    <td>{{ f.stand or '—' }}</td>
+                    <td>{{ f.scheduled_datetime.strftime('%H:%M') if f.scheduled_datetime else (f.scheduled_date or '-') }}</td>
+                    <td>{{ f.estimated_datetime.strftime('%H:%M') if f.estimated_datetime else '—' }}</td>
+                    <td><span class="badge bg-secondary">{{ f.operation_status or '—' }}</span></td>
+                    <td>
+                        <button class="btn btn-xs btn-outline-primary py-0 px-1 use-flight-btn"
+                                data-flight="{{ f.flight_number or '' }}"
+                                data-stand="{{ f.stand or '' }}"
+                                title="Pre-fill allocation form">&#9654;</button>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-2">No AODB data for this date. <a href="{{ url_for('apron.aodb_sync') }}">Run a sync</a> to populate.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# ── Allocation Form ──────────────────────────────────────────────────── #}
 <div class="card panel-card mb-3">
     <div class="card-header">Aircraft Stand Allocation</div>
     <div class="card-body">
-        <form method="post" class="row g-3">
-            <div class="col-md-3"><label class="form-label">Flight Number</label><input name="flight_number" class="form-control form-control-lg" required></div>
+        <form method="post" class="row g-3" id="allocationForm" data-flight-form>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3"><label class="form-label">Flight Number</label>
+            <input id="inp_flight" name="flight_number" class="form-control form-control-lg" list="flight_numbers_stand" required>
+            <datalist id="flight_numbers_stand" data-aodb-datalist data-aodb-date="{{ alloc_date.isoformat() }}"></datalist>
+            </div>
             <div class="col-md-3"><label class="form-label">Aircraft Registration</label><input name="aircraft_registration" class="form-control form-control-lg"></div>
             <div class="col-md-3"><label class="form-label">Aircraft Type</label><input name="aircraft_type" class="form-control form-control-lg"></div>
             <div class="col-md-3"><label class="form-label">Flight Type</label><select name="flight_type" class="form-select form-select-lg"><option>scheduled</option><option>non_scheduled</option><option>cargo</option><option>vvip</option></select></div>
-            <div class="col-md-4"><label class="form-label">Allocated Stand</label><select name="allocated_stand" class="form-select form-select-lg" required>{% for s in stands %}<option value="{{ s.stand_code }}">{{ s.stand_code }}</option>{% endfor %}</select></div>
+            <div class="col-md-4"><label class="form-label">Allocated Stand</label><select id="inp_stand" name="allocated_stand" class="form-select form-select-lg" required>{% for s in stands %}<option value="{{ s.stand_code }}">{{ s.stand_code }}</option>{% endfor %}</select></div>
             <div class="col-md-4"><label class="form-label">Requested Stand</label><input name="requested_stand" class="form-control form-control-lg"></div>
             <div class="col-md-4 d-flex align-items-end"><div class="form-check"><input type="checkbox" name="requires_follow_me" class="form-check-input" id="followMe"><label class="form-check-label" for="followMe">Follow Me Required</label></div></div>
             <div class="col-12"><button class="btn btn-primary btn-touch">Save Allocation</button></div>
         </form>
     </div>
 </div>
+
+{# ── Recent Allocations ───────────────────────────────────────────────── #}
 <div class="card panel-card">
     <div class="card-header">Recent Allocations</div>
     <div class="card-body table-responsive">
@@ -23,3 +88,4 @@
     </div>
 </div>
 {% endblock %}
+
