@@ -11,18 +11,23 @@ This project provides:
 - Data model coverage for users, forms, inspections, permits, incidents, violations, stand allocations, handovers, and schedules.
 - Digital form workflows for all required forms (1-25) with draft save, signatures, GPS fields, and attachment capability.
 - PWA foundation with service worker and offline draft storage via IndexedDB.
-- Dashboard KPIs and analytics endpoints with Chart.js integration.
+- Dashboard KPIs, analytics endpoints, and workflow escalation visibility with Chart.js integration.
 - Export/PDF service layer for CSV, Excel, and form PDF generation.
+- **Hierarchical issue escalation workflow** — Reports flow up the chain (operator → inspector → auditor → supervisor) with role-based visibility and closure tracking.
+- **AODB REST API integration** — Live flight schedule sync from AODB, flight dropdown autocomplete in forms, stand allocation with live schedule view.
+- **Mobile-first field data write-back** — Staff submit times/data from field via forms; automatic async sync back to AODB with retry logic and queue monitoring.
 
 ## 2. Technology Stack
 
 Backend:
 
-- Flask 2.3+
+- Flask 3.1+
 - Flask-SQLAlchemy, Flask-Login, Flask-WTF, Flask-Migrate
 - Flask-Caching, Flask-Limiter, Flask-SocketIO, Flask-Mail
-- Celery + Redis (background workers)
-- ReportLab, Pandas, OpenPyXL
+- APScheduler (background task scheduling for AODB sync and write-back processing)
+- Requests, urllib3 (HTTP client for AODB REST API)
+- ReportLab, Pandas, OpenPyXL (PDF/Excel export)
+- PyJWT, PyOTP (JWT and two-factor authentication)
 
 Frontend:
 
@@ -134,10 +139,12 @@ Key capabilities available in form templates:
 
 ### 6.1 Apron Management
 
-- Stand allocation and status tracking
-- Shift handover/takeover
-- Staff deployment plans
-- TPBB operation logging
+- Stand allocation with live AODB flight schedule display
+- Shift handover/takeover with workflow escalation visibility
+- Staff deployment plans and scheduling
+- TPBB (Terminal Passenger Building) operation logging with automatic write-back to AODB
+- AODB flight data sync (manual and scheduled background sync every 15 minutes)
+- Flight number autocomplete from cached AODB data
 
 ### 6.2 Apron Safety
 
@@ -174,17 +181,28 @@ Recommended production hardening:
 - MFA enforcement for privileged roles
 - Centralized SIEM logging
 
-## 8. Background Tasks (Celery)
+## 8. Background Task Scheduling (APScheduler)
 
-Use Celery for scheduled reports, notifications, and long-running PDF/Excel jobs.
+APScheduler-based background jobs are automatically started when the app launches. No separate worker process is needed.
 
-Example worker startup:
+**AODB Flight Sync** (every 15 minutes):
+- Fetches arrivals and departures from AODB REST API
+- Caches flight data locally in `FlightMovement` table
+- Enables flight number dropdown autocomplete across forms
 
+**AODB Write-back Processor** (every 5 minutes):
+- Processes queued write-backs from field staff submissions
+- Automatically sends TPBB times (docking, backoff) back to AODB
+- Handles retries (up to 3 attempts) and error tracking
+- Accessible via Admin → AODB Write-back Queue for monitoring
+
+Both jobs run as daemon threads and do not block the Flask app.
+
+**Configuration:**
 ```bash
-celery -A app.celery_worker worker --loglevel=info
+AODB_SYNC_INTERVAL_MINUTES=15       # Flight sync frequency
+AODB_WRITEBACK_INTERVAL_MINUTES=5   # Write-back processor frequency
 ```
-
-You can add `app/celery_worker.py` with your environment-specific broker setup.
 
 ## 9. Testing
 
@@ -210,15 +228,153 @@ Example Gunicorn:
 gunicorn -w 4 -k gevent -b 0.0.0.0:8000 run:app
 ```
 
-## 11. Important Next Steps for Full Production Rollout
+## 11. New Features: Workflow Escalation & AODB Integration
 
-1. Complete exact field-level parity with manual pages 121-167 for each form.
-2. Expand schema-driven dynamic form renderer for all section-level conditional logic.
-3. Integrate antivirus scanning and secure object storage for uploads.
-4. Implement full immutable audit policy enforcement at DB level (triggers/permissions).
-5. Add complete CI/CD, migration strategy, monitoring, and backup/disaster recovery policies.
-6. Conduct UAT with airside officers on actual tablets and gloves-based interactions.
+### 11.1 Hierarchical Issue Escalation Workflow
 
-## 12. License and Usage
+All form submissions automatically create issue workflow items that escalate up the hierarchy.
+
+**Escalation Chain:**
+```
+Operator (AOO/OO)
+    ↓ [inspection/review]
+Inspector (SOO)
+    ↓ [approval/rejection]
+Auditor/Principal
+    ↓ [final sign-off]
+Supervisor/Manager
+    ↓ [closure]
+```
+
+**Dashboard Features:**
+- **For all roles:** Pending Activities section showing items awaiting your action
+- **For supervisors/admins:**
+  - Departmental overview with closure rates by department
+  - Improvement snapshot showing 30-day trends
+  - Manual escalate/close buttons for workflow progression
+- Role-based visibility ensures each level only sees items directed to them
+- Audit trail tracks all escalations, notes, and closures
+
+**Setup:**
+- Automatic: every form submission creates an `IssueWorkflow` item in pending state
+- Routable via `/dashboard` for all users
+- Action endpoints: `/workflow/<id>/advance` and `/workflow/<id>/close` accessible to authorized roles
+
+### 11.2 AODB REST API Integration
+
+Real-time flight data from AODB eliminates manual entry and reduces errors.
+
+**Features:**
+
+1. **Live Flight Schedule Sync**
+   - Manual sync: Admin → AODB Flight Sync, pick date, click "Sync Now"
+   - Automatic: Background processor every 15 minutes (configurable)
+   - Fetches all arrivals and departures within the day window
+   - Caches in local `FlightMovement` table with timestamps, stands, operations status
+
+2. **Flight Number Autocomplete**
+   - All forms with flight number fields now have dropdown suggestions from AODB
+   - Types in flight field → suggestions appear
+   - Example: Stand Allocation, TPBB Operations (Form 5)
+
+3. **Stand Allocation Enhanced**
+   - Route: `/apron/stand-allocation`
+   - Displays live schedule panel with arrivals/departures, stands, operational status
+   - Navigation buttons to shift between dates
+   - "Use Flight" buttons pre-fill the allocation form with flight number and suggested stand
+
+4. **Dashboard Flight Activity Widget**
+   - New card: "Today's Flights — AODB Live Schedule"
+   - Shows scheduled arrivals/departures with stands and operation status
+   - Synced timestamp displayed; link to manual sync page
+
+5. **Write-back Queue Monitoring** (Admin → AODB Write-back Queue)
+   - Real-time queue status: pending, in-progress, completed, failed items
+   - Recent items table with retry counts, error logs
+   - Manual actions: "Process Queue Now", "Retry Failed Items"
+
+**Configuration Required:**
+```bash
+AODB_BASE_URL=http://<hostname>:<port>    # e.g. http://192.168.1.100:8080
+AODB_USER_ID=<service_account_user>       # e.g. ops_system
+AODB_PASSWORD=<service_account_password>  # Use VPN/IP whitelist
+AODB_TIMEOUT_SECONDS=30                   # HTTP timeout
+AODB_SYNC_INTERVAL_MINUTES=15             # Sync frequency
+AODB_WRITEBACK_INTERVAL_MINUTES=5         # Write-back frequency
+```
+
+### 11.3 Mobile-First Field Data Write-back
+
+Staff fill forms in the field on tablets/phones; data automatically syncs back to AODB without office visits.
+
+**Example: TPBB Bridge Docking Time**
+```
+Field Staff (on iPad):
+1. Opens TPBB form
+2. Enters flight number (autocomplete)
+3. Enters docking time (HH:MM)
+4. Clicks Save → Form saved + write-back queued
+
+App Background (every 5 min):
+5. Processor picks up queue item
+6. Calls AODB: write_movement_time(flightId, BTI, 202604101432)
+7. Updates queue item status → completed
+8. On failure: retries up to 3 times, logs error
+
+Admin/Supervisor:
+9. Monitors via Admin → AODB Write-back Queue
+10. Can manually trigger immediate processing or retry failed items
+```
+
+**Supported Write-backs:**
+- `bridge_docking`: TPBB arrivals → `BTI` (Bridge Touch-In time)
+- `bridge_backoff`: TPBB departures → `BTO` (Bridge Touch-Out time)
+- `stand_assignment`: Stand allocation changes → `stand` field (if AODB supports)
+
+**Data Flow:**
+- Form submission → `FormSubmission` record created
+- If flight found in cache → write-back queued to `AodbWriteback` table
+- Background processor tries to send via `/standapi/movementtime` endpoint
+- Write-back record tracks: status, retry count, error message, AODB response
+- Fully traceable: query by submission ID to see all outbound syncs
+
+## 12. Production Rollout Checklist
+
+### Immediate Priority (AODB Integration)
+1. **AODB Credentials & Testing:** Provide AODB hostname/port and service account credentials; run manual sync to verify connectivity.
+2. **Flight Sync Validation:** Verify arrivals/departures sync correctly and appear in cockpits.
+3. **Field User Training:** UAT with airside officers on tablet/phone interfaces; ensure glove-friendly touch targets and offline draft caching work.
+
+### Short Term (Workflow & Monitoring)
+4. **Workflow Customization:** Review escalation chain (operator→inspector→auditor→supervisor) — adjust roles/departments as needed.
+5. **Write-back Monitoring:** Set up alerts if `aodb_writebacks.failed > threshold` for operational awareness.
+6. **Historical Data:** After AODB integration confirmed, optionally backfill `IssueWorkflow` records for pre-existing `FormSubmission` items.
+
+### Medium Term (Form Completeness)
+7. Complete exact field-level parity with manual pages for each form (conditional logic, validation, dependent fields).
+8. Expand schema-driven dynamic form renderer for all section-level conditional logic.
+
+### Production Hardening
+9. Integrate antivirus scanning and secure object storage for uploads.
+10. Implement full immutable audit policy enforcement at DB level (triggers/permissions).
+11. Add complete CI/CD, migration strategy, monitoring, and backup/disaster recovery policies.
+12. HTTPS termination + HSTS, reverse proxy (Nginx), strict CSP headers.
+13. MFA enforcement for privileged roles, centralized SIEM logging.
+
+## 13. License and Usage
 
 Internal operational system for Entebbe International Airport Airside Operations.
+
+## 14. Git Repository
+
+Repository: `https://github.com/oomutooro/OPS_AIRSIDE`
+
+**Recent Commits:**
+- `66bc202` — Add AODB write-back system for mobile field data submission
+- `c4feb4f` — Add AODB REST API flight data integration (sync, dashboard widget, stand allocation)
+- `42ca8b1` — Implement hierarchical issue escalation workflow and dashboard visibility
+- `a71f5df` — Initial commit of OPS_AIRSIDE project
+
+---
+
+**Project Status:** MVP complete with core features (forms, RBAC, workflow escalation, AODB sync). Ready for field testing and production deployment planning.
