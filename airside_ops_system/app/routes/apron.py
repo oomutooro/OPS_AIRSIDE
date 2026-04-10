@@ -311,14 +311,20 @@ def staff_deployment():
 @login_required
 def tpbb_operations():
     if request.method == 'POST':
+        from app.services.aodb_writeback import AodbWritebackService
+        
         template = FormTemplate.query.filter_by(form_number=5).first()
         if template:
+            flight_number = request.form.get('flight_number', '').strip()
+            docking_time = request.form.get('docking_time', '').strip()
+            backoff_time = request.form.get('backoff_time', '').strip()
+            
             data = {
                 'bridge_no': request.form.get('bridge_no'),
-                'flight_number': request.form.get('flight_number'),
+                'flight_number': flight_number,
                 'pre_arrival_test': request.form.get('pre_arrival_test'),
-                'docking_time': request.form.get('docking_time'),
-                'backoff_time': request.form.get('backoff_time'),
+                'docking_time': docking_time,
+                'backoff_time': backoff_time,
                 'remarks': request.form.get('remarks'),
             }
             submission = FormSubmission(
@@ -330,6 +336,57 @@ def tpbb_operations():
             )
             db.session.add(submission)
             WorkflowService.ensure_issue_for_submission(submission, current_user)
+            db.session.flush()  # Get submission.id
+            
+            # Queue write-backs to AODB if flight data available
+            if flight_number:
+                flight = FlightMovement.query.filter_by(flight_number=flight_number).first()
+                if flight:
+                    # Queue docking time (BTI for arrivals)
+                    if docking_time and flight.arr_or_dep == 'ARR':
+                        try:
+                            from datetime import datetime
+                            dock_dt = datetime.strptime(docking_time, '%H:%M')
+                            # Combine with scheduled date if available
+                            if flight.scheduled_datetime:
+                                dock_dt = dock_dt.replace(
+                                    year=flight.scheduled_datetime.year,
+                                    month=flight.scheduled_datetime.month,
+                                    day=flight.scheduled_datetime.day,
+                                )
+                            AodbWritebackService.queue_docking_time(
+                                aodb_flight_id=flight.aodb_flight_id,
+                                docking_time=dock_dt,
+                                form_submission=submission,
+                                user=current_user,
+                            )
+                            flash(f'Docking time queued for write-back to AODB.', 'info')
+                        except (ValueError, AttributeError) as exc:
+                            flash(f'Could not queue docking time: {exc}', 'warning')
+                    
+                    # Queue backoff time (BTO for departures)
+                    if backoff_time and flight.arr_or_dep == 'DEP':
+                        try:
+                            from datetime import datetime
+                            back_dt = datetime.strptime(backoff_time, '%H:%M')
+                            if flight.scheduled_datetime:
+                                back_dt = back_dt.replace(
+                                    year=flight.scheduled_datetime.year,
+                                    month=flight.scheduled_datetime.month,
+                                    day=flight.scheduled_datetime.day,
+                                )
+                            AodbWritebackService.queue_backoff_time(
+                                aodb_flight_id=flight.aodb_flight_id,
+                                backoff_time=back_dt,
+                                form_submission=submission,
+                                user=current_user,
+                            )
+                            flash(f'Backoff time queued for write-back to AODB.', 'info')
+                        except (ValueError, AttributeError) as exc:
+                            flash(f'Could not queue backoff time: {exc}', 'warning')
+                else:
+                    flash(f'Flight {flight_number} not found in AODB cache. Write-back skipped.', 'warning')
+            
             db.session.commit()
             flash('TPBB operation recorded.', 'success')
         return redirect(url_for('apron.tpbb_operations'))

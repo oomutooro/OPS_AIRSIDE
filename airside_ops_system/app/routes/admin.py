@@ -1,12 +1,13 @@
 """
 Administration routes: user management, reference data, form builder, system settings.
 """
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import current_user, login_required
 from app import db
 from app.models.user import User, Role
 from app.models.reference import Company, AirsideLocation, ParkingStand
 from app.models.form import FormTemplate
+from app.models.flight import AodbWriteback
 from app.utils.decorators import role_required
 
 admin_bp = Blueprint('admin', __name__)
@@ -170,3 +171,48 @@ def form_builder():
 @role_required('admin')
 def system_settings():
     return render_template('admin/system_settings.html')
+
+
+# ──────────────────────────────────────────────────────────────────
+# AODB Write-back Queue Monitoring
+# ──────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/aodb-writeback-queue', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def aodb_writeback_queue():
+    """Monitor and manage AODB write-back queue."""
+    from app.services.aodb_writeback import AodbWritebackService
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'retry_failed':
+            result = AodbWritebackService.retry_failed_items()
+            flash(result.get('message', 'Failed items queued for retry.'), 'success')
+        elif action == 'process_now':
+            result = AodbWritebackService.process_queue(batch_size=20)
+            msg = (
+                f"Processed {result['processed']} items: "
+                f"{result['succeeded']} succeeded, {result['failed']} failed"
+            )
+            flash(msg, 'success' if result['failed'] == 0 else 'warning')
+        return redirect(url_for('admin.aodb_writeback_queue'))
+    
+    status = AodbWritebackService.get_queue_status()
+    recent_items = AodbWritebackService.get_recent_items(50)
+    return render_template(
+        'admin/aodb_writeback_queue.html',
+        status=status,
+        recent_items=recent_items,
+    )
+
+
+@admin_bp.route('/api/aodb-writeback/<int:item_id>', methods=['GET'])
+@login_required
+@role_required('admin', 'supervisor')
+def api_aodb_writeback_detail(item_id):
+    """API endpoint to get write-back item details."""
+    item = db.session.get(AodbWriteback, item_id)
+    if not item:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify(item.to_dict())

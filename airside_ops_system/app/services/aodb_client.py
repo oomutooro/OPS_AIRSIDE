@@ -139,16 +139,23 @@ class AodbClient:
         data = self._post('/standapi/depmovementinfo', payload)
         return self._extract_list(data)
 
-    def write_movement_time(self, flight_id: str, time_type: str, time_value: datetime):
+    def write_movement_time(self, flight_id: str, time_type: str, time_value):
         """
         POST /standapi/movementtime — write actual ground event time back to AODB.
         time_type: e.g. 'ATA', 'ATD', 'BTI', 'BTO', etc.
+        time_value: datetime or YYYYMMDDHH24MI string
         """
+        from datetime import datetime as dt
+        if isinstance(time_value, dt):
+            time_str = _fmt_dt(time_value)
+        else:
+            time_str = str(time_value)
+        
         payload = {
             'sessionId': self._session_id,
             'flightId': flight_id,
             'timeType': time_type,
-            'timeValue': _fmt_dt(time_value),
+            'timeValue': time_str,
         }
         return self._post('/standapi/movementtime', payload)
 

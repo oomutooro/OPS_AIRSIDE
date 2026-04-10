@@ -8,6 +8,7 @@ from app.services.validation_service import ValidationService
 from app.services.workflow_service import WorkflowService
 from app.services.aodb_client import AodbClient
 from app.services.aodb_sync import AodbSyncService
+from app.services.aodb_writeback import AodbWritebackService
 
 __all__ = [
     'AnalyticsService',
@@ -19,4 +20,5 @@ __all__ = [
     'WorkflowService',
     'AodbClient',
     'AodbSyncService',
+    'AodbWritebackService',
 ]

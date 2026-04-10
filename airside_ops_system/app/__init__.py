@@ -79,7 +79,7 @@ def create_app(config_name='default'):
 
 
 def _start_aodb_scheduler(app):
-    """Start APScheduler background job for AODB flight sync."""
+    """Start APScheduler background jobs for AODB syncing (read and write-back)."""
     import os
     # In debug/reloader mode only start in the worker process, not the watcher parent
     if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
@@ -88,23 +88,44 @@ def _start_aodb_scheduler(app):
         from apscheduler.schedulers.background import BackgroundScheduler
         from apscheduler.triggers.interval import IntervalTrigger
         from app.services.aodb_sync import AodbSyncService
+        from app.services.aodb_writeback import AodbWritebackService
 
-        interval_minutes = app.config.get('AODB_SYNC_INTERVAL_MINUTES', 15)
+        sync_interval_minutes = app.config.get('AODB_SYNC_INTERVAL_MINUTES', 15)
+        writeback_interval_minutes = app.config.get('AODB_WRITEBACK_INTERVAL_MINUTES', 5)
 
         def _sync_job():
             with app.app_context():
                 AodbSyncService.scheduled_sync()
 
+        def _writeback_job():
+            with app.app_context():
+                AodbWritebackService.process_queue()
+
         scheduler = BackgroundScheduler(daemon=True)
+        
+        # Flight sync job
         scheduler.add_job(
             _sync_job,
-            trigger=IntervalTrigger(minutes=interval_minutes),
+            trigger=IntervalTrigger(minutes=sync_interval_minutes),
             id='aodb_flight_sync',
             name='AODB Flight Sync',
             replace_existing=True,
         )
+        
+        # Write-back processing job (more frequent — default 5 min)
+        scheduler.add_job(
+            _writeback_job,
+            trigger=IntervalTrigger(minutes=writeback_interval_minutes),
+            id='aodb_writeback_process',
+            name='AODB Write-back Processor',
+            replace_existing=True,
+        )
+        
         scheduler.start()
-        app.logger.info('AODB flight sync scheduler started (every %d min).', interval_minutes)
+        app.logger.info(
+            'AODB scheduler started: sync every %d min, write-back every %d min',
+            sync_interval_minutes, writeback_interval_minutes,
+        )
     except Exception as exc:
         app.logger.warning('Could not start AODB scheduler: %s', exc)
 

@@ -80,6 +80,7 @@ class Config:
     AODB_TIMEOUT_SECONDS = int(os.environ.get('AODB_TIMEOUT_SECONDS', 30))
     # Sync interval in minutes (APScheduler)
     AODB_SYNC_INTERVAL_MINUTES = int(os.environ.get('AODB_SYNC_INTERVAL_MINUTES', 15))
+    AODB_WRITEBACK_INTERVAL_MINUTES = int(os.environ.get('AODB_WRITEBACK_INTERVAL_MINUTES', 5))
 
 
 class DevelopmentConfig(Config):

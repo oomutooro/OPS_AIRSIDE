@@ -135,3 +135,93 @@ class FlightMovement(db.Model):
 
     def __repr__(self):
         return f'<FlightMovement {self.arr_or_dep} {self.flight_number} {self.scheduled_date}>'
+
+
+class AodbWriteback(db.Model):
+    """Queue item for writing data back to AODB."""
+    __tablename__ = 'aodb_writebacks'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Foreign keys for audit trail
+    flight_movement_id = db.Column(db.Integer, db.ForeignKey('flight_movements.id'), nullable=True)
+    form_submission_id = db.Column(db.Integer, db.ForeignKey('form_submissions.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
+    # AODB identifiers
+    aodb_flight_id = db.Column(db.String(22), nullable=False, index=True)
+
+    # Write-back type and payload
+    writeback_type = db.Column(db.String(32), nullable=False, index=True)
+    # Examples: 'bridge_docking', 'bridge_backoff', 'stand_assignment'
+    # Maps to AODB field names like 'BTI', 'BTO', 'stand', etc.
+
+    aodb_field_name = db.Column(db.String(32), nullable=False)  # 'BTI', 'BTO', 'stand', etc.
+    aodb_value = db.Column(db.String(256), nullable=False)      # Stringified value ready for AODB
+
+    # Status tracking
+    status = db.Column(db.String(16), default='pending', index=True)
+    # pending → in_progress → (completed | failed) → (completed_on_retry | failed_permanent)
+
+    retry_count = db.Column(db.Integer, default=0)
+    max_retries = db.Column(db.Integer, default=3)
+
+    # Result tracking
+    error_message = db.Column(db.Text, nullable=True)
+    aodb_response = db.Column(db.JSON, nullable=True)  # Full AODB response for audit
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_attempted_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    # Bidirectional relationships
+    flight_movement = db.relationship('FlightMovement', backref='writebacks')
+    submission = db.relationship('FormSubmission', backref='aodb_writebacks')
+    user = db.relationship('User', backref='aodb_writebacks')
+
+    @classmethod
+    def queue_writeback(
+        cls,
+        aodb_flight_id: str,
+        writeback_type: str,
+        aodb_field_name: str,
+        aodb_value: str,
+        flight_movement_id: int = None,
+        form_submission_id: int = None,
+        user_id: int = None,
+    ) -> 'AodbWriteback':
+        """Create a new write-back queue item. Caller must commit."""
+        item = cls(
+            aodb_flight_id=aodb_flight_id,
+            writeback_type=writeback_type,
+            aodb_field_name=aodb_field_name,
+            aodb_value=str(aodb_value),
+            flight_movement_id=flight_movement_id,
+            form_submission_id=form_submission_id,
+            user_id=user_id,
+            status='pending',
+        )
+        db.session.add(item)
+        return item
+
+    def can_retry(self) -> bool:
+        """Check if this item should be retried."""
+        return self.status == 'failed' and self.retry_count < self.max_retries
+
+    def to_dict(self) -> dict:
+        return {
+            'id': self.id,
+            'aodb_flight_id': self.aodb_flight_id,
+            'writeback_type': self.writeback_type,
+            'aodb_field_name': self.aodb_field_name,
+            'aodb_value': self.aodb_value,
+            'status': self.status,
+            'retry_count': self.retry_count,
+            'error_message': self.error_message,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+    def __repr__(self):
+        return f'<AodbWriteback {self.writeback_type} {self.aodb_flight_id} {self.status}>'

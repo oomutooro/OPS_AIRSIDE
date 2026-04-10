@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}AODB Write-back Queue{% endblock %}
+{% block content %}
+
+<div class="row g-3 mb-3">
+    <div class="col-3">
+        <div class="kpi-card kpi-blue">
+            <div class="kpi-label">Total Items</div>
+            <div class="kpi-value">{{ status.total }}</div>
+        </div>
+    </div>
+    <div class="col-3">
+        <div class="kpi-card kpi-gold">
+            <div class="kpi-label">Pending</div>
+            <div class="kpi-value">{{ status.pending }}</div>
+        </div>
+    </div>
+    <div class="col-3">
+        <div class="kpi-card kpi-green">
+            <div class="kpi-label">Completed</div>
+            <div class="kpi-value">{{ status.completed }}</div>
+        </div>
+    </div>
+    <div class="col-3">
+        <div class="kpi-card kpi-red">
+            <div class="kpi-label">Failed</div>
+            <div class="kpi-value">{{ status.failed + status.failed_permanent }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card panel-card mb-3">
+    <div class="card-header">Queue Management</div>
+    <div class="card-body">
+        <form method="post" class="d-flex gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if status.pending > 0 %}
+            <button type="submit" name="action" value="process_now" class="btn btn-primary">
+                Process Queue Now ({{ status.pending }} pending)
+            </button>
+            {% endif %}
+            {% if status.failed > 0 %}
+            <button type="submit" name="action" value="retry_failed" class="btn btn-warning">
+                Retry Failed Items ({{ status.failed }})
+            </button>
+            {% endif %}
+            {% if status.pending == 0 and status.failed == 0 %}
+            <span class="text-muted">Queue is empty or all items completed.</span>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="card panel-card">
+    <div class="card-header">Recent Write-back Items (latest 50)</div>
+    <div class="card-body table-responsive p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Flight ID</th>
+                    <th>Type</th>
+                    <th>Field</th>
+                    <th>Value</th>
+                    <th>Status</th>
+                    <th>Retries</th>
+                    <th>Created</th>
+                    <th>Error</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in recent_items %}
+                <tr class="{% if item.status == 'completed' %}table-success{% elif item.status in ('failed', 'failed_permanent') %}table-danger{% elif item.status == 'pending' %}table-warning{% endif %}">
+                    <td><code>{{ item.id }}</code></td>
+                    <td><code>{{ item.aodb_flight_id }}</code></td>
+                    <td>{{ item.writeback_type|replace('_', ' ')|title }}</td>
+                    <td><strong>{{ item.aodb_field_name }}</strong></td>
+                    <td><code>{{ item.aodb_value }}</code></td>
+                    <td>
+                        <span class="badge {% if item.status == 'completed' %}bg-success{% elif item.status == 'pending' %}bg-warning text-dark{% elif item.status == 'in_progress' %}bg-info{% elif item.status == 'failed' %}bg-danger{% elif item.status == 'failed_permanent' %}bg-dark{% endif %}">
+                            {{ item.status|replace('_', ' ')|title }}
+                        </span>
+                    </td>
+                    <td>{{ item.retry_count }}/{{ item.max_retries }}</td>
+                    <td class="small text-muted">{{ item.created_at|datetime_fmt }}</td>
+                    <td>
+                        {% if item.error_message %}
+                        <small class="text-danger" title="{{ item.error_message }}">{{ item.error_message[:30] }}...</small>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-3">No write-back items yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
