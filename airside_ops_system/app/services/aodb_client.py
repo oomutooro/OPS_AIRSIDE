@@ -279,6 +279,11 @@ class AodbClient:
         except requests.exceptions.HTTPError as exc:
             raise RuntimeError(f'AODB HTTP error {exc.response.status_code} ({url})') from exc
 
+        # Handle both list responses (v1.5 direct data) and dict responses (v1.4 envelope)
+        if isinstance(body, list):
+            # API returned the data directly as a list—treat as success
+            return {'data': body, 'resultCode': '0', 'resultMessage': 'OK'}
+        
         result_code = str(body.get('resultCode', '')).strip()
         result_msg  = body.get('resultMessage', '')
         if result_code not in ('', '0', '200', 'OK', 'SUCCESS', 'success'):
