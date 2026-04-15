@@ -15,6 +15,7 @@ Datetime format: YYYYMMDDHH24MI  (e.g. "202604101430")
 """
 import logging
 from datetime import datetime, date
+import random
 from typing import Optional
 import requests
 
@@ -43,13 +44,23 @@ class AodbClient:
             arrivals = client.get_arrivals(date.today())
     """
 
-    def __init__(self, base_url: str, user_id: str, password: str, timeout: int = 30):
+    def __init__(
+        self,
+        base_url: str,
+        user_id: str,
+        password: str,
+        timeout: int = 30,
+        mock_mode: bool = False,
+        mock_writeback_fail_rate: float = 0.0,
+    ):
         if not base_url or not user_id or not password:
             raise ValueError('AODB base_url, user_id, and password are required.')
         self._base_url = base_url.rstrip('/')
         self._user_id = user_id
         self._password = password
         self._timeout = timeout
+        self._mock_mode = mock_mode
+        self._mock_writeback_fail_rate = max(0.0, min(1.0, float(mock_writeback_fail_rate)))
         self._session_id: Optional[str] = None
         self._http = requests.Session()
 
@@ -80,7 +91,16 @@ class AodbClient:
         user_id  = cfg.get('AODB_USER_ID', '')
         password = cfg.get('AODB_PASSWORD', '')
         timeout  = int(cfg.get('AODB_TIMEOUT_SECONDS', 30))
-        return cls(base_url, user_id, password, timeout)
+        mock_mode = bool(cfg.get('AODB_MOCK_MODE', False))
+        mock_writeback_fail_rate = float(cfg.get('AODB_MOCK_WRITEBACK_FAIL_RATE', 0.0) or 0.0)
+        return cls(
+            base_url,
+            user_id,
+            password,
+            timeout,
+            mock_mode=mock_mode,
+            mock_writeback_fail_rate=mock_writeback_fail_rate,
+        )
 
     # ------------------------------------------------------------------
     # Auth
@@ -88,6 +108,11 @@ class AodbClient:
 
     def login(self) -> str:
         """POST /standapi/login — obtain sessionId."""
+        if self._mock_mode:
+            self._session_id = f'mock-{datetime.utcnow().strftime("%Y%m%d%H%M%S")}'
+            logger.info('AODB mock mode: login simulated.')
+            return self._session_id
+
         payload = {'userId': self._user_id, 'password': self._password}
         data = self._post('/standapi/login', payload)
         session_id = (data.get('sessionId') or data.get('data', {}).get('sessionId', ''))
@@ -100,6 +125,10 @@ class AodbClient:
     def logout(self):
         """POST /standapi/logout."""
         if not self._session_id:
+            return
+        if self._mock_mode:
+            self._session_id = None
+            logger.info('AODB mock mode: logout simulated.')
             return
         try:
             self._post('/standapi/logout', {'sessionId': self._session_id})
@@ -116,6 +145,9 @@ class AodbClient:
         POST /standapi/arrmovementinfo — all arrivals within the day window.
         Returns list of arrMovementInfo dicts.
         """
+        if self._mock_mode:
+            return self._mock_movements(for_date, 'ARR')
+
         from_dt, to_dt = _make_window(for_date)
         payload = {
             'sessionId': self._session_id,
@@ -130,6 +162,9 @@ class AodbClient:
         POST /standapi/depmovementinfo — all departures within the day window.
         Returns list of depMovementInfo dicts.
         """
+        if self._mock_mode:
+            return self._mock_movements(for_date, 'DEP')
+
         from_dt, to_dt = _make_window(for_date)
         payload = {
             'sessionId': self._session_id,
@@ -157,6 +192,23 @@ class AodbClient:
             'timeType': time_type,
             'timeValue': time_str,
         }
+
+        if self._mock_mode:
+            # Optional fail rate allows local retry-flow testing.
+            if self._mock_writeback_fail_rate > 0 and random.random() < self._mock_writeback_fail_rate:
+                raise RuntimeError('AODB mock mode injected failure for retry testing.')
+            return {
+                'resultCode': '0',
+                'resultMessage': 'MOCK_SUCCESS',
+                'data': {
+                    'sessionId': self._session_id,
+                    'flightId': flight_id,
+                    'timeType': time_type,
+                    'timeValue': time_str,
+                    'mode': 'mock',
+                },
+            }
+
         return self._post('/standapi/movementtime', payload)
 
     # ------------------------------------------------------------------
@@ -194,3 +246,137 @@ class AodbClient:
                 if isinstance(data.get(key), list):
                     return data[key]
         return []
+
+    @staticmethod
+    def _mock_movements(for_date: date, arr_or_dep: str) -> list[dict]:
+        """Return deterministic sample flights for offline/local development."""
+        date_ymd = for_date.strftime('%Y%m%d')
+        terminal = 'T1'
+
+        arr = [
+            {
+                'flightId': f'MOCK-ARR-{date_ymd}-01',
+                'flightIataCode': 'UR201',
+                'flightIcaoCode': 'UGA201',
+                'airlineName': 'Uganda Airlines',
+                'flightNumber': 'UR201',
+                'callsign': 'UGA201',
+                'scheduledDate': date_ymd,
+                'scheduledTime': f'{date_ymd}0815',
+                'estimatedTime': f'{date_ymd}0825',
+                'ATA': '',
+                'RPI': '',
+                'SPI': '',
+                'BTI': '',
+                'originAirport': 'NBO',
+                'destinationAirport': 'EBB',
+                'terminal': terminal,
+                'stand': 'A03',
+                'operationStatus': 'SCHEDULED',
+            },
+            {
+                'flightId': f'MOCK-ARR-{date_ymd}-02',
+                'flightIataCode': 'ET338',
+                'flightIcaoCode': 'ETH338',
+                'airlineName': 'Ethiopian Airlines',
+                'flightNumber': 'ET338',
+                'callsign': 'ETH338',
+                'scheduledDate': date_ymd,
+                'scheduledTime': f'{date_ymd}1140',
+                'estimatedTime': f'{date_ymd}1150',
+                'ATA': '',
+                'RPI': '',
+                'SPI': '',
+                'BTI': '',
+                'originAirport': 'ADD',
+                'destinationAirport': 'EBB',
+                'terminal': terminal,
+                'stand': 'B02',
+                'operationStatus': 'SCHEDULED',
+            },
+            {
+                'flightId': f'MOCK-ARR-{date_ymd}-03',
+                'flightIataCode': 'KQ418',
+                'flightIcaoCode': 'KQA418',
+                'airlineName': 'Kenya Airways',
+                'flightNumber': 'KQ418',
+                'callsign': 'KQA418',
+                'scheduledDate': date_ymd,
+                'scheduledTime': f'{date_ymd}1530',
+                'estimatedTime': f'{date_ymd}1540',
+                'ATA': '',
+                'RPI': '',
+                'SPI': '',
+                'BTI': '',
+                'originAirport': 'NBO',
+                'destinationAirport': 'EBB',
+                'terminal': terminal,
+                'stand': 'A01',
+                'operationStatus': 'SCHEDULED',
+            },
+        ]
+
+        dep = [
+            {
+                'flightId': f'MOCK-DEP-{date_ymd}-01',
+                'flightIataCode': 'UR202',
+                'flightIcaoCode': 'UGA202',
+                'airlineName': 'Uganda Airlines',
+                'flightNumber': 'UR202',
+                'callsign': 'UGA202',
+                'scheduledDate': date_ymd,
+                'scheduledTime': f'{date_ymd}0945',
+                'estimatedTime': f'{date_ymd}0955',
+                'ATD': '',
+                'BTO': '',
+                'SPO': '',
+                'RPO': '',
+                'originAirport': 'EBB',
+                'destinationAirport': 'NBO',
+                'terminal': terminal,
+                'stand': 'A03',
+                'operationStatus': 'SCHEDULED',
+            },
+            {
+                'flightId': f'MOCK-DEP-{date_ymd}-02',
+                'flightIataCode': 'ET339',
+                'flightIcaoCode': 'ETH339',
+                'airlineName': 'Ethiopian Airlines',
+                'flightNumber': 'ET339',
+                'callsign': 'ETH339',
+                'scheduledDate': date_ymd,
+                'scheduledTime': f'{date_ymd}1310',
+                'estimatedTime': f'{date_ymd}1320',
+                'ATD': '',
+                'BTO': '',
+                'SPO': '',
+                'RPO': '',
+                'originAirport': 'EBB',
+                'destinationAirport': 'ADD',
+                'terminal': terminal,
+                'stand': 'B02',
+                'operationStatus': 'SCHEDULED',
+            },
+            {
+                'flightId': f'MOCK-DEP-{date_ymd}-03',
+                'flightIataCode': 'KQ419',
+                'flightIcaoCode': 'KQA419',
+                'airlineName': 'Kenya Airways',
+                'flightNumber': 'KQ419',
+                'callsign': 'KQA419',
+                'scheduledDate': date_ymd,
+                'scheduledTime': f'{date_ymd}1735',
+                'estimatedTime': f'{date_ymd}1745',
+                'ATD': '',
+                'BTO': '',
+                'SPO': '',
+                'RPO': '',
+                'originAirport': 'EBB',
+                'destinationAirport': 'NBO',
+                'terminal': terminal,
+                'stand': 'A01',
+                'operationStatus': 'SCHEDULED',
+            },
+        ]
+
+        return arr if arr_or_dep.upper() == 'ARR' else dep

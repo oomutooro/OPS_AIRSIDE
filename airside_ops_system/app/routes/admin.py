@@ -144,7 +144,352 @@ def reference_data():
     companies = Company.query.order_by(Company.name).all()
     locations = AirsideLocation.query.order_by(AirsideLocation.code).all()
     stands = ParkingStand.query.order_by(ParkingStand.stand_code).all()
-    return render_template('admin/reference_data.html', companies=companies, locations=locations, stands=stands)
+    bridges = ParkingStand.query.filter_by(has_pbb=True).order_by(ParkingStand.pbb_number, ParkingStand.stand_code).all()
+    return render_template(
+        'admin/reference_data.html',
+        companies=companies,
+        locations=locations,
+        stands=stands,
+        bridges=bridges,
+    )
+
+
+@admin_bp.route('/reference-data/company/new', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def create_company():
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        code = (request.form.get('code') or '').strip() or None
+        if not name:
+            flash('Company name is required.', 'danger')
+            return redirect(url_for('admin.create_company'))
+
+        if code and Company.query.filter(Company.code == code).first():
+            flash('Company code already exists.', 'danger')
+            return redirect(url_for('admin.create_company'))
+
+        company = Company(
+            name=name,
+            code=code,
+            company_type=(request.form.get('company_type') or 'other').strip(),
+            contact_person=(request.form.get('contact_person') or '').strip() or None,
+            phone=(request.form.get('phone') or '').strip() or None,
+            email=(request.form.get('email') or '').strip() or None,
+            address=(request.form.get('address') or '').strip() or None,
+            is_active=request.form.get('is_active') == 'on',
+        )
+        db.session.add(company)
+        db.session.commit()
+        flash('Company created.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_company.html', company=None)
+
+
+@admin_bp.route('/reference-data/company/<int:company_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def edit_company(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        flash('Company not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    if request.method == 'POST':
+        code = (request.form.get('code') or '').strip() or None
+        if code:
+            exists = Company.query.filter(Company.code == code, Company.id != company.id).first()
+            if exists:
+                flash('Company code already exists.', 'danger')
+                return redirect(url_for('admin.edit_company', company_id=company.id))
+
+        company.name = (request.form.get('name') or '').strip()
+        company.code = code
+        company.company_type = (request.form.get('company_type') or 'other').strip()
+        company.contact_person = (request.form.get('contact_person') or '').strip() or None
+        company.phone = (request.form.get('phone') or '').strip() or None
+        company.email = (request.form.get('email') or '').strip() or None
+        company.address = (request.form.get('address') or '').strip() or None
+        company.is_active = request.form.get('is_active') == 'on'
+
+        if not company.name:
+            flash('Company name is required.', 'danger')
+            return redirect(url_for('admin.edit_company', company_id=company.id))
+
+        db.session.commit()
+        flash('Company updated.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_company.html', company=company)
+
+
+@admin_bp.route('/reference-data/company/<int:company_id>/delete', methods=['POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def delete_company(company_id):
+    company = db.session.get(Company, company_id)
+    if not company:
+        flash('Company not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    try:
+        db.session.delete(company)
+        db.session.commit()
+        flash('Company deleted.', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('Company cannot be deleted because it is referenced. Set it inactive instead.', 'warning')
+    return redirect(url_for('admin.reference_data'))
+
+
+@admin_bp.route('/reference-data/location/new', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def create_location():
+    if request.method == 'POST':
+        code = (request.form.get('code') or '').strip().upper()
+        name = (request.form.get('name') or '').strip()
+        zone = (request.form.get('zone') or '').strip().lower()
+
+        if not code or not name or not zone:
+            flash('Code, name, and zone are required.', 'danger')
+            return redirect(url_for('admin.create_location'))
+
+        if AirsideLocation.query.filter(AirsideLocation.code == code).first():
+            flash('Location code already exists.', 'danger')
+            return redirect(url_for('admin.create_location'))
+
+        location = AirsideLocation(
+            code=code,
+            name=name,
+            zone=zone,
+            description=(request.form.get('description') or '').strip() or None,
+            is_active=request.form.get('is_active') == 'on',
+        )
+        db.session.add(location)
+        db.session.commit()
+        flash('Location created.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_location.html', location=None)
+
+
+@admin_bp.route('/reference-data/location/<int:location_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def edit_location(location_id):
+    location = db.session.get(AirsideLocation, location_id)
+    if not location:
+        flash('Location not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    if request.method == 'POST':
+        code = (request.form.get('code') or '').strip().upper()
+        if not code:
+            flash('Location code is required.', 'danger')
+            return redirect(url_for('admin.edit_location', location_id=location.id))
+
+        exists = AirsideLocation.query.filter(AirsideLocation.code == code, AirsideLocation.id != location.id).first()
+        if exists:
+            flash('Location code already exists.', 'danger')
+            return redirect(url_for('admin.edit_location', location_id=location.id))
+
+        location.code = code
+        location.name = (request.form.get('name') or '').strip()
+        location.zone = (request.form.get('zone') or '').strip().lower()
+        location.description = (request.form.get('description') or '').strip() or None
+        location.is_active = request.form.get('is_active') == 'on'
+
+        if not location.name or not location.zone:
+            flash('Location name and zone are required.', 'danger')
+            return redirect(url_for('admin.edit_location', location_id=location.id))
+
+        db.session.commit()
+        flash('Location updated.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_location.html', location=location)
+
+
+@admin_bp.route('/reference-data/location/<int:location_id>/delete', methods=['POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def delete_location(location_id):
+    location = db.session.get(AirsideLocation, location_id)
+    if not location:
+        flash('Location not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    try:
+        db.session.delete(location)
+        db.session.commit()
+        flash('Location deleted.', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('Location cannot be deleted because it is referenced. Set it inactive instead.', 'warning')
+    return redirect(url_for('admin.reference_data'))
+
+
+@admin_bp.route('/reference-data/stand/new', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def create_stand():
+    if request.method == 'POST':
+        stand_code = (request.form.get('stand_code') or '').strip().upper()
+        if not stand_code:
+            flash('Stand code is required.', 'danger')
+            return redirect(url_for('admin.create_stand'))
+
+        if ParkingStand.query.filter(ParkingStand.stand_code == stand_code).first():
+            flash('Stand code already exists.', 'danger')
+            return redirect(url_for('admin.create_stand'))
+
+        stand = ParkingStand(
+            stand_code=stand_code,
+            stand_number=(request.form.get('stand_number') or '').strip(),
+            apron=(request.form.get('apron') or '').strip(),
+            category=(request.form.get('category') or '').strip() or None,
+            has_pbb=request.form.get('has_pbb') == 'on',
+            pbb_number=(request.form.get('pbb_number') or '').strip() or None,
+            notes=(request.form.get('notes') or '').strip() or None,
+            is_active=request.form.get('is_active') == 'on',
+        )
+        if not stand.stand_number or not stand.apron:
+            flash('Stand number and apron are required.', 'danger')
+            return redirect(url_for('admin.create_stand'))
+        db.session.add(stand)
+        db.session.commit()
+        flash('Parking stand created.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_stand.html', stand=None)
+
+
+@admin_bp.route('/reference-data/stand/<int:stand_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def edit_stand(stand_id):
+    stand = db.session.get(ParkingStand, stand_id)
+    if not stand:
+        flash('Stand not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    if request.method == 'POST':
+        stand_code = (request.form.get('stand_code') or '').strip().upper()
+        if not stand_code:
+            flash('Stand code is required.', 'danger')
+            return redirect(url_for('admin.edit_stand', stand_id=stand.id))
+
+        exists = ParkingStand.query.filter(ParkingStand.stand_code == stand_code, ParkingStand.id != stand.id).first()
+        if exists:
+            flash('Stand code already exists.', 'danger')
+            return redirect(url_for('admin.edit_stand', stand_id=stand.id))
+
+        stand.stand_code = stand_code
+        stand.stand_number = (request.form.get('stand_number') or '').strip()
+        stand.apron = (request.form.get('apron') or '').strip()
+        stand.category = (request.form.get('category') or '').strip() or None
+        stand.has_pbb = request.form.get('has_pbb') == 'on'
+        stand.pbb_number = (request.form.get('pbb_number') or '').strip() or None
+        stand.notes = (request.form.get('notes') or '').strip() or None
+        stand.is_active = request.form.get('is_active') == 'on'
+
+        if not stand.stand_number or not stand.apron:
+            flash('Stand number and apron are required.', 'danger')
+            return redirect(url_for('admin.edit_stand', stand_id=stand.id))
+
+        db.session.commit()
+        flash('Parking stand updated.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_stand.html', stand=stand)
+
+
+@admin_bp.route('/reference-data/stand/<int:stand_id>/delete', methods=['POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def delete_stand(stand_id):
+    stand = db.session.get(ParkingStand, stand_id)
+    if not stand:
+        flash('Stand not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    try:
+        db.session.delete(stand)
+        db.session.commit()
+        flash('Parking stand deleted.', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('Parking stand cannot be deleted because it is referenced. Set it inactive instead.', 'warning')
+    return redirect(url_for('admin.reference_data'))
+
+
+@admin_bp.route('/reference-data/bridge/new', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def create_bridge():
+    available_stands = ParkingStand.query.filter_by(has_pbb=False).order_by(ParkingStand.stand_code).all()
+    if request.method == 'POST':
+        stand_id_raw = request.form.get('stand_id')
+        pbb_number = (request.form.get('pbb_number') or '').strip().upper()
+        stand = db.session.get(ParkingStand, int(stand_id_raw)) if stand_id_raw and stand_id_raw.isdigit() else None
+
+        if not stand:
+            flash('Please select a valid stand for the bridge.', 'danger')
+            return redirect(url_for('admin.create_bridge'))
+        if not pbb_number:
+            flash('Bridge number is required.', 'danger')
+            return redirect(url_for('admin.create_bridge'))
+
+        stand.has_pbb = True
+        stand.pbb_number = pbb_number
+        db.session.commit()
+        flash('Bridge mapping created.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_bridge.html', stand=None, stands=available_stands)
+
+
+@admin_bp.route('/reference-data/bridge/<int:stand_id>/edit', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def edit_bridge(stand_id):
+    stand = db.session.get(ParkingStand, stand_id)
+    if not stand:
+        flash('Bridge stand not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    if request.method == 'POST':
+        pbb_number = (request.form.get('pbb_number') or '').strip().upper()
+        if not pbb_number:
+            flash('Bridge number is required.', 'danger')
+            return redirect(url_for('admin.edit_bridge', stand_id=stand.id))
+
+        stand.has_pbb = True
+        stand.pbb_number = pbb_number
+        stand.is_active = request.form.get('is_active') == 'on'
+        db.session.commit()
+        flash('Bridge details updated.', 'success')
+        return redirect(url_for('admin.reference_data'))
+
+    return render_template('admin/edit_bridge.html', stand=stand, stands=[])
+
+
+@admin_bp.route('/reference-data/bridge/<int:stand_id>/delete', methods=['POST'])
+@login_required
+@role_required('admin', 'supervisor')
+def delete_bridge(stand_id):
+    stand = db.session.get(ParkingStand, stand_id)
+    if not stand:
+        flash('Bridge not found.', 'danger')
+        return redirect(url_for('admin.reference_data'))
+
+    stand.has_pbb = False
+    stand.pbb_number = None
+    db.session.commit()
+    flash('Bridge mapping removed from stand.', 'success')
+    return redirect(url_for('admin.reference_data'))
 
 
 @admin_bp.route('/form-builder', methods=['GET', 'POST'])

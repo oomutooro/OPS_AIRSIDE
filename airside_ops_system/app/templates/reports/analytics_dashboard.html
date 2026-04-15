@@ -13,7 +13,7 @@
 <script>
 const ctx = document.getElementById('incidentTrendChart');
 if (ctx) {
-  new Chart(ctx, {type: 'line', data: {labels: {{ trend.labels|tojson }}, datasets: [{label: 'Incidents', data: {{ trend.values|tojson }}, borderColor: '#1a56db', tension: 0.3}]}});
+  new Chart(ctx, {type: 'line', data: {labels: {{ trend['labels']|tojson }}, datasets: [{label: 'Incidents', data: {{ trend['values']|tojson }}, borderColor: '#1a56db', tension: 0.3}]}});
 }
 </script>
 {% endblock %}

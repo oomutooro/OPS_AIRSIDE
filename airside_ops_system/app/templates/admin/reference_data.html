@@ -2,8 +2,147 @@
 {% block title %}Reference Data{% endblock %}
 {% block content %}
 <div class="row g-3">
-    <div class="col-lg-4"><div class="card panel-card"><div class="card-header">Companies</div><div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Name</th><th>Type</th></tr></thead><tbody>{% for c in companies %}<tr><td>{{ c.name }}</td><td>{{ c.company_type }}</td></tr>{% endfor %}</tbody></table></div></div></div>
-    <div class="col-lg-4"><div class="card panel-card"><div class="card-header">Locations</div><div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Code</th><th>Zone</th></tr></thead><tbody>{% for l in locations %}<tr><td>{{ l.code }}</td><td>{{ l.zone }}</td></tr>{% endfor %}</tbody></table></div></div></div>
-    <div class="col-lg-4"><div class="card panel-card"><div class="card-header">Parking Stands</div><div class="card-body table-responsive"><table class="table table-sm"><thead><tr><th>Stand</th><th>Apron</th></tr></thead><tbody>{% for s in stands %}<tr><td>{{ s.stand_code }}</td><td>{{ s.apron }}</td></tr>{% endfor %}</tbody></table></div></div></div>
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Companies</span>
+                <a href="{{ url_for('admin.create_company') }}" class="btn btn-sm btn-primary">Add Company</a>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr><th>Name</th><th>Code</th><th>Type</th><th>Contact</th><th>Status</th><th style="width:160px;">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for c in companies %}
+                        <tr>
+                            <td>{{ c.name }}</td>
+                            <td>{{ c.code or '-' }}</td>
+                            <td>{{ c.company_type }}</td>
+                            <td>{{ c.contact_person or c.phone or '-' }}</td>
+                            <td><span class="badge {% if c.is_active %}bg-success{% else %}bg-secondary{% endif %}">{{ 'Active' if c.is_active else 'Inactive' }}</span></td>
+                            <td>
+                                <a href="{{ url_for('admin.edit_company', company_id=c.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <form method="post" action="{{ url_for('admin.delete_company', company_id=c.id) }}" class="d-inline" onsubmit="return confirm('Delete company {{ c.name }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-3">No companies found.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Locations</span>
+                <a href="{{ url_for('admin.create_location') }}" class="btn btn-sm btn-primary">Add Location</a>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr><th>Code</th><th>Name</th><th>Zone</th><th>Status</th><th style="width:160px;">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for l in locations %}
+                        <tr>
+                            <td>{{ l.code }}</td>
+                            <td>{{ l.name }}</td>
+                            <td>{{ l.zone }}</td>
+                            <td><span class="badge {% if l.is_active %}bg-success{% else %}bg-secondary{% endif %}">{{ 'Active' if l.is_active else 'Inactive' }}</span></td>
+                            <td>
+                                <a href="{{ url_for('admin.edit_location', location_id=l.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <form method="post" action="{{ url_for('admin.delete_location', location_id=l.id) }}" class="d-inline" onsubmit="return confirm('Delete location {{ l.code }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">No locations found.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Parking Stands</span>
+                <a href="{{ url_for('admin.create_stand') }}" class="btn btn-sm btn-primary">Add Stand</a>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr><th>Stand</th><th>No.</th><th>Apron</th><th>Category</th><th>Bridge</th><th>Status</th><th style="width:160px;">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for s in stands %}
+                        <tr>
+                            <td>{{ s.stand_code }}</td>
+                            <td>{{ s.stand_number }}</td>
+                            <td>{{ s.apron }}</td>
+                            <td>{{ s.category or '-' }}</td>
+                            <td>{% if s.has_pbb %}{{ s.pbb_number or 'Yes' }}{% else %}-{% endif %}</td>
+                            <td><span class="badge {% if s.is_active %}bg-success{% else %}bg-secondary{% endif %}">{{ 'Active' if s.is_active else 'Inactive' }}</span></td>
+                            <td>
+                                <a href="{{ url_for('admin.edit_stand', stand_id=s.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <form method="post" action="{{ url_for('admin.delete_stand', stand_id=s.id) }}" class="d-inline" onsubmit="return confirm('Delete stand {{ s.stand_code }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-3">No parking stands found.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card panel-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Passenger Boarding Bridges</span>
+                <a href="{{ url_for('admin.create_bridge') }}" class="btn btn-sm btn-primary">Add Bridge</a>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr><th>Bridge No.</th><th>Stand</th><th>Apron</th><th>Stand Active</th><th style="width:160px;">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for b in bridges %}
+                        <tr>
+                            <td>{{ b.pbb_number or '-' }}</td>
+                            <td>{{ b.stand_code }}</td>
+                            <td>{{ b.apron }}</td>
+                            <td><span class="badge {% if b.is_active %}bg-success{% else %}bg-secondary{% endif %}">{{ 'Active' if b.is_active else 'Inactive' }}</span></td>
+                            <td>
+                                <a href="{{ url_for('admin.edit_bridge', stand_id=b.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <form method="post" action="{{ url_for('admin.delete_bridge', stand_id=b.id) }}" class="d-inline" onsubmit="return confirm('Remove bridge mapping from stand {{ b.stand_code }}?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-3">No bridges mapped yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

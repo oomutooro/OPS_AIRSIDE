@@ -21,7 +21,26 @@
     });
 
     $('select[multiple], .select2').select2({ width: '100%' });
-    $('.table').DataTable({ responsive: true, pageLength: 10 });
+
+    // Auto-init DataTables only for tables that are safe for enhancement.
+    $('.table').each(function () {
+      const $table = $(this);
+
+      if ($table.hasClass('no-datatable')) {
+        return;
+      }
+
+      if ($.fn.dataTable.isDataTable(this)) {
+        return;
+      }
+
+      // DataTables requires consistent column structure; skip colspan-based empty rows.
+      if ($table.find('tbody td[colspan], tbody th[colspan]').length > 0) {
+        return;
+      }
+
+      $table.DataTable({ responsive: true, pageLength: 10 });
+    });
   }
 
   if ('serviceWorker' in navigator) {

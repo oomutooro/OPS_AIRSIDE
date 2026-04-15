@@ -87,7 +87,7 @@ class AodbWritebackService:
     # ------------------------------------------------------------------
 
     @classmethod
-    def process_queue(self, batch_size: int = 10) -> dict:
+    def process_queue(cls, batch_size: int = 10) -> dict:
         """
         Process pending write-backs in batch.
         Returns summary of processed items.

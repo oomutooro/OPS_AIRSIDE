@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit Bridge' if stand else 'Add Bridge' }}{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">{{ 'Edit Passenger Boarding Bridge' if stand else 'Add Passenger Boarding Bridge' }}</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% if stand %}
+            <div class="col-md-4">
+                <label class="form-label">Stand</label>
+                <input class="form-control" value="{{ stand.stand_code }}" readonly>
+            </div>
+            {% else %}
+            <div class="col-md-4">
+                <label class="form-label">Stand</label>
+                <select class="form-select" name="stand_id" required>
+                    <option value="">Select stand...</option>
+                    {% for s in stands %}
+                    <option value="{{ s.id }}">{{ s.stand_code }} (Apron {{ s.apron }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div class="col-md-4">
+                <label class="form-label">Bridge Number</label>
+                <input class="form-control" name="pbb_number" value="{{ stand.pbb_number if stand else '' }}" placeholder="PBB-01" required>
+            </div>
+
+            {% if stand %}
+            <div class="col-md-4">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" id="is_active" type="checkbox" name="is_active" {% if stand.is_active %}checked{% endif %}>
+                    <label for="is_active" class="form-check-label">Stand Active</label>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Save</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('admin.reference_data') }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

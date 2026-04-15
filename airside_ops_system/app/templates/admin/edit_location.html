@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit Location' if location else 'Add Location' }}{% endblock %}
+{% block content %}
+<div class="card panel-card">
+    <div class="card-header">{{ 'Edit Location' if location else 'Add Location' }}</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3">
+                <label class="form-label">Code</label>
+                <input class="form-control" name="code" value="{{ location.code if location else '' }}" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label">Name</label>
+                <input class="form-control" name="name" value="{{ location.name if location else '' }}" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Zone</label>
+                <input class="form-control" name="zone" value="{{ location.zone if location else '' }}" placeholder="apron, taxiway, runway..." required>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" name="description" rows="2">{{ location.description if location else '' }}</textarea>
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input class="form-check-input" id="is_active" type="checkbox" name="is_active" {% if not location or location.is_active %}checked{% endif %}>
+                    <label for="is_active" class="form-check-label">Active</label>
+                </div>
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Save</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('admin.reference_data') }}">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
