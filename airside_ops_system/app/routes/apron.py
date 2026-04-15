@@ -2,7 +2,7 @@
 Apron management routes: stand allocation, shift handover, staff deployment, TPBB ops.
 """
 from datetime import date, datetime, timedelta
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from app import db
 from app.models.apron import StandAllocation, Shift, ShiftRoster, HandoverReport
@@ -89,10 +89,12 @@ def stand_allocation():
 def aodb_sync():
     """Manual AODB flight data sync page."""
     sync_result = None
+    selected_date = _parse_iso_date(request.args.get('date', date.today().isoformat()))
+
     if request.method == 'POST':
         raw_date = request.form.get('sync_date', date.today().isoformat())
-        sync_date = _parse_iso_date(raw_date)
-        sync_result = AodbSyncService.sync_date(sync_date)
+        selected_date = _parse_iso_date(raw_date)
+        sync_result = AodbSyncService.sync_date(selected_date)
         if sync_result['errors']:
             flash(f"Sync completed with errors: {'; '.join(sync_result['errors'])}", 'warning')
         else:
@@ -102,14 +104,16 @@ def aodb_sync():
                 f"{sync_result['upserted']} records upserted.",
                 'success',
             )
+
     last_sync = AodbSyncService.last_sync_time()
-    recent = FlightMovement.query.order_by(FlightMovement.synced_at.desc()).limit(30).all()
+    recent = AodbSyncService.flights_for_date(selected_date)
     return render_template(
         'apron/aodb_sync.html',
         sync_result=sync_result,
         last_sync=last_sync,
         recent=recent,
-        today=date.today().isoformat(),
+        selected_date=selected_date.isoformat(),
+        is_mock_mode=bool(current_app.config.get('AODB_MOCK_MODE', False)),
     )
 
 

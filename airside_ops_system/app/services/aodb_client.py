@@ -53,6 +53,7 @@ class AodbClient:
         mock_mode: bool = False,
         mock_writeback_fail_rate: float = 0.0,
         auth_key: str = '',
+        writeback_endpoint: str = '/standapi/update',
     ):
         if not base_url:
             raise ValueError('AODB base_url is required.')
@@ -62,6 +63,7 @@ class AodbClient:
         self._user_id = user_id
         self._password = password
         self._auth_key = (auth_key or '').strip()
+        self._writeback_endpoint = writeback_endpoint if writeback_endpoint.startswith('/') else f'/{writeback_endpoint}'
         self._timeout = timeout
         self._mock_mode = mock_mode
         self._mock_writeback_fail_rate = max(0.0, min(1.0, float(mock_writeback_fail_rate)))
@@ -98,6 +100,7 @@ class AodbClient:
         user_id  = cfg.get('AODB_USER_ID', '')
         password = cfg.get('AODB_PASSWORD', '')
         timeout  = int(cfg.get('AODB_TIMEOUT_SECONDS', 30))
+        writeback_endpoint = cfg.get('AODB_WRITEBACK_ENDPOINT', '/standapi/update')
         mock_mode = bool(cfg.get('AODB_MOCK_MODE', False))
         mock_writeback_fail_rate = float(cfg.get('AODB_MOCK_WRITEBACK_FAIL_RATE', 0.0) or 0.0)
         return cls(
@@ -108,7 +111,12 @@ class AodbClient:
             mock_mode=mock_mode,
             mock_writeback_fail_rate=mock_writeback_fail_rate,
             auth_key=auth_key,
+            writeback_endpoint=writeback_endpoint,
         )
+
+    @property
+    def is_mock_mode(self) -> bool:
+        return self._mock_mode
 
     # ------------------------------------------------------------------
     # Auth
@@ -210,11 +218,17 @@ class AodbClient:
 
         payload = {
             'flightId': flight_id,
+            # v1.5 naming
+            'colId': time_type,
+            'value': time_str,
+            # backward-compatible naming
             'timeType': time_type,
             'timeValue': time_str,
         }
         if self._session_id and not self._auth_key:
             payload['sessionId'] = self._session_id
+        if self._user_id:
+            payload['userId'] = self._user_id
 
         if self._mock_mode:
             # Optional fail rate allows local retry-flow testing.
@@ -232,7 +246,21 @@ class AodbClient:
                 },
             }
 
-        return self._post('/standapi/movementtime', payload)
+        # v1.5 prefers /standapi/update; keep fallback for older deployments.
+        last_exc = None
+        for endpoint in (self._writeback_endpoint, '/standapi/movementtime'):
+            try:
+                return self._post(endpoint, payload)
+            except RuntimeError as exc:
+                last_exc = exc
+                # Only fallback automatically when endpoint is missing.
+                if 'HTTP error 404' in str(exc):
+                    logger.info('AODB endpoint %s not found, trying fallback.', endpoint)
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        raise RuntimeError('AODB write-back failed for unknown reason.')
 
     # ------------------------------------------------------------------
     # Internal HTTP

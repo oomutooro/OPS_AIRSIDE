@@ -9,11 +9,17 @@
                 <small class="text-muted">Last synced: {{ last_sync|datetime_fmt if last_sync else 'Never' }}</small>
             </div>
             <div class="card-body">
+                {% if is_mock_mode %}
+                <div class="alert alert-warning">
+                    AODB is running in Mock Mode. You are seeing sample flights, not live AODB data.
+                </div>
+                {% endif %}
+
                 <form method="post" class="row g-3 align-items-end">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="col-md-4">
                         <label class="form-label">Sync Date</label>
-                        <input type="date" name="sync_date" class="form-control" value="{{ today }}">
+                        <input type="date" name="sync_date" class="form-control" value="{{ selected_date }}">
                     </div>
                     <div class="col-md-3">
                         <button type="submit" class="btn btn-primary btn-touch w-100">
@@ -40,7 +46,7 @@
 </div>
 
 <div class="card panel-card">
-    <div class="card-header">Recently Synced Flights (latest 30)</div>
+    <div class="card-header">Synced Flights for {{ selected_date|date_fmt }}</div>
     <div class="card-body table-responsive p-0">
         <table class="table table-sm table-hover mb-0">
             <thead>
@@ -72,7 +78,7 @@
                     <td class="small text-muted">{{ f.synced_at|datetime_fmt }}</td>
                 </tr>
             {% else %}
-                <tr><td colspan="8" class="text-center text-muted py-3">No synced flights yet. Run a sync above.</td></tr>
+                <tr><td colspan="8" class="text-center text-muted py-3">No synced flights for this date. Run a sync above.</td></tr>
             {% endfor %}
             </tbody>
         </table>

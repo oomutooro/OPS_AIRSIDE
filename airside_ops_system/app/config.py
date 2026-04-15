@@ -80,10 +80,12 @@ class Config:
     AODB_USER_ID  = os.environ.get('AODB_USER_ID', '')
     AODB_PASSWORD = os.environ.get('AODB_PASSWORD', '')
     AODB_TIMEOUT_SECONDS = int(os.environ.get('AODB_TIMEOUT_SECONDS', 30))
+    AODB_WRITEBACK_ENDPOINT = os.environ.get('AODB_WRITEBACK_ENDPOINT', '/standapi/update')
     AODB_MOCK_MODE = os.environ.get('AODB_MOCK_MODE', 'False').lower() == 'true'
     AODB_MOCK_WRITEBACK_FAIL_RATE = float(os.environ.get('AODB_MOCK_WRITEBACK_FAIL_RATE', 0.0))
     # Sync interval in minutes (APScheduler)
     AODB_SYNC_INTERVAL_MINUTES = int(os.environ.get('AODB_SYNC_INTERVAL_MINUTES', 15))
+    AODB_SYNC_DAYS_AHEAD = int(os.environ.get('AODB_SYNC_DAYS_AHEAD', 0))
     AODB_WRITEBACK_INTERVAL_MINUTES = int(os.environ.get('AODB_WRITEBACK_INTERVAL_MINUTES', 5))
 
 
@@ -94,8 +96,8 @@ class DevelopmentConfig(Config):
         'DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "..", "airside_ops.db")}'
     )
     CACHE_TYPE = 'SimpleCache'
-    # Enable local AODB simulation by default for solo development.
-    AODB_MOCK_MODE = os.environ.get('AODB_MOCK_MODE', 'True').lower() == 'true'
+    # Default to live mode when credentials are provided; set True explicitly for local simulation.
+    AODB_MOCK_MODE = os.environ.get('AODB_MOCK_MODE', 'False').lower() == 'true'
 
 
 class TestingConfig(Config):

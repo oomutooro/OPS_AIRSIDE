@@ -57,6 +57,9 @@ class AodbSyncService:
 
         try:
             with client as c:
+                if not c.is_mock_mode:
+                    cls._purge_mock_rows()
+
                 arrivals = c.get_arrivals(for_date)
                 result['arrivals'] = len(arrivals)
 
@@ -83,12 +86,18 @@ class AodbSyncService:
     @classmethod
     def scheduled_sync(cls):
         """
-        Entry point called by APScheduler — syncs today and tomorrow.
+        Entry point called by APScheduler.
+        Syncs today by default; can extend with AODB_SYNC_DAYS_AHEAD.
         Must be called within Flask app context.
         """
+        from flask import current_app
+
         today = date.today()
-        tomorrow = today + timedelta(days=1)
-        for d in (today, tomorrow):
+        days_ahead = int(current_app.config.get('AODB_SYNC_DAYS_AHEAD', 0) or 0)
+        days_ahead = max(0, min(days_ahead, 7))
+
+        for offset in range(days_ahead + 1):
+            d = today + timedelta(days=offset)
             cls.sync_date(d)
 
     # ------------------------------------------------------------------
@@ -106,6 +115,20 @@ class AodbSyncService:
             except Exception as exc:
                 logger.debug('Skipping record %s: %s', rec.get('flightId'), exc)
         return count
+
+    @classmethod
+    def _purge_mock_rows(cls):
+        """Remove legacy mock rows when running against live AODB."""
+        try:
+            deleted = (
+                FlightMovement.query
+                .filter(FlightMovement.aodb_flight_id.like('MOCK-%'))
+                .delete(synchronize_session=False)
+            )
+            if deleted:
+                logger.info('Removed %d legacy mock flight rows before live sync.', deleted)
+        except Exception as exc:
+            logger.warning('Could not purge mock rows: %s', exc)
 
     # ------------------------------------------------------------------
     # Read helpers (for routes/templates)
