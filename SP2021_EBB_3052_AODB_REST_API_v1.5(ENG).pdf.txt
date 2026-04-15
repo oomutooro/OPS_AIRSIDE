@@ -1,0 +1,2851 @@
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+2021. 8. 
+ 
+ 
+ 
+ 
+ 
+ 
+Smartport Technology 
+AODB REST API 
+AODB REST API  Contents 
+ 
+ 
+ 
+Contents 
+1. OVERVIEW ................................................................................................................ 1 
+1.1. Purpose ..................................................................................................................................... 1 
+1.2. Scope of the document ......................................................................................................... 1 
+1.3. System Interface Structure .................................................................................................... 1 
+1.4. Role by System ........................................................................................................................ 2 
+2. API DESIGN .............................................................................................................. 3 
+2.1. Client Authentication.............................................................................................................. 3 
+2.2. Setting authentication key when calling API (HTTP Header) ........................................ 3 
+2.3. White List IP Management .................................................................................................... 3 
+2.4. API Request And Authentication Process .......................................................................... 4 
+2.5. HTTP response status codes and response messages ..................................................... 4 
+3. FIDS REST API .......................................................................................................... 5 
+3.1. Overview ................................................................................................................................... 5 
+3.2. API List ...................................................................................................................................... 5 
+3.3. API Detail .................................................................................................................................. 6 
+3.4. Data Model Definition ......................................................................................................... 15 
+4. DANS BILLING API ............................................................................................... 17 
+4.1. Overview ................................................................................................................................. 17 
+4.2. API List .................................................................................................................................... 17 
+4.3. API Detail ................................................................................................................................ 18 
+4.4. Data Model Definition ......................................................................................................... 23 
+5. DANS ATM API ...................................................................................................... 24 
+5.1. Overview ................................................................................................................................. 24 
+5.2. AODB Side API List ............................................................................................................... 24 
+5.3. DANS Side API List ............................................................................................................... 24 
+5.4. AODB Side API Detail ........................................................................................................... 25 
+AODB REST API  Contents 
+ 
+ 
+ 
+5.5. DANS Side API Detail ........................................................................................................... 27 
+5.6. Data Model Definition ......................................................................................................... 37 
+6. MOBILE APP API ................................................................................................... 38 
+6.1. Overview ................................................................................................................................. 38 
+6.2. API List .................................................................................................................................... 38 
+6.3. API Detail ................................................................................................................................ 38 
+6.4. Data Model Definition ......................................................................................................... 44 
+7. SITREP API .............................................................................................................. 47 
+7.1. Overview ................................................................................................................................. 47 
+7.2. API List .................................................................................................................................... 47 
+7.3. API Detail ................................................................................................................................ 48 
+7.4. Data Model Definition ......................................................................................................... 49 
+8. CLEARANCE API .................................................................................................... 52 
+8.1. Overview ................................................................................................................................. 52 
+8.2. AODB Side API List ............................................................................................................... 52 
+8.3. Clearance Portal Side API List ............................................................................................ 52 
+8.4. API Detail ................................................................................................................................ 53 
+8.5. Data Model Definition ......................................................................................................... 59 
+9. STATISTICS API ...................................................................................................... 62 
+9.1. Overview ................................................................................................................................. 62 
+9.2. API List .................................................................................................................................... 62 
+9.3. API Detail ................................................................................................................................ 63 
+9.4. Data Model Definition ......................................................................................................... 64 
+10. RESOURCE API ....................................................................................................... 66 
+10.1. Overview ................................................................................................................................. 66 
+10.2. API List .................................................................................................................................... 66 
+10.3. API Detail ................................................................................................................................ 67 
+10.4. Data Model Definition ......................................................................................................... 71 
+ 
+AODB REST API 1 1. Overview 
+ 
+ 
+ 
+1. Overview 
+1.1. Purpose 
+In order to  further improve system integration, it was decided to change some of the 
+linkage structure between AODB and the existing system to RESTful API. 
+This document was written to define the RESTful API provided by AODB.   
+ 
+1.2. Scope of the document  
+This document defines RESTful API functions provided to systems that receive data from 
+AODB, such as FIDS, DANS BILLING, DANS ATM system, and Mobile Application for 
+Operation Airside departments. 
+Therefore, this document defines the authentication processing method of RESTful API, the 
+API list for each system, detailed API information and examples, and the linked data model. 
+ 
+1.3. System Interface Structure 
+ 
+Figure 1. AODB Interface structure 
+ 
+
+AODB REST API 2 1. Overview 
+ 
+ 
+ 
+1.4. Role by System 
+No Interface System Description 
+1 AODB 
+Perform overall flight schedule management, resource 
+allocation and usage management 
+Create and manage daily flight information using Flight 
+Schedule management and AFTN Flight plan parsing 
+2 Indra FIDS 
+Display the Daily Flight Schedule and resource information 
+screen periodically received from AODB 
+3 DANS ATM 
+AODB supplements schedule by periodically inquiring data 
+from DANS ATM. 
+DANS ATM obtains POB (Person on board) for each flight 
+schedule from AODB. 
+4 DANS SITREP 
+AODB obtains and stores Wildlife basic information  from 
+SITREP 
+5 DANS BILLING 
+Generate data to be provided to SUN system by obtaining real-
+time Actual Time of Arrival from AODB 
+6 SUN System Billing System 
+7 Mobile Application 
+A mobile application for entering real -time aircraft ground 
+movement information. The app obtains the flight schedule 
+from the AODB and displays it, and stores the entered data in 
+the AODB. 
+8 Clearance Portal 
+Receives a request for Clearance permission from the airline 
+and sends it to the AODB. 
+Receive and apply  data when processing approval/rejection 
+from AODB. 
+ 
+ 
+ 
+AODB REST API 3 2. API Design 
+ 
+ 
+ 
+2. API Design 
+2.1. Client Authentication 
+The AODB API server provides an authentication method to control access to inappropriate 
+client requests.  
+The authentication methods provided are white list authentication which defines the list of 
+authorized IPs and API key authentication. 
+ 
+Figure 1. API Server – Client Authentication 
+ 
+2.2. Setting authentication key when calling API (HTTP Header) 
+The authentication key is generated by hashing the authentication string specified by the 
+system administrator with the SHA -256 algorithm. The generated authentication key will 
+be distributed to each client during the interworking test. 
+The client calls the API by setting the authentication key in the HTTP Request Header as 
+follows. The API server extracts the header value and checks whether the authentication 
+key is valid.  
+- Header Key : X-Authentication-Key   
+- Header value : provided authentication key   
+ 
+2.3. White List IP Management  
+Since the authentication key is composed of a string, if it is exposed, unauthorized clients 
+
+AODB REST API 4 2. API Design 
+ 
+ 
+ 
+on the network can call the API. AODB API Server processes requests only for API calls 
+that match the authentication key from the specified IP. 
+ 
+2.4. API Request And Authentication Process  
+ 
+ 
+Figure 5. API request and authentication process 
+ 
+2.5. HTTP response status codes and response messages 
+The API server returns an HTTP response status code of 200 for all requests, and returns a 
+processing result code in the code attribute value of the response message. When an error 
+occurs, an error message is added to the message attribute value along with the code. 
+When calling the list search API, if there is no searched item, an em pty array is returned 
+with a response code of 200. 
+ 
+Code Message Description 
+200 - Processed normaly 
+401 Unauthorized 
+If the authentication key is not entered or the 
+authentication key is incorrect 
+403 Not Allowed When requested by a disallowed client 
+404 Not Found 
+If the resource for the identifier does not exist when 
+viewing detailed information 
+500 Internal Server Error If the logic encountered an error while processing  
+
+AODB REST API 5 3. FIDS REST API 
+ 
+ 
+ 
+3. FIDS REST API 
+3.1. Overview 
+FIDS RESTful API is a function to query data to display flight information in FIDS. 
+The FIDS -linked data is departure and arrival flight schedule information and airport 
+resource usage information related to the flight schedule. 
+ 
+3.2. API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 
+Arrival Flight  
+Schedule Information   
+POST /fids/arrSchInfo N/A flightScheduleInfo 
+2 
+Arrival Carousel 
+Operation Information 
+POST /fids/arrCrsInfo N/A resourceInfo 
+3 
+Departure Flight  
+Schedule Information 
+POST /fids/depSchInfo N/A flightScheduleInfo 
+4 
+Departure Checkin- 
+counter Operation  
+Information 
+POST /fids/depCicInfo N/A resourceInfo 
+5 
+Departure Gate  
+Operation Information 
+POST /fids/depGateInfo N/A resourceInfo 
+6 Airport Code POST /fids/airportCode N/A airportCodeInfo 
+7 Airline Code POST /fids/airlineCode N/A airlineCodeInfo 
+8 AODB API Server check GET /cmm/serverCheck N/A N/A 
+9      
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+AODB REST API 6 3. FIDS REST API 
+ 
+ 
+ 
+3.3. API Detail 
+3.3.1. Arrival Flight Schedule Information API 
+ 
+Name Arrival Flight Schedule Information HTTP Method POST 
+Description Inquire the flight schedule of arrival flights for a certain period.  
+Request 
+URL http://{hostname}:{port}/fids/arrSchInfo 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ "fromDatetime”:”202108030300", 
+"toDatetime": "202108040500" } 
+Response 
+Content Type application/json Model flightScheduleInfo 
+Body(example) 
+ [  
+{ “flightIataCode”:”ET”  
+, "airlineName": "ETHIOPIAN AIRLINES" 
+, “flightNumber”:”335”  
+, "arrOrDep":"A" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031600"  
+, “estimatedTime”:” 202108031555” 
+, “originAirport”:”ADD” 
+, “originAirportName” : “ADDIS ABABA” 
+, “destinationAirport”: null 
+, "destinationAirportName": null, 
+, “flightStatus”:”LANDED” 
+, “divertedAirport”:null 
+, “terminal”:”T1” 
+, “typeOfFlight”:”INT” 
+, “flightServiceType”:”J” 
+, “linkedFlightNumber”:”336” 
+, “deleteYn”:”N” 
+, "logoFilePath": "/files/images/ETETH_MediumLogo_xxxxx.png" 
+, "logoBase64": " iVBORw0KGgoAAAANSUhEU…..” 
+, “carouselNumber”: “” 
+, “carouselOpenTime” : “” 
+, “carouselCloseTIme”: “” 
+AODB REST API 7 3. FIDS REST API 
+ 
+ 
+ 
+}, {  }, {  } ……  
+] 
+  
+ 
+3.3.2. Arrival Carousel Operation Information API 
+ 
+Name Arrival Carousel Operation Information HTTP Method POST 
+Description Inquire the Carousel Operation informations of arrival flights for a certain period. 
+Request 
+URL http://{hostname}:{port}/fids/arrCrsInfo 
+Content Type application/json Model N/A 
+Query Params N/A Path Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108030300", 
+"toDatetime": "202108040500"   
+} 
+Response 
+Content Type application/json Model resourceInfo 
+Body(example) 
+{  
+"code": 200,  
+"data": [  
+{ “flightIataCode”:”ET”  
+, “flightNumber”:”335”  
+, "rscType":"B" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031600"  
+, “useStartTime”:”202108031615” 
+, “useEndTime”:” 202108031715” 
+, “rscNumber”:”Belt1”  
+},  
+{ “flightIataCode”:”KQ”  
+, “flightNumber”:”579”  
+, "rscType":"B" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031700"  
+, “useStartTime”:”202108031715” 
+, “useEndTime”:” 202108031815” 
+, “rscNumber”:”Belt2” 
+}, 
+{  }, {  } ……  
+    ] 
+} 
+AODB REST API 8 3. FIDS REST API 
+ 
+ 
+ 
+ 
+3.3.3. Departure Flight Schedule Information API 
+ 
+Name Departure Flight Schedule Information HTTP Method POST 
+Description Inquire the flight schedule of departure flights for a certain period. 
+Request 
+URL http://{hostname}:{port}/fids/depSchInfo 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  "fromDatetime”:”202108030300", 
+"toDatetime": "202108040500" } 
+Response 
+Content Type application/json Model flightScheduleInfo 
+Body(example) 
+[  
+{ “flightIataCode”:”ET”  
+, "airlineName": "ETHIOPIAN AIRLINES" 
+, “flightNumber”:”336”  
+, "arrOrDep":"D" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031900"  
+, “estimatedTime”:” 202108031905” 
+, “originAirport”: null 
+, “originAirportName” : null 
+, “destinationAirport”:”ADD” 
+, "destinationAirportName": “ADDIS ABABA” 
+, “flightStatus”:”DEPARTED” 
+, “divertedAirport”:”” 
+, “terminal”:”T1” 
+, “typeOfFlight”:”INT” 
+, “flightServiceType”:”J” 
+, “linkedFlightNumber”:”335” 
+, “deleteYn”:”N”  
+, "logoFilePath": "/files/images/ETETH_MediumLogo_xxxxx.png" 
+, "logoBase64": " iVBORw0KGgoAAAANSUhEU…..” 
+, "gateNumber": "" 
+, "previousGateNumber": "" 
+, "gateStatus": "" 
+, "gateOpenTime": "" 
+, "gateCloseTime": "" 
+, "checkInCounterStatus": "" 
+, "checkInCounterOpenTime": "" 
+, "checkInCounterCloseTime": "" 
+, "businessCheckInCounterRange": "" 
+, "economyCheckInCounterRange": "" 
+},  
+AODB REST API 9 3. FIDS REST API 
+ 
+ 
+ 
+{  }, {  } ……  
+] 
+  
+AODB REST API 10 3. FIDS REST API 
+ 
+ 
+ 
+3.3.4. Departure Checkin-counter Operation Information API 
+ 
+Name 
+Departure Checkin -counter Operation 
+Information 
+HTTP Method POST 
+Description Inquire the CIC Operation Information of departure flights for a certain period. 
+Request 
+URL http://{hostname}:{port}/fids/depCicInfo 
+Content Type application/json Model N/A 
+Query Params N/A Path Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108030300", 
+"toDatetime": "202108040500"  
+} 
+Response 
+Content Type application/json Model resourceInfo 
+Body(example) 
+{  
+"code": 200,  
+"data": [  
+{ “flightIataCode”:”ET”  
+, “flightNumber”:”336”  
+, "rscType":"C" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031900"  
+, “useStartTime”:”202108031500” 
+, “useEndTime”:” 202108031800” 
+, “rscNumber”:”C01” 
+},  
+{ “flightIataCode”:”ET”  
+, “flightNumber”:”336”  
+, "rscType":"C" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031900"  
+, “useStartTime”:”202108031500” 
+, “useEndTime”:” 202108031800” 
+, “rscNumber”:”C02” 
+},  
+{  }, {  } ……  
+    ] 
+} 
+AODB REST API 11 3. FIDS REST API 
+ 
+ 
+ 
+3.3.5. Departure Gate Operation Information API 
+ 
+Name Departure Gate Operation Information HTTP Method POST 
+Description Inquire the gate Operation Information of departure flights for a certain period. 
+Request 
+URL http://{hostname}:{port}/fids/depGateInfo 
+Content Type application/json Model N/A 
+Query Params N/A Path Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108030300", 
+"toDatetime": "202108040500"  
+} 
+Response 
+Content Type application/json Model resourceInfo 
+Body(example) 
+{  
+"code": 200,  
+"data": [  
+{ “flightIataCode”:”ET”  
+, “flightNumber”:”336”  
+, "rscType":"G" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031900"  
+, “useStartTime”:”202108031800” 
+, “useEndTime”:” 202108031900” 
+, “rscNumber”:”G01” 
+},  
+{ “flightIataCode”:”KQ”  
+, “flightNumber”:”578”  
+, “rscType”:”G” 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108032100"  
+, “useStartTime”:”202108031900” 
+, “useEndTime”:” 202108032045” 
+, “rscNumber”:”G02” 
+},  
+{  }, {  } ……  
+    ] 
+} 
+ 
+AODB REST API 12 3. FIDS REST API 
+ 
+ 
+ 
+3.3.6. Airport Code API 
+ 
+Name Airport Code HTTP Method POST 
+Description Inquire the airport code by IATA code 
+Request 
+URL http://{hostname}:{port}/fids/airportCode 
+Content Type application/json Model N/A 
+Query Params N/A Path Params N/A 
+Body(example) 
+{  
+"iataCode”:”MBQ", 
+} 
+Response 
+Content Type application/json Model airportCodeInfo 
+Body(example) 
+{  
+"code": 200,  
+"data": [  
+{ “iataCode”:”MBQ”  
+, “countryCode”:”UG”  
+, "name":" Mbarara Airport" 
+, "icaoCode": “HUMA” 
+, "cityName": "Mbarara"  
+ }  
+    ] 
+} 
+ 
+ 
+ 
+ 
+ 
+  
+AODB REST API 13 3. FIDS REST API 
+ 
+ 
+ 
+3.3.7. Airline Code API 
+ 
+Name Airline Code HTTP Method POST 
+Description Inquire the airline code by IATA code 
+Request 
+URL http://{hostname}:{port}/fids/airlineCode 
+Content Type application/json Model N/A 
+Query Params N/A Path Params N/A 
+Body(example) 
+{  
+"iataCode”:”KQ", 
+} 
+Response 
+Content Type application/json Model airlineCodeInfo 
+Body(example) 
+{  
+"code": 200,  
+"data": [  
+{ “iataCode”:”KQ”  
+, "name":"Kenya Airways" 
+, "icaoCode": “KQA” 
+}  
+    ] 
+} 
+ 
+  
+AODB REST API 14 3. FIDS REST API 
+ 
+ 
+ 
+3.3.8. AODB API Server check API 
+ 
+Name AODB API Server check HTTP Method POST 
+Description Check server availability 
+Request 
+URL http://{hostname}:{port}/cmm/serverCheck 
+Content Type application/json Model N/A 
+Query Params N/A Path Params N/A 
+Body(example) 
+N/A 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+{  
+"code": 200,  
+"message": “” 
+} 
+ 
+  
+AODB REST API 15 3. FIDS REST API 
+ 
+ 
+ 
+3.4. Data Model Definition 
+This section defines the type and properties of the Model constituting each API response 
+message body. The data type and maximum length are written based on the column of 
+the DB (Oracle) table. 
+ 
+3.4.1. flightScheduleInfo 
+Field Type Byte Description 
+flightIataCode VARCHAR2 3 Airline IATA Code 
+airlineName VARCHAR2 100  
+flightNumber VARCHAR2 10  
+arrOrDep VARCHAR2 1 Arrival/departure classification(A, D) 
+scheduledDate VARCHAR2 8 Date of flight YYYYMMDD 
+scheduledTime VARCHAR2 12 Scheduled time of arrival/departure 
+YYYYMMDDHH24MI 
+estimatedTime VARCHAR2 12 Estimated time of arrival/departure 
+YYYYMMDDHH24MI 
+originAirport VARCHAR2 4 IATA code of origin airport 
+originAirportName VARCHAR2 100  
+destinationAirport VARCHAR2 4 IATA code of destination airport 
+destinationAirportName VARCHAR2 100  
+flightStatus VARCHAR2 3 Flight Operation Code 
+divertedAirport VARCHAR2 4 IATA code of diverted airport 
+Terminal VARCHAR2 4 T1, T2 
+typeOfFlight VARCHAR2 3 INT:International, DOM:Domestic 
+flightServiceType VARCHAR2 1 Service type of flight 
+linkedFlightNumber VARCHAR2 10 Linked flight number of 
+arrival/departure 
+deleteYn VARCHAR2 1 Flight delete flag 
+logoFilePath VARCHAR2 100 Logo Filepath 
+logoBase64 VARCHAR2  Encoding Data 
+gateNumber VARCHAR2 4  
+previousGateNumber VARCHAR2 4  
+gateOpenTime VARCHAR2 12 Date of YYYYMMDDHHMM 
+gateCloseTime VARCHAR2 12 Date of YYYYMMDDHHMM 
+carouselNumber VARCHAR2 4  
+carouselOpenTime VARCHAR2 12 Date of YYYYMMDDHHMM 
+carouselCloseTime VARCHAR2 12 Date of YYYYMMDDHHMM 
+AODB REST API 16 3. FIDS REST API 
+ 
+ 
+ 
+checkInCounterStatus VARCHAR2 5  
+checkInCounterOpenTime VARCHAR2 12 Date of YYYYMMDDHHMM 
+checkInCounterCloseTime VARCHAR2 12 Date of YYYYMMDDHHMM 
+economyCheckInCounterRange VARCHAR2  The distinction point is a comma. 
+businessCheckInCounterRange VARCHAR2  The distinction point is a comma. 
+ 
+3.4.2. resourceInfo 
+Field Type Byte Description 
+flightIataCode VARCHAR2 3 Airline IATA Code 
+flightNumber VARCHAR2 10  
+rscType VARCHAR2 1 Type of Resource 
+G:Gate, C:Check-in Counter, B:Carousel Belt 
+scheduledDate VARCHAR2 8 Date of flight YYYYMMDD 
+scheduledTime VARCHAR2 12 Scheduled time of arrival/departure 
+YYYYMMDDHH24MI 
+useStartTime VARCHAR2 12 Start time of resource usage 
+useEndTime VARCHAR2 12 End time of resource usage 
+rscNumber VARCHAR2 4 Resource Number 
+3.4.3. airportCodeInfo 
+Field Type Byte Description 
+iataCode VARCHAR2 4 Airport IATA Code 
+countryCode VARCHAR2 2 For airport 
+name VARCHAR2 100 Airport Name 
+icaoCode VARCHAR2 4  
+cityName VARCHAR2 100  
+AODB REST API 설계서 17 TBD 
+ 
+17 
+ 
+4. DANS BILLING API  
+4.1. Overview 
+The DANS BILLING API s are  functions that the DANS BILLING system requests ATA 
+information from AODB to inquire data. 
+ 
+4.2. API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 
+Query by callsign and 
+date and scheduled 
+time for Actual Time of 
+Arrival flight 
+POST /dansbill/atabycallsign N/A ataInfo 
+2 
+Query Actual Time of 
+Arrival by date of flight 
+POST /dansbill/atabydate N/A ataInfo 
+3 
+Query Actual Time of 
+Arrival by time range 
+POST /dansbill/atabytimerange N/A ataInfo 
+4 
+Query Pax info of flight 
+by date 
+POST /dansbill/gdinfobydate N/A GdInfo 
+5 
+Query Pax info of flight 
+by timerange 
+POST /dansbill/ 
+gdinfobytimerange 
+N/A GdInfo 
+ 
+  
+AODB REST API 설계서 18 TBD 
+ 
+18 
+ 
+4.3. API Detail 
+4.3.1 Query by callsign and date and scheduled time for ATA API 
+ 
+Name 
+Query by callsign and date and scheduled time 
+for Actual Time of Arrival flight 
+HTTP Method POST 
+Description Inquiry of actual landing time for a single arrival flight 
+Request 
+URL http://{hostname}:{port}/dansbill/atabycallsign 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+    “callsign”:”ETH335” 
+"date”:”20210803", 
+} 
+Response 
+Content Type application/json Model ataInfo 
+Body(example) 
+{  
+“flightIcaoCode”:”ETH”  
+, “flightNumber”:”335”  
+, “aircraftReg” : “ETZDB” 
+, "scheduledTime": "202108031600" 
+, “ATA”:” 202108031555”  
+} 
+  
+  
+AODB REST API 설계서 19 TBD 
+ 
+19 
+ 
+4.3.2 Query Actual Time of Arrival by date of flight API 
+ 
+Name Query Actual Time of Arrival by date of flight HTTP Method POST 
+Description Inquiry of actual landing time for all arrivals by date 
+Request 
+URL http://{hostname}:{port}/dansbill/atabydate 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"date”:”20210803", 
+} 
+Response 
+Content Type application/json Model ataInfo 
+Body(example) 
+{  
+ [  
+{ “flightIcaoCode”:”ETH”  
+, “flightNumber”:”336”  
+, “aircraftReg” : “ETZDB” 
+, "scheduledTime": "202108031900"  
+, “ATA”:”202108031905” 
+},  
+ {  }, {  } ……  
+    ] 
+} 
+  
+ 
+ 
+ 
+ 
+  
+AODB REST API 설계서 20 TBD 
+ 
+20 
+ 
+4.3.3 Query Actual Time of Arrival by time range API 
+ 
+Name Query Actual Time of Arrival by time range HTTP Method POST 
+Description Inquire about the actual landing time of all arrivals for each period 
+Request 
+URL http://{hostname}:{port}/dansbill/atabytimerange 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108031900", 
+"toDatetime": "202108040500"  
+} 
+Response 
+Content Type application/json Model ataInfo 
+Body(example) 
+{  
+ [  
+{ “flightIcaoCode”:”ETH”  
+, “flightNumber”:”336”  
+, “aircraftReg” : “ETZDB” 
+, "scheduledTime": "202108031900"  
+, “ATA”:”202108031905” 
+},  
+{ “flightIcaoCode”:”KQA”  
+, “flightNumber”:”245” 
+, “aircraftReg” : “KQZDB”   
+, "scheduledTime": "202108032010"  
+, “ATA”:”202108032005” 
+}, {  }, {  } ……  
+    ] 
+} 
+ 
+ 
+  
+AODB REST API 설계서 21 TBD 
+ 
+21 
+ 
+4.3.4 Query pax info of flights by date API 
+ 
+Name Query pax info of flights by date HTTP Method POST 
+Description Inquire about the pax info of all flights for each date 
+Request 
+URL http://{hostname}:{port}/dansbill/gdinfobydate 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"date”:”20210803" 
+} 
+Response 
+Content Type application/json Model ataInfo 
+Body(example) 
+[  
+{ “flightIcaoCode”:”ETH”  
+, “flightNumber”:”336”  
+, “aircraftReg” : “ETZDB” 
+, "scheduledDate": "20210803"  
+, “adultCount”:”123” 
+, “infantCount”:”1” 
+, “crewCount”:”10” 
+, “sodCount”:”0” 
+, “transitCount”:”10” 
+}, {  }, {  } ……  
+    ] 
+ 
+ 
+  
+AODB REST API 설계서 22 TBD 
+ 
+22 
+ 
+4.3.5 Query pax info of flights by time range API 
+ 
+Name Query pax info of flights by time range HTTP Method POST 
+Description Inquire about the pax info of all flights for a period 
+Request 
+URL http://{hostname}:{port}/dansbill/gdinfobytimerange 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108031900", 
+"toDatetime": "202108040500"  
+} 
+Response 
+Content Type application/json Model ataInfo 
+Body(example) 
+[  
+{ “flightIcaoCode”:”ETH”  
+, “flightNumber”:”336”  
+, “aircraftReg” : “ETZDB” 
+, "scheduledDate": "20210803"  
+, “adultCount”:”123” 
+, “infantCount”:”1” 
+, “crewCount”:”10” 
+, “sodCount”:”0” 
+, “transitCount”:”10” 
+}, {  }, {  } ……  
+    ] 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+  
+AODB REST API 설계서 23 TBD 
+ 
+23 
+ 
+4.4. Data Model Definition 
+This section defines the type and properties of the Model constituting each API response 
+message body. The data type and maximum length are written based on the column of 
+the DB (Oracle) table.  
+ 
+4.4.1 ataInfo 
+ 
+Field Type Byte Description 
+flightIcaoCode VARCHAR2 3 Airline ICAO Code 
+flightNumber VARCHAR2 10  
+aircraftReg VARCHAR2 12  
+scheduledTime VARCHAR2 12 Scheduled time of arrival 
+YYYYMMDDHH24MI 
+ATA VARCHAR2 12 Actual time of arrival 
+YYYYMMDDHH24MI 
+ 
+4.4.2 GdInfo 
+ 
+Field Type Byte Description 
+flightIcaoCode VARCHAR2 3 Airline ICAO Code 
+flightNumber VARCHAR2 10  
+aircraftReg VARCHAR2 12  
+scheduledDate VARCHAR2 12 Scheduled date of flight 
+YYYYMMDD 
+adultCount NUMBER 3  
+infantCount NUMBER 3  
+crewCount NUMBER 3  
+sodCount NUMBER 3  
+transitCount NUMBER 3  
+ 
+  
+AODB REST API 설계서 24 TBD 
+ 
+24 
+ 
+5. DANS ATM API  
+5.1. Overview 
+The DANS ATM APIs are  functions that the DANS ATM system requests ‘Persons on 
+board’(POB) information from AODB to inquire data. 
+5.2. AODB Side API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 Query by date of flight for POB POST /dansatm/dof N/A pobInfo 
+2 Query by time range for POB POST /dansatm/timerange N/A pobInfo 
+ 
+5.3. DANS Side API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 Query by Date POST /aodbapi/dateofflight N/A DansAtm 
+2 
+Query by Date and 
+Flight mode 
+POST /aodbapi/dateofflight/fli
+ghtmode 
+N/A DansAtm 
+3 
+Query by Date and 
+Callsign 
+POST /aodbapi/dateofflight/ca
+llsign 
+ DansAtm 
+4 
+Query by Date and 
+Registration 
+POST /aodbapi/dateofflight/re
+gistration 
+ DansAtm 
+5 
+Query by Date and 
+Airline Code 
+POST /aodbapi/dateofflight/air
+linecode 
+ DansAtm 
+6 Query by Time Range POST /aodbapi/timerange  DansAtm 
+7 
+Query by Time Range 
+and Flight mode 
+POST /aodbapi/timerange/flig
+htmode 
+ DansAtm 
+8 
+Query by Time Range 
+and Callsign 
+POST /aodbapi/timerange/call
+sign 
+ DansAtm 
+9 
+Query by Time Range 
+and Registration 
+POST /aodbapi/timerange/regi
+stration 
+ DansAtm 
+10 
+Query by Time Range 
+and Airline Code 
+POST /aodbapi/timerange/airli
+necode 
+ DansAtm 
+ 
+ 
+AODB REST API 설계서 25 TBD 
+ 
+25 
+ 
+5.4. AODB Side API Detail 
+5.2.1 Query by date of flight for POB API 
+ 
+Name Query by date of flight for POB HTTP Method POST 
+Description Inquiry of 'Persons on board' data by date 
+Request 
+URL http://{hostname}:{port}/dansatm/dof 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"date”:”20210803", 
+} 
+Response 
+Content Type application/json Model pobInfo 
+Body(example) 
+[  
+{ 
+ “flightIcaoCode”:”ETH”  
+, “flightNumber”:”336”  
+, “aircraftReg”:”ETDBZ” 
+, "arrOrDep":"D" 
+, "scheduledTime": "202108031600"  
+, “POB”:” 123” 
+}, {  }, {  } ……   
+] 
+ 
+  
+AODB REST API 설계서 26 TBD 
+ 
+26 
+ 
+5.2.2 Query by time range for POB API 
+ 
+Name Query by time range for POB HTTP Method POST 
+Description Inquiry of 'Persons on board' data by period 
+Request 
+URL http://{hostname}:{port}/dansatm/timerange 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108030300", 
+"toDatetime": "202108040500"   
+} 
+Response 
+Content Type application/json Model pobInfo 
+Body(example) 
+{  
+[  
+{ “flightIcaoCode”:”ETH”  
+, “flightNumber”:”336”  
+, “aircraftReg”:”ETDBZ” 
+, "arrOrDep":"D" 
+, "scheduledTime": "202108031600"  
+, “POB”:” 123” 
+}, {  }, {  } ……     ] 
+} 
+  
+  
+AODB REST API 설계서 27 TBD 
+ 
+27 
+ 
+5.5. DANS Side API Detail 
+5.5.1 Query by Date API 
+Name Date Only HTTP Method POST 
+Description Get all flights that occurred on a given date 
+Request 
+URL http://10.10.32.100:4733/aodbapi/dateofflight 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "date": "2021-10-01" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+     { 
+        "date": "2021-10-01", 
+        "callsign": "LNK191", 
+        "registration": "ZSYAD", 
+        "aircraft": "E190", 
+        "origin": "HUEN", 
+        "destination": "FAOR", 
+        "ata": null, 
+        "atd": "2021-10-01T00:35:00", 
+        "pob": 30, 
+        "flightMode": "Departure", 
+        "airline": "Airlink", 
+        "airlineCode": "LNK", 
+        "entryPoint": null, 
+        "entryTime": null, 
+        "exitPoint": "APNAD", 
+        "exitTime": "00:45" 
+    }, 
+    { … }, { … } 
+] 
+AODB REST API 설계서 28 TBD 
+ 
+28 
+ 
+5.5.2 Query by Date and Flight mode API 
+Name Query by date HTTP Method POST 
+Description 
+Get all flights of a given mode that occurred on a given date. The available values 
+for flight mode are “Arrival”, “Departure”, “Overflight”, “Training” 
+Request 
+URL http://10.10.32.100:4733/aodbapi/dateofflight/flightmode 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "date": "2021-10-01", 
+  "flightMode": "Arrival", 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+     { 
+        "date": "2021-10-01", 
+        "callsign": "THY6492", 
+        "registration": "TCJOZ", 
+        "aircraft": "A332", 
+        "origin": "LTBA", 
+        "destination": "HUEN", 
+        "ata": "2021-10-01T02:17:00", 
+        "atd": null, 
+        "pob": 4, 
+        "flightMode": "Arrival", 
+        "airline": "Turkish Airlines", 
+        "airlineCode": "THY", 
+        "entryPoint": "ATUGA", 
+        "entryTime": "01:31", 
+        "exitPoint": null, 
+        "exitTime": null 
+    }, 
+    { … }, { … } 
+] 
+AODB REST API 설계서 29 TBD 
+ 
+29 
+ 
+5.5.3 Query by Date and Callsign API 
+Name Date and Callsign HTTP Method POST 
+Description Get all flights that occurred on a given date using a give callsign 
+Request 
+URL http://10.10.32.100:4733/aodbapi/dateofflight/callsign 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "date": "2021-10-01", 
+  "callsign": "KQA421", 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-01", 
+        "callsign": "KQA421", 
+        "registration": "5YFFD", 
+        "aircraft": "E190", 
+        "origin": "HUEN", 
+        "destination": "HKJK", 
+        "ata": "2021-10-01T08:45:00", 
+        "atd": "2021-10-01T07:55:00", 
+        "pob": 89, 
+        "flightMode": "Departure", 
+        "airline": "Kenya Airways", 
+        "airlineCode": "KQA", 
+        "entryPoint": null, 
+        "entryTime": null, 
+        "exitPoint": "ALKON", 
+        "exitTime": "08:13" 
+    } 
+] 
+ 
+ 
+ 
+AODB REST API 설계서 30 TBD 
+ 
+30 
+ 
+5.5.4 Query by Date and Registration API 
+Name Date and Registration HTTP Method POST 
+Description Get all flights that occurred on a given date for a given aircraft registration 
+Request 
+URL http://10.10.32.100:4733/aodbapi/dateofflight/registration 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "date": "2021-10-01", 
+  "registration": "ZSCGO", 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-01", 
+        "callsign": "ZSCGO", 
+        "registration": "ZSCGO", 
+        "aircraft": "B190", 
+        "origin": "FZJB", 
+        "destination": "HUEN", 
+        "ata": "2021-10-01T06:46:00", 
+        "atd": null, 
+        "pob": 16, 
+        "flightMode": "Arrival", 
+        "airline": "KIBALI GOLD", 
+        "airlineCode": null, 
+        "entryPoint": null, 
+        "entryTime": "06:11", 
+        "exitPoint": null, 
+        "exitTime": null 
+    }, 
+    { … }, { … } 
+] 
+ 
+AODB REST API 설계서 31 TBD 
+ 
+31 
+ 
+5.5.5 Query by Date and Airline Code API 
+Name Date and Airline Code HTTP Method POST 
+Description Get all flights of a given airline that occurred on a given date 
+Request 
+URL http://10.10.32.100:4733/aodbapi/dateofflight/registration 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "date": "2021-10-01", 
+  "airlineCode": "THY", 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-01", 
+        "callsign": "THY42A", 
+        "registration": "TCJOL", 
+        "aircraft": "A333", 
+        "origin": "LTFM", 
+        "destination": "FAOR", 
+        "ata": null, 
+        "atd": null, 
+        "pob": null, 
+        "flightMode": "Overflight", 
+        "airline": "Turkish Airlines", 
+        "airlineCode": "THY", 
+        "entryPoint": "OVELA", 
+        "entryTime": "04:00", 
+        "exitPoint": "EGREK", 
+        "exitTime": "04:44" 
+    }, 
+    { … }, { … } 
+] 
+ 
+AODB REST API 설계서 32 TBD 
+ 
+32 
+ 
+5.5.6 Query by Time Range API 
+Name Time Range Only HTTP Method POST 
+Description Get all flights that occurred within a given time period/range 
+Request 
+URL http://10.10.32.100:4733/aodbapi/timerange 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "starttime": "2021-10-01T10:30", 
+  "endtime": "2021-10-01T12:30" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-01", 
+        "callsign": "ATC215", 
+        "registration": "5HTCE", 
+        "aircraft": "DH8D", 
+        "origin": "HUEN", 
+        "destination": "HTKJ", 
+        "ata": "2021-10-01T13:26:00", 
+        "atd": "2021-10-01T12:00:00", 
+        "pob": 21, 
+        "flightMode": "Departure", 
+        "airline": "Air Tanzania", 
+        "airlineCode": "ATC", 
+        "entryPoint": null, 
+        "entryTime": null, 
+        "exitPoint": null, 
+        "exitTime": "12:22" 
+    }, 
+    { … }, { … } 
+] 
+ 
+AODB REST API 설계서 33 TBD 
+ 
+33 
+ 
+5.5.7 Query by Time Range and Flight mode API 
+Name Time Range and Flight Mode HTTP Method POST 
+Description 
+Get all flights of a specified mode that occurred within a given time period/range. 
+The available values for flight mode are “Arrival”, “Departure”, “Overflight”, “Training” 
+Request 
+URL http://10.10.32.100:4733/aodbapi/timerange/flightmode 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "starttime": "2021-10-01T10:30", 
+  "endtime": "2021-10-01T12:30", 
+  "flightMode": "Departure" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-01", 
+        "callsign": "ATC215", 
+        "registration": "5HTCE", 
+        "aircraft": "DH8D", 
+        "origin": "HUEN", 
+        "destination": "HTKJ", 
+        "ata": "2021-10-01T13:26:00", 
+        "atd": "2021-10-01T12:00:00", 
+        "pob": 21, 
+        "flightMode": "Departure", 
+        "airline": "Air Tanzania", 
+        "airlineCode": "ATC", 
+        "entryPoint": null, 
+        "entryTime": null, 
+        "exitPoint": null, 
+        "exitTime": "12:22" 
+    }, { … }, { … } 
+] 
+AODB REST API 설계서 34 TBD 
+ 
+34 
+ 
+5.5.8 Query by Time Range and Callsign API 
+Name Time Range and Callsign HTTP Method POST 
+Description Get all flights using a given callsing that occurred within a given time period/range 
+Request 
+URL http://10.10.32.100:4733/aodbapi/timerange/callsign 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "starttime": "2021-10-03T00:00", 
+  "endtime": "2021-10-06T00:00", 
+  "callsign": "ETH861" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-03", 
+        "callsign": "ETH861", 
+        "registration": "ETASH", 
+        "aircraft": "B788", 
+        "origin": "HAAB", 
+        "destination": "FCBB", 
+        "ata": null, 
+        "atd": null, 
+        "pob": null, 
+        "flightMode": "Overflight", 
+        "airline": "Ethiopian Airlines", 
+        "airlineCode": "ETH", 
+        "entryPoint": "PATAR", 
+        "entryTime": "07:11", 
+        "exitPoint": "NALOS", 
+        "exitTime": "07:40" 
+    }, { … }, { … } 
+] 
+ 
+AODB REST API 설계서 35 TBD 
+ 
+35 
+ 
+5.5.9 Query by Time Range and Registration API 
+Name Time Range and Registration HTTP Method POST 
+Description 
+Get all flights of a given aircraft registration that occurred within a given time 
+period/range 
+Request 
+URL http://10.10.32.100:4733/aodbapi/timerange/registration 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "starttime": "2021-10-02T00:00", 
+  "endtime": "2021-10-03T00:00", 
+  "registration": "A6EGY" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-02", 
+        "callsign": "UAE729", 
+        "registration": "A6EGY", 
+        "aircraft": "B77W", 
+        "origin": "OMDB", 
+        "destination": "HUEN", 
+        "ata": "2021-10-02T10:51:00", 
+        "atd": null, 
+        "pob": 160, 
+        "flightMode": "Arrival", 
+        "airline": "Emirates Airlines", 
+        "airlineCode": "UAE", 
+        "entryPoint": "PATAR", 
+        "entryTime": "10:17", 
+        "exitPoint": null, 
+        "exitTime": null 
+    }, { … }, { … } 
+] 
+AODB REST API 설계서 36 TBD 
+ 
+36 
+ 
+5.5.10 Query by Time Range and Airline Code API 
+Name Time Range and Airline Code HTTP Method POST 
+Description Get all flights for a given airline that occurred within a given time period/range 
+Request 
+URL http://10.10.32.100:4733/aodbapi/timerange/airlinecode 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "starttime": "2021-10-02T00:00", 
+  "endtime": "2021-10-03T00:00", 
+  "airlinecode": "RWD" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "date": "2021-10-02", 
+        "callsign": "RWD304", 
+        "registration": "9XRWN", 
+        "aircraft": "A332", 
+        "origin": "HRYR", 
+        "destination": "OMDB", 
+        "ata": "2021-10-02T04:58:00", 
+        "atd": null, 
+        "pob": null, 
+        "flightMode": "Overflight", 
+        "airline": "Rwandair Express", 
+        "airlineCode": "RWD", 
+        "entryPoint": "OKTEX", 
+        "entryTime": "23:33", 
+        "exitPoint": "PATAR", 
+        "exitTime": "00:11" 
+    }, 
+    { … }, { … } 
+] 
+AODB REST API 설계서 37 TBD 
+ 
+37 
+ 
+5.6. Data Model Definition 
+This section defines the type and properties of the Model constituting each API response 
+message body. The data type and maximum length are written based on the column of 
+the DB (Oracle) table.  
+5.6.1 PobInfo 
+Field Type Byte Description 
+flightIcaoCode VARCHAR2 3 Airline ICAO Code 
+flightNumber VARCHAR2 10  
+aircraftReg VARCHAR2 12  
+scheduledTime VARCHAR2 12 Scheduled time of arrival YYYYMMDDHH24MI 
+POB NUMBER 3 Persons on Board 
+ 
+5.6.2 DansAtm 
+Field Type Byte Description 
+date VARCHAR2 3 Scheduled Date YYYY-MM-DD 
+callsign VARCHAR2 10  
+registration VARCHAR2 12  
+aircraft VARCHAR2 10  
+origin VARCHAR2   
+destination VARCHAR2   
+ata VARCHAR2 19 Actual time of arrival  
+YYYY-MM-DD||T||HH24:MI:SS 
+atd VARCHAR2 19 Actual time of departure 
+YYYY-MM-DD||T||HH24:MI:SS 
+pob NUMBER 3 Persons on Board 
+flightMode VARCHAR2  Arrival, Departure, Training, Overflight 
+airline VARCHAR2  Airline Name 
+airlineCode VARCHAR2  ICAO 
+entryPoint VARCHAR2   
+entryTime VARCHAR2   
+exitPoint VARCHAR2   
+exitTime VARCHAR2   
+ 
+ 
+  
+AODB REST API 설계서 38 TBD 
+ 
+38 
+ 
+6. Mobile APP API  
+6.1. Overview 
+Mobile APP APIs are functions that retrieve daily flight schedule information from AODB, 
+display it on the APP, and input aircraft movement information.  
+ 
+6.2. API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 
+Daily arrival flight 
+schedule 
+POST /standapi/arrmovementinfo N/A arrMovementInfo 
+2 
+Daily departure flight 
+schedule 
+POST /standapi/depmovementinf
+o 
+N/A depMovementInfo 
+3 
+Saving flight ground 
+movement time  and 
+registration 
+POST /standapi/update N/A N/A 
+4 App login POST /standapi/login N/A N/A 
+5 App logout POST /standapi/logout N/A N/A 
+ 
+ 
+6.3. API Detail 
+6.3.1. Daily arrival flight schedule API 
+ 
+Name 
+Time information of d aily arrival flight 
+schedule  
+HTTP Method POST 
+Description 
+Daily flight schedule time information inquiry from -1 to +24 hours based on the 
+current time (Local Time) 
+Request 
+URL http://{hostname}:{port}/standapi/arrmovementinfo 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108030300",  
+"toDatetime": "202108040500"   
+} 
+AODB REST API 설계서 39 TBD 
+ 
+39 
+ 
+Response 
+Content Type application/json Model arrMovementInfo 
+Body(example) 
+{  
+[  
+{ “flightId”:”0000000000000000124069” 
+, “flightIataCode”:”ET”  
+, “flightIcaoCode”:”ETH”  
+, “airlineName”:”ETHIOPIAN AIR” 
+, “aircraftReg” : “ETHOS” 
+, “aircraftType” : “B738” 
+, “flightNumber”:”335”  
+, “callsign” : “ETH335” 
+, "arrOrDep":"A" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031600"  
+, “estimatedTime”:” 202108031555” 
+, “originAirport”:”ADD” 
+, “originAirportIcao”:”ADD” 
+, “destinationAirport”:”” 
+, “destinationAirportIcao”:”” 
+, “OperationStatus”:”BRIDGE ON” 
+, “divertedAirport”:”” 
+, “terminal”:”T1” 
+, “typeOfFlight”:”INT” 
+, “flightServiceType”:”J” 
+, “linkedFlightNumber”:”336” 
+, “ATA”:” 202108031540” //actual time of arrival 
+, “RPI”:” 202108031550” //ramp in time 
+, “SPI”:” 202108031555” //on block time 
+, “BTI”:” 202108031605” //bridge on time 
+, “stand” : “A1S01” 
+},  
+{  } ……  
+    ] 
+} 
+  
+ 
+  
+AODB REST API 설계서 40 TBD 
+ 
+40 
+ 
+6.3.2. Daily departure flight schedule API 
+ 
+Name 
+Time information of d aily departure flight 
+schedule  
+HTTP Method POST 
+Description 
+Daily flight schedule time information inquiry from -1 to +24 hours based on the 
+current time (Local Time) 
+Request 
+URL http://{hostname}:{port}/standapi/depmovementinfo 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202108030300", 
+"toDatetime": "202108040500"   
+} 
+Response 
+Content Type application/json Model depMovementInfo 
+Body(example) 
+{  
+ [  
+{ “flightId”:”0000000000000000124070” 
+, “flightIataCode”:”ET”  
+, “flightIcaoCode”:”ETH” 
+, “airlineName”:”ETHIOPIAN AIR” 
+, “aircraftReg” : “ETHOS” 
+, “aircraftType” : “B738” 
+, “flightNumber”:”336”  
+, “callsign” : “ETH335” 
+, "arrOrDep":"D" 
+, "scheduledDate": “20210803” 
+, "scheduledTime": "202108031600"  
+, “estimatedTime”:” 202108031555” 
+, “originAirport”:”ADD” 
+, “originAirportIcao”:”ADD” 
+, “destinationAirport”:”” 
+, “destinationAirportIcao”:”” 
+, “OperationStatus”:”TAKE OFF” 
+, “divertedAirport”:”” 
+, “terminal”:”T1” 
+, “typeOfFlight”:”INT” 
+AODB REST API 설계서 41 TBD 
+ 
+41 
+ 
+, “flightServiceType”:”J” 
+, “linkedFlightNumber”:”336” 
+, “BTO”:” 202108031605” //bridge off time  
+, “SPO”:” 202108031555” //off block time 
+, “RPO”:” 202108031550” //ramp out time 
+, “ATD”:” 202108031540” //actual time of Departure 
+, “stand” : “A1S01” 
+},  
+{  } ……  
+    ] 
+} 
+  
+ 
+ 
+6.3.3. Saving flight ground movement time API 
+ 
+Name Saving flight ground movement time  HTTP Method POST 
+Description 
+The time information entered in the mobile app is saved.  
+And It will be save user log history. 
+Request 
+URL http://{hostname}:{port}/standapi/movementtime 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+    “flightId”:” 0000000000000000124070” 
+, "colId”:”ATD" 
+, "value": "202201101630" (Local Time) 
+, “sessionId”:“ 54E4E8582C625B2289CF4A1872DA8B02” 
+, “userId” : “ebbadm” 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+ 
+{ 
+   “flightId": ”0000000000000000124070”, 
+   “regNo” : “ETHAD”, 
+   “airportIcao” : “HAAB”, 
+   “operationStatus” : “TAKE OFF” 
+}” 
+AODB REST API 설계서 42 TBD 
+ 
+42 
+ 
+Remarks 
+1. value : The mobile app should be able to select the date when entering the time.  
+2. flight ID : Each flight unique ID. 
+3. colId : Data column name in which time is entered  
+        Arrival : ATA, RPI, SPI, BTI 
+        Departure : BTO, SPO, RPO, ATD, REG 
+  
+6.3.4. User APP login API 
+ 
+Name AODB user mobile app login  HTTP Method POST 
+Description 
+When a user logs in in the mobile app, the user status is checked and the login 
+history is saved. 
+Request 
+URL http://{hostname}:{port}/standapi/login 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ “userId”:“ebbadm”, 
+“password”:”plainTextPassword” } 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+1. Normal login  
+{  
+“sessionId” : “54E4E8582C625B2289CF4A1872DA8B02” 
+} 
+2. User status : SUSPENDED  
+{ "code": 900, "data": “Log in fail. User suspended.” } 
+3. User data not existed 
+{ "code": 901, "data": “User not found.” } 
+4. Password incorrect  
+{ "code": 902, "data": “The password is incorrect.” } 
+ 
+Remarks   
+  
+  
+AODB REST API 설계서 43 TBD 
+ 
+43 
+ 
+ 
+6.3.5. User APP logout API 
+ 
+Name AODB user mobile app log out  HTTP Method POST 
+Description User logout handling, history recording 
+Request 
+URL http://{hostname}:{port}/standapi/logout 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+“userId”:“ebbadm”, 
+“sessionId” : “54E4E8582C625B2289CF4A1872DA8B02” 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+{ "code": 200, "data": “” } 
+Remarks The session id received at login must be transmitted. 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+  
+AODB REST API 설계서 44 TBD 
+ 
+44 
+ 
+6.4. Data Model Definition 
+This section defines the type and properties of the Model constituting each API response 
+message body. The data type and maximum length are written based on the column of 
+the DB (Oracle) table.  
+ 
+6.4.1 arrMovementInfo 
+ 
+Field Type Byte Description 
+flighId VARCHAR2 22 Flight unique ID 
+flightIataCode VARCHAR2 5 Airline IATA Code 
+flightIcaoCode VARCHAR2 5 Airline ICAO Code 
+airlineName VARCHAR2 100  
+flightNumber VARCHAR2 10  
+callsign VARCHAR2 15 Generally ICAO code + Number 
+arrOrDep VARCHAR2 1 Arrival/departure classification(A, D) 
+scheduledDate VARCHAR2 8 Date of flight YYYYMMDD 
+scheduledTime VARCHAR2 12 Scheduled time of arrival 
+YYYYMMDDHH24MI 
+estimatedTime VARCHAR2 12 Estimated time of arrival 
+YYYYMMDDHH24MI 
+originAirport VARCHAR2 4 IATA code of origin airport 
+originAirportIcao VARCHAR2 4 ICAO code of origin airport 
+destinationAirport VARCHAR2 4 IATA code of destination airport 
+destinationAirportIcao VARCHAR2 4 ICAO code of destination airport 
+operationStatus VARCHAR2 20 Operation Status   
+LANDED(ATA), RAMP IN(RPI), ON 
+BLOCK(SPI), BRIDGE ON(BTI), BRIDGE 
+OFF(BTO), OFF BLOCK(SPO), RAMP 
+OUT(RPO), TAKE OFF(ATD) 
+divertedAirport VARCHAR2 4 IATA code of diverted airport 
+Terminal VARCHAR2 4 T1, T2 
+typeOfFlight VARCHAR2 3 INT:International, DOM:Domestic 
+flightServiceType VARCHAR2 1 Service type of flight 
+linkedFlightNumber VARCHAR2 10 Linked flight number of arrival/departure 
+ATA VARCHAR2 12 Actual time of arrival 
+YYYYMMDDHH24MI l 
+RPI VARCHAR2 12 Ramp in time 
+AODB REST API 설계서 45 TBD 
+ 
+45 
+ 
+YYYYMMDDHH24MI 
+SPI VARCHAR2 12 On block time(spot in time) 
+YYYYMMDDHH24MI 
+BTI VARCHAR2 12 Bridge on time YYYYMMDDHH24MI 
+ 
+6.4.2 depMovementInfo 
+ 
+Field Type Byte Description 
+flighId VARCHAR2 22 Flight unique ID 
+flightIataCode VARCHAR2 5 Airline IATA Code 
+flightIcaoCode VARCHAR2 5 Airline ICAO Code 
+airlineName VARCHAR2 100  
+flightNumber VARCHAR2 10  
+callsign VARCHAR2 15 Generally ICAO code + Number 
+arrOrDep VARCHAR2 1 Arrival/departure classification(A, D) 
+scheduledDate VARCHAR2 8 Date of flight YYYYMMDD 
+scheduledTime VARCHAR2 12 Scheduled time of departure 
+YYYYMMDDHH24MI 
+estimatedTime VARCHAR2 12 Estimated time of departure 
+YYYYMMDDHH24MI 
+originAirport VARCHAR2 4 IATA code of origin airport 
+originAirportIcao VARCHAR2 4 ICAO code of origin airport 
+destinationAirport VARCHAR2 4 IATA code of destination airport 
+destinationAirportIcao VARCHAR2 4 ICAO code of destination airport 
+operationStatus VARCHAR2 20 Operation Status   
+LANDED(ATA), RAMP IN(RPI), ON 
+BLOCK(SPI), BRIDGE ON(BTI), BRIDGE 
+OFF(BTO), OFF BLOCK(SPO), RAMP 
+OUT(RPO), TAKE OFF(ATD) 
+divertedAirport VARCHAR2 4 IATA code of diverted airport 
+Terminal VARCHAR2 4 T1, T2 
+typeOfFlight VARCHAR2 3 INT:International, DOM:Domestic 
+flightServiceType VARCHAR2 1 Service type of flight 
+linkedFlightNumber VARCHAR2 10 Linked flight number of arrival/departure 
+BTO VARCHAR2 12 Bridge off time 
+YYYYMMDDHH24MI l 
+SPO VARCHAR2 12 Off block time(spot out time) 
+YYYYMMDDHH24MI 
+AODB REST API 설계서 46 TBD 
+ 
+46 
+ 
+RPO VARCHAR2 12 Ramp out time 
+YYYYMMDDHH24MI 
+ATD VARCHAR2 12 Actual time of departure 
+YYYYMMDDHH24MI 
+ 
+ 
+  
+AODB REST API 설계서 47 TBD 
+ 
+47 
+ 
+7. SITREP API  
+7.1. Overview 
+SITREP is an incident reporting system used by ATM Department to record/report Incidents 
+and Operational Safety Occurrences such as runway incursion/excursion, air proximity, bird 
+strikes and other emergencies.  
+When an incident, such as Bird Strike, happens, the pilot reports the occurrence to the Air 
+Traffic Controller who then fills out the electronic SITREP form. The system then sends the 
+report to concerned parties via email, for information and appropriate action.  
+AODB includes a module for Bird Hazard and Wildlife Control and Management, which 
+includes the ICAO Bird Strike (IBIS) report form. The Air Traffic Controller, who is in contact 
+with the pilot and other authorities such as meteorology, provides much of the information 
+required in this form. The Situation Report (SITREP) filled by the Air Traffic Controller 
+captures this information. 
+Therefore, it is appropriate to integrate the SITREP with AODB, to automatically receive the 
+bird strike incident reports from Control Tower. In this integration, it is expected that AODB 
+will provide a HTTP API endpoint where SITREP will send the bird strike information. The 
+Wildlife Management office can later retrieve the record in the AODB System and update 
+the missing information to complete the IBIS report. 
+7.2. API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 SITREP Data storing POST /sitrep/insert N/A sitrepInfo 
+      
+      
+      
+      
+ 
+ 
+  
+AODB REST API 설계서 48 TBD 
+ 
+48 
+ 
+7.3. API Detail 
+7.3.1. SITREP Data Insert API 
+ 
+Name SITREP Data Insert HTTP Method POST 
+Description 
+When IBIS information is generated, the SITREP system transmits it to the AODB, 
+and the AODB receives it and converts and stores it according to the Wildlife 
+module. 
+Request 
+URL http://{hostname}:{port}/sitrep/insert 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+  "operatorCode": "ADY", 
+  "operatorName": "Air Arabia", 
+  "aircraftType": "A320", 
+  "registration": "A6EGH", 
+  "dateTime": "202111031435", 
+  "timeOfDay": "Day", 
+  "runwayUsed": "R17", 
+  "enrouteLocation": "", 
+  "heightAGL": "500", 
+  "speedIAS": "150", 
+  "phaseOfFlight": "Take-off Run", 
+  "partsStruck": [ 
+      { "part": "Radome",  "damaged": "No" },  
+      { "part": "Windshield", "damaged": "Yes" } 
+  ], 
+  "effectOnFlight": "None", 
+  "effectOther": "", 
+  "skyCondition": "No Cloud", 
+  "precipitation": "None", 
+  "pilotWarned": "Yes", 
+  "remarks": "ADY721 REPORTS HITTING BIRDS ON TAKE OFF ROLL RWY17" 
+} 
+ 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+{ "code": 200, "data": “” } 
+AODB REST API 설계서 49 TBD 
+ 
+49 
+ 
+  
+7.4. Data Model Definition 
+This section defines the type and properties of the Model constituting each API response 
+message body The data type is written based on the format provided by the SITREP system.  
+ 
+7.4.1   sitrepInfo 
+Field Type Description Remark 
+operatorCode TEXT ICAO Code of the Operator  
+operatorName TEXT Name of aircraft operator  
+aircraftType TEXT ICAO code of aircraft type  
+registration TEXT Aircraft registration  
+dateTime TEXT Actual time of occurrence 
+YYYYMMDDHH24MI 
+ 
+timeOfDay TEXT One of four values  
+[dawn : DWN 
+, day : DAY 
+, dusk : DUK 
+, night : NGT 
+, unknown : UNK ] 
+ 
+runwayUsed TEXT Runway used  
+enrouteLocation TEXT Location if en-route  
+heightAGL NUMBER Height above ground (ft)  
+speedIAS NUMBER Speed of aircraft when incident occurs 
+(kt) 
+ 
+phaseOfFlight TEXT One of the following values 
+ Parked  : PKD  
+ Taxi : TXI 
+ Take-off run : TKF 
+ Climb : CLB 
+ En-route : ENR 
+ Descent : DEC 
+ Approach : APC     
+ Landing roll : LND 
+AODB can provide coded 
+values to use 
+ 
+  
+partsStruck OBJECT[ ] Maybe 1 or more data objects 
+indicating parts of the aircraft that 
+were struck and if they were damaged. 
+See object description below. 
+ 
+AODB REST API 설계서 50 TBD 
+ 
+50 
+ 
+effectOnFlight TEXT Effect on flight. One of the following 
+ None : NNE 
+ Aborted take-off : ATO 
+ Precautionary  landing : PLD  
+ Engines shutdown : ESD 
+ Other : EOT 
+AODB can provide coded 
+values to use 
+effectOther TEXT Description of effect when 
+effectOnFlight is “Other” 
+ 
+skyCondition TEXT Condition of the sky. Can be one of 
+the following  
+ No cloud(Clear) : L 
+ Some cloud(Cloudy) : C  
+ Overcast : O 
+ Raining : R 
+ Drizzling : D 
+ Foggy : F 
+ Sunny : S 
+AODB can provide coded 
+values to use 
+precipitation TEXT Can be any of  
+ Fog : F 
+ Rain : R 
+ None : N 
+AODB can provide coded 
+values to use 
+pilotWarned TEXT YES / NO  
+remarks TEXT Description / pertinent information 
+about incident 
+ 
+ 
+  
+AODB REST API 설계서 51 TBD 
+ 
+51 
+ 
+ 
+7.4.2  partsStruck 
+Field Type Description Remark 
+part TEXT Part of aircraft struck and must be one 
+of 
+ Radome 
+ Windshield 
+ Nose 
+ Engine 1 
+ Engine 2 
+ Engine 3 
+ Engine 4 
+ Propeller 
+ Wing/Rotor 
+ Fuselage 
+ Landing Gear 
+ Tail 
+ Lights 
+ Others 
+AODB can provide coded 
+values to use 
+damaged TEXT Yes / No  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+AODB REST API 설계서 52 TBD 
+ 
+52 
+ 
+8. Clearance API  
+8.1. Overview 
+Clearance API is a new function between the Clearance module in AODB and DANS system. 
+The contents of the connection are as follows.  
+1. Clearance Request by Airlines : DANS(client) -> AODB(server) 
+- Airline users request daily flight permits through the web portal provided by the DANS  
+- DANS sends request information to AODB. 
+- Single transmission when a request occurs : [Clearance Request Data Object] 
+2. Clearance Approval/Reject by Air transport users : AODB(client) -> DANS(server) 
+- AODB transmits the information to DANS when an application is approved/rejected.  
+- Single transmission when a approval/rejection occurs : [Clearance Response Data Object] 
+3. Clearance Number Providing  : DANS(client) < -> AODB(server) 
+- DANS system requests clearance number information from AODB based on 
+timerange/date 
+- AODB sends a list of clearance numbers after closing the clearance data for the period  
+- Send list on DANS request : [Clearance Response Data Object] 
+ 
+8.2. AODB Side API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 Clearance Request POST /clearance/request N/A ClearanceRequest 
+2 
+Query refNo by date POST /clearance/refnolistByDat
+e 
+ ClearanceResponse 
+ 
+Query refNo by 
+timerange 
+POST /clearance/refnolistByTim
+erange 
+ ClearanceResponse 
+ 
+8.3. Clearance Portal Side API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 Clearance Approval POST /api/clearance/approval N/A ClearanceResponse 
+ 
+  
+AODB REST API 설계서 53 TBD 
+ 
+53 
+ 
+8.4. API Detail 
+8.4.1. Clearance Request API 
+ 
+Name Clearance Request HTTP Method POST 
+Description Clearance Portal system transmits Clearance Request information to AODB. 
+Request 
+URL http://{hostname}:{port}/clearance/request 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+"requestId": "ETD20211228161535262", 
+"requestDate": "20211228", 
+"airlineCodeIATA": "EY", 
+"airlineCodeICAO": "ETD", 
+"aircraftTypeICAO": "B738", 
+"clientAddress": "MK AIRLINES LANDHURST HARTFIELD", 
+"operatorName": "ETHAD AIRWAYS", 
+  "ownerName": "MK AIRLINES", 
+  "aircraftReg": "9GMKO", 
+  "callsign": "ETD555", 
+  "flightRoute": "HSSS-HUEN-HKJK", 
+"arrivalDate": "20220105", 
+"estimatedTimeArr": "1300", 
+"departureDate": "20220105", 
+"estimatedTimeDep": "1530", 
+  "entryPoint": "ATUGA", 
+"exitPoint": "ALKON", 
+"flightMode": "Departure", 
+"typeOfMovement": "International", 
+  "typeOfFlight": "Scheduled Air Service ", 
+  "purposeOfFlight": "purpose", 
+  "flightCommander": "captain name", 
+  "detailPaxCargo": "general pax", 
+  "localAgent": "agent name", 
+  "consigner": "consigner name", 
+"consignee": "consignee", 
+"remarks": "some details", 
+“mtow” : “12345” 
+AODB REST API 설계서 54 TBD 
+ 
+54 
+ 
+“documents”: [ 
+{ 
+  “requestId” : “ETD20211228161535262”, 
+  “documentId” : “doc123456”, 
+  “contentType” : “application/pdf”, 
+  “data”:”1!@#!!+adsFASDFADweQweQe ...” 
+  “hash” : “akdjljfaozoQWE!!aADFASF#$&%”, 
+  “issuedDate” : “20211228”, 
+  “expiryDate” : “20220128” 
+}, { … } , {…..} 
+] 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+{ "code": 200, "data": “” } 
+  
+ 
+  
+AODB REST API 설계서 55 TBD 
+ 
+55 
+ 
+8.4.2. Query refNo list by date API 
+Name Query refNo list by date HTTP Method POST 
+Description Query Clearance refNo list  by Arrival Date 
+Request 
+URL http://{hostname}:{port}/clearance/refnolistByDate 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+"date": "20220107", 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+{ "requestId": "ETD20211228161535262", 
+"requestDate": "20211228", 
+"clearState": "A", 
+"formDate": "20211229", 
+"refNo": "CAA/UGD/20211229/003B", 
+"airlineCodeICAO": "ETD", 
+“airlineAddress”: ”address”, 
+"aircraftReg": "9GMKO", 
+"callsign": "ETD555", 
+"personnelOnDuty": "user name", 
+"remarks": "some details", 
+"operated": "Y", 
+} , {  }, … 
+] 
+ 
+ 
+  
+AODB REST API 설계서 56 TBD 
+ 
+56 
+ 
+8.4.3. Query refNo list by timerange API 
+Name Query refNo list by timerange HTTP Method POST 
+Description Query Clearance refNo list by Arrival Date timerange 
+Request 
+URL http://{hostname}:{port}/clearance/refnolistByTimerange 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{  
+"fromDatetime”:”202112290300", "toDatetime": "202112292300"   
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+{ 
+"requestId": "ETD20211228161535262", 
+"requestDate": "20211228", 
+"clearState": "A", 
+"formDate": "20211229", 
+"refNo": "CAA/UGD/20211229/003B", 
+"airlineCodeICAO": "ETD", 
+“airlineAddress”: ”address”, 
+"aircraftReg": "9GMKO", 
+"callsign": "ETD555", 
+"personnelOnDuty": "user name", 
+"remarks": "some details", 
+"operated": "Y" 
+} , {  }, … 
+] 
+ 
+ 
+  
+AODB REST API 설계서 57 TBD 
+ 
+57 
+ 
+8.4.4. Clearance Approval API 
+Name Sending Clearance approval/rejection HTTP Method POST 
+Description 
+When the air transport user approves/rejects the request, the corresponding 
+information is sent to the clearance portal system. 
+Request 
+URL http://{hostname}:{port}/api/clearance/approval 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+"requestId": "ETD20211228161535262", 
+"requestDate": "20211228", 
+"clearState": "A", 
+"formDate": "20211229", 
+"refNo": "CAA/UGD/20211229/003B", 
+"airlineCodeICAO": "ETD", 
+"aircraftReg": "9GMKO", 
+"callsign": "ETD555", 
+"personnelOnDuty": "user name", 
+"remarks": "reject reason", 
+"operated": "" 
+} 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+{ "code": 200, "data": “” } 
+ 
+  
+AODB REST API 설계서 58 TBD 
+ 
+58 
+ 
+8.4.5. Single aircraft Info API 
+Name Query Aircraft Info by regNo HTTP Method POST 
+Description Query a aircraft Information by registration number 
+Request 
+URL http://{hostname}:{port}/api/clearance/aircraftbyregno 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{ 
+"aircraftReg": "9GMKO" 
+} 
+Response 
+Content Type application/json Model AircraftInfo 
+Body(example) 
+{ 
+"aircraftReg": "9GMKO", 
+"aircraftTypeIcao": "B738", 
+"mtow": "12345", 
+} 
+ 
+ 
+8.4.6. Aircraft Info list API 
+Name Query Aircraft Info list  HTTP Method POST 
+Description Query a aircraft Information list  
+Request 
+URL http://{hostname}:{port}/api/clearance/aircraftlist 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+ 
+Response 
+Content Type application/json Model AircraftInfo 
+Body(example) 
+[ 
+{ 
+"aircraftReg": "9GMKO", 
+"aircraftTypeIcao": "B738", 
+"mtow": "12345", 
+} , {  }, {  }, {  } …  
+] 
+ 
+ 
+ 
+AODB REST API 설계서 59 TBD 
+ 
+59 
+ 
+8.5. Data Model Definition 
+This section defines the type and properties of the Model constituting each API response 
+message body The data type is written based on the format provided by the Clearance 
+Portal system.  
+  
+ 
+8.5.1   ClearanceRequest 
+Field Type Description Remark 
+requestId TEXT ICAO Code + 
+ ‘YYYYMMDDHH24MISS’ + Random 
+3digit number 
+Total length 20 
+requestDate TEXT YYYYMMDD  
+airlineCodeIATA TEXT 2~3 digit  
+airlineCodeICAO TEXT 3 digit  
+aircraftTypeICAO TEXT   
+clientAddress TEXT Airline address  
+operatorName TEXT Airline name  
+ownerName TEXT Airline owner name  
+aircraftReg TEXT Aircraft registration  
+callsign TEXT ICAO code + Flight number  
+flightRoute TEXT Route of flight  
+arrivalDate TEXT YYYYMMDD  
+estimatedTimeArr TEXT HH24MI  
+departureDate TEXT YYYYMMDD  
+estimatedTimeDep TEXT HH24MI  
+entryPoint TEXT   
+exitPoint TEXT   
+flightMode TEXT A : Arrival,  
+D : Departure,  
+O : Overflight 
+T : Training 
+Same values with DANS 
+ATC 
+typeOfMovement TEXT I : International  
+D : Domestic 
+ 
+typeOfFlight TEXT One of the following values 
+ S : Scheduled Air Service  
+ N : Non-scheduled Air Operation 
+ G : General Aviation 
+AODB can provide coded 
+values to use 
+AODB REST API 설계서 60 TBD 
+ 
+60 
+ 
+ M : Military 
+ D : Diplomatic/VIP 
+ X : Others 
+purposeOfFlight TEXT   
+flightCommander TEXT Captain name  
+detailPaxCargo TEXT Brief details of Cargo and Passengers  
+localAgent TEXT   
+consigner TEXT   
+consignee TEXT   
+remarks TEXT Some details  
+mtow NUMBER Maximum take off weight  
+documents OBJECT[] Clearance document Documents 
+ 
+8.5.2   ClearanceResponse 
+Field Type Description Remark 
+requestId TEXT ICAO Code + 
+ ‘YYYYMMDDHH24MISS’ + Random 
+3digit number 
+Total length 20 
+requestDate TEXT YYYYMMDD  
+clearState TEXT A : approval, C : reject R : request 
+formDate TEXT YYYYMMDD, Clearance date  
+refNo TEXT Clearance reference number 
+CAA/UGD/[Clearance date] 
+/[sequence] + [user indicator] 
+ 
+airlineCodeICAO TEXT 3 digit  
+callsign TEXT   
+aircraftReg TEXT   
+personnelOnDuty TEXT User name  
+remarks TEXT Some details If rejected, reason for reject 
+will be added 
+operated TEXT Y : Operated, N : no operation Check the operation status 
+by the existence of 
+required input values 
+according to flightMode 
+ 
+  
+AODB REST API 설계서 61 TBD 
+ 
+61 
+ 
+ 
+8.5.3   Documents 
+Field Type Description Remark 
+requestId TEXT ICAO Code + 
+ ‘YYYYMMDDHH24MISS’ + Random 
+3digit number 
+Total length 20 
+documentId TEXT doc1~10  
+contentType TEXT application/pdf  
+size TEXT YYYYMMDD, Clearance date  
+data TEXT Base64String  
+hash TEXT   
+issuedDate TEXT YYYYMMDD  
+expiryDate TEXT YYYYMMDD  
+ 
+8.5.4   AircraftInfo 
+Field Type Description Remark 
+aircraftReg TEXT   
+aircraftTypeIcao TEXT   
+mtow NUMBER Maximum take off weight  
+ 
+ 
+  
+AODB REST API 설계서 62 TBD 
+ 
+62 
+ 
+9. Statistics API  
+9.1. Overview 
+T.B.D 
+ 
+9.2. API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 Air Traffic info GET /report/airtraffic N/A AirtrafficInfo 
+      
+      
+      
+      
+ 
+ 
+  
+AODB REST API 설계서 63 TBD 
+ 
+63 
+ 
+9.3. API Detail 
+9.3.1. AirTraffic API 
+ 
+Name Air Traffic info HTTP Method GET 
+Description 
+When IBIS information is generated, the SITREP system transmits it to the AODB, 
+and the AODB receives it and converts and stores it according to the Wildlife 
+module. 
+Request 
+URL http://{hostname}:{port}/report/airtraffic 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body(example) 
+{   "fromDate”:”20210804", 
+"toDate": "20210804"  } 
+Response 
+Content Type application/json Model N/A 
+Body(example) 
+[ 
+    { 
+        "flightDate": "04/08/2021", 
+        "operator": "Kenya Airways", 
+        "aircraftType": "B738", 
+        "registration": "5YCYA", 
+        "movementType": "Scheduled Air Service", 
+        "serviceNumber": "KQA413", 
+        "origin": null, 
+        "destination": "HKJK", 
+        "category": "INTERNATIONAL", 
+        "ETAD": "04:25", 
+        "ATAD": "02:37", 
+        "pob": "111", 
+        "disem": null, 
+        "trst": 4, 
+        "embarking": 107, 
+        "unloaded": null, 
+        "loaded": 22211, 
+        "mailIn": null, 
+        "mailOut": null 
+    }, 
+AODB REST API 설계서 64 TBD 
+ 
+64 
+ 
+    { … }, { … }, …  
+] 
+  
+9.4. Data Model Definition 
+9.4.1   airTrafficInfo 
+Field Type Description Remark 
+flightDate TEXT DD/MM/YYYY MAX 10 
+operator TEXT Name of aircraft operator MAX 50 
+aircraftType TEXT ICAO code of aircraft type MAX 8 
+registration TEXT Aircraft registration MAX 12 
+movementType TEXT 1-SCHEDULE 
+2-CHARTERS 
+3-FREIGHTERS/CARGO 
+4-NON COMMERCIAL 
+5-TRAINING/TEST 
+6-PRIVATE 
+7-MILITARY 
+8-OTHER NON COMMERCIAL 
+MAX 50 
+serviceNumber TEXT Airline ICAO CODE + Flight number MAX 15 
+origin TEXT Origin Airport ICAO CODE, 4 letter If this is not null, it is 
+arrival flight, MAX 4 
+destination TEXT Destination Airport ICAO CODE, 4 letter If this is not null, it is 
+departure flight, MAX 4 
+category TEXT INTERNATIONAL or DOMESTIC  
+ETAD TEXT Estimated Time of Arrival/Departure 
+HH:mm (24 base) 
+MAX 5 
+ATAD TEXT Actual Time of Arrival/Departure 
+HH:mm (24 base) 
+MAX 5 
+pob NUMBER PAX(commercial) + infant + crew + 
+SOD + Transit 
+MAX 3 
+disem NUMBER PAX(commercial) + infant + SOD Arrival flight only , MAX 
+3 
+trst NUMBER Transit count MAX 3 
+embarking NUMBER PAX(commercial) + infant + SOD Departure flight only , 
+MAX 3 
+unloaded NUMBER Cargo unloaded weight Arrival flight Only, MAX 
+20 
+AODB REST API 설계서 65 TBD 
+ 
+65 
+ 
+loaded NUMBER Cargo loaded weight Departure flight only , 
+MAX 20 
+mailIn NUMBER Mail weight  Arrival flight Only, MAX 
+20 
+mailOut NUMBER Mail weight  Departure flight only , 
+MAX 20 
+ 
+  
+AODB REST API 설계서 66 TBD 
+ 
+66 
+ 
+10. RESOURCE API  
+10.1. Overview 
+The RESOURCE API consists of a function that queries CheckInCounter, Gate, Terminal, and 
+Carousel data to AODB. 
+ 
+10.2. API List 
+No API 
+HTTP 
+Method 
+URI 
+Request 
+Model 
+Response 
+Model 
+1 Terminal POST /resource/terminal N/A TerminalInfo 
+2 CheckInCounter POST /resource/check-in-counter N/A CheckInCounterInfo 
+3 Gate POST /resource/gate N/A GateInfo 
+4 Carousel POST /resource/carousel N/A CarouselInfo 
+      
+ 
+ 
+  
+AODB REST API 설계서 67 TBD 
+ 
+67 
+ 
+10.3. API Detail 
+10.3.1. Terminal API 
+ 
+Name Terminal info HTTP Method POST 
+Description Inquire the Terminal data to the AODB. 
+Request 
+URL http://{hostname}:{port}/resource/terminal 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body (optional, example) 
+{ 
+  "airportIata": "EBB",           // optional - Airport IATA code 
+  "terminalId": "T01",             // optional - Terminal ID (T01, T02, T03) 
+  "description": "VVIP Terminal",    // optional - Description (LIKE search) 
+  "useYn": "Y"                    // optional - Usage flag (Y/N) 
+} 
+Response 
+Content Type application/json Model TerminalInfo 
+Body(example) 
+[ 
+{ 
+"airportIata": "EBB", 
+    "terminalId": "T03", 
+    "description": "VVIP Terminal", 
+    "useYn": "Y" 
+} 
+    { … }, { … }, …  
+] 
+ 
+  
+AODB REST API 설계서 68 TBD 
+ 
+68 
+ 
+10.3.2. CheckInCounter API 
+ 
+Name CheckInCounter info HTTP Method POST 
+Description Inquire the CheckInCounter data to the AODB. 
+Request 
+URL http://{hostname}:{port}/resource/check-in-counter 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body (optional, example) 
+{ 
+  "airportIata": "EBB",              // optional - Airport IATA code 
+  "terminalId": "T01",                // optional - Terminal ID 
+  "checkInCounterCluster": "A",      // optional - Check-in counter cluster 
+  "checkInCounterId": "A50",         // optional - Check-in counter ID 
+  "checkInCounterArea": "A",         // optional - Check-in counter area 
+  "useYn": "Y"                       // optional - Usage flag (Y/N) 
+} 
+Response 
+Content Type application/json Model CheckInCounterInfo 
+Body(example) 
+[ 
+ { 
+        "airportIata": "EBB", 
+        "terminalId": "T01", 
+        "checkInCounterCluster": "C", 
+        "checkInCounterId": "C21", 
+        "checkInCounterArea": null, 
+        "checkInCounterPosition": "21", 
+        "favoriteLanguageIndicator": null, 
+        "beltYn": "Y", 
+        "rightOrLeft": "L", 
+        "checkInCounterUseYn": null, 
+        "checkInCounterFeeType": "A", 
+        "checkInCounterFee": null, 
+        "useYn": "N" 
+    }, 
+    { … }, { … }, …  
+] 
+ 
+  
+AODB REST API 설계서 69 TBD 
+ 
+69 
+ 
+10.3.3. Gate API 
+ 
+Name Gate info HTTP Method POST 
+Description Inquire the Gate data to the AODB. 
+Request 
+URL http://{hostname}:{port}/resource/gate 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body (optional, example) 
+{ 
+  "airportIata": "EBB",              // optional - Airport IATA code 
+  "terminalId": "T01",                   // optional - Terminal ID 
+  "gateNumber": "G01",                   // optional - Gate number 
+  "domesticOrInternational": "I",       // optional  
+  "busRequiredYn": "Y",                 // optional - Bus required indicator (Y/N) 
+  "useYn": "Y",                         // optional - Usage flag (Y/N) 
+"carouselGroup": "A"                  // optional - Carousel group ID 
+} 
+Response 
+Content Type application/json Model GateInfo 
+Body(example) 
+[ 
+{ 
+        "airportIata": "EBB", 
+        "terminalId": "T01", 
+        "gateNumber": "G01", 
+        "bridgeYn": null, 
+        "domesticOrInternational": "B", 
+        "busRequiredYn": "Y", 
+        "useYn": "Y", 
+        "carouselGroup": "A" 
+}, 
+    { … }, { … }, …  
+] 
+ 
+AODB REST API 설계서 70 TBD 
+ 
+70 
+ 
+10.3.4. Carousel API 
+ 
+Name Carousel info HTTP Method POST 
+Description Inquire the Carousel data to the AODB. 
+Request 
+URL http://{hostname}:{port}/resource/carousel 
+Content Type application/json Model N/A 
+Query Params N/A 
+Body (optional, example) 
+{ 
+  "airportIata": "EBB",           // optional - Airport IATA code 
+  "terminalId": "T01",             // optional - Terminal ID 
+  "carouselNumber": "B1",         // optional - Carousel number 
+  "maximumAllocation": 5,        // optional - Maximum allocation (numeric) 
+  "exitNumber": "A",             // optional - Exit number 
+  "useYn": "Y"                    // optional  - Usage flag (Y/N) 
+} 
+Response 
+Content Type application/json Model GateInfo 
+Body(example) 
+[ 
+{ 
+ "aiportIata": "EBB", 
+ "terminalId": "T01", 
+ "carouselNumber": "B1", 
+ "maximumAllocation": "5", 
+ "exitNumber": "A", 
+ "useYn": "Y", 
+ "zoneId": null, 
+ "timeFromStandToCarousel": null, 
+ "movingSpeed": null, 
+ "maximumProcessTime": null, 
+ "movingTime": null, 
+ "carouselLength": null, 
+ "timeRequiredForOneRotation": null, 
+ "airlineIata": null, 
+ "domesticOrInternational": "B", 
+ "description": null, 
+ "cctvNumber": null, 
+ "beltDeviceNumber": null 
+}, 
+    { … }, { … }, …  
+] 
+ 
+  
+AODB REST API 설계서 71 TBD 
+ 
+71 
+ 
+10.4. Data Model Definition 
+10.4.1   TerminalInfo 
+Field Type Description Remark 
+airportIata TEXT Airport Iata MAX 8 
+terminalId TEXT Terminal ID (T01, T02, T03) MAX 4 
+description TEXT  MAX 100 
+useYn TEXT  MAX 1 
+ 
+10.4.2   CheckInCounterInfo 
+Field Type Description Remark 
+airportIata TEXT Airport Iata MAX 8 
+terminalId TEXT Terminal ID (T01, T02, T03) MAX 4 
+checkInCounterCluster TEXT C, A MAX 30 
+checkInCounterId TEXT A50 ~ A73, C1 ~ C20 MAX 4 
+checkInCounterArea TEXT  MAX 2 
+checkInCounterPosition TEXT  MAX 1 
+favoriteLanguageIndicator TEXT  MAX 1 
+category TEXT  MAX 1 
+beltYn TEXT  MAX 1 
+rightOrLeft TEXT  MAX 1 
+checkInCounterUseYn TEXT  MAX 1 
+checkInCounterFeeType TEXT  MAX 1 
+checkInCounterFee NUMBER   
+useYn TEXT  MAX 1 
+ 
+10.4.1   GateInfo 
+Field Type Description Remark 
+airportIata TEXT Airport Iata MAX 8 
+terminalId TEXT Terminal ID (T01, T02, T03) MAX 4 
+gateNumber TEXT G01 ~ G04, G10 ~ G13 MAX 4 
+bridgeYn TEXT  MAX 4 
+domesticOrInternational TEXT I, B MAX 1 
+busRequiredYn TEXT  MAX 1 
+useYn TEXT  MAX 1 
+carouselGroup TEXT A, C MAX 1 
+ 
+  
+AODB REST API 설계서 72 TBD 
+ 
+72 
+ 
+10.4.1   CarouselInfo 
+Field Type Description Remark 
+airportIata TEXT Airport Iata MAX 8 
+terminalId TEXT Terminal ID (T01, T02, T03) MAX 4 
+carouselNumber TEXT B1, B2 MAX 3 
+maximumAllocation NUMBER   
+exitNumber TEXT A MAX 1 
+useYn TEXT  MAX 1 
+zoneId TEXT  MAX 3 
+timeFromStandToCarousel NUMBER   
+movingSpeed NUMBER   
+movingTime NUMBER   
+carouselLength NUMBER   
+timeRequiredForOneRotation NUMBER   
+airlineIata TEXT  MAX 5 
+domesticOrInternational TEXT I, B MAX 1 
+description TEXT  MAX 400 
+cctvNumber TEXT  MAX 4 
+beltDeviceNumber TEXT  MAX 2 
+ 
+ 

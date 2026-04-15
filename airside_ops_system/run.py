@@ -34,22 +34,91 @@ def seed_database():
 
 @app.cli.command('create-admin')
 def create_admin():
-    """Create the default admin user."""
+    """Create default users for all roles."""
     from app.models.user import User
-    admin = User(
-        username='admin',
-        email='admin@airside.entebbe.go.ug',
-        full_name='System Administrator',
-        role='admin',
-        badge_number='EBB-0001',
-        department='Airside Operations',
-        is_active=True
-    )
-    admin.set_password('Admin@2025!')
-    db.session.add(admin)
+    
+    users_to_create = [
+        {
+            'username': 'admin',
+            'email': 'admin@airside.entebbe.go.ug',
+            'full_name': 'System Administrator',
+            'role': 'admin',
+            'badge_number': 'EBB-0001',
+            'department': 'Airside Operations',
+            'password': 'Admin@2025!'
+        },
+        {
+            'username': 'supervisor',
+            'email': 'supervisor@airside.entebbe.go.ug',
+            'full_name': 'Operations Supervisor',
+            'role': 'supervisor',
+            'badge_number': 'EBB-0002',
+            'department': 'Airside Operations',
+            'password': 'Supervisor@2025!'
+        },
+        {
+            'username': 'operator',
+            'email': 'operator@airside.entebbe.go.ug',
+            'full_name': 'Airside Operator',
+            'role': 'operator',
+            'badge_number': 'EBB-0003',
+            'department': 'Airside Operations',
+            'password': 'Operator@2025!'
+        },
+        {
+            'username': 'inspector',
+            'email': 'inspector@airside.entebbe.go.ug',
+            'full_name': 'Safety Inspector',
+            'role': 'inspector',
+            'badge_number': 'EBB-0004',
+            'department': 'Safety & Compliance',
+            'password': 'Inspector@2025!'
+        },
+        {
+            'username': 'auditor',
+            'email': 'auditor@airside.entebbe.go.ug',
+            'full_name': 'System Auditor',
+            'role': 'auditor',
+            'badge_number': 'EBB-0005',
+            'department': 'Audit & Compliance',
+            'password': 'Auditor@2025!'
+        },
+        {
+            'username': 'viewer',
+            'email': 'viewer@airside.entebbe.go.ug',
+            'full_name': 'Dashboard Viewer',
+            'role': 'viewer',
+            'badge_number': 'EBB-0006',
+            'department': 'Airside Operations',
+            'password': 'Viewer@2025!'
+        },
+    ]
+    
+    for user_data in users_to_create:
+        password = user_data.pop('password')
+        existing = User.query.filter_by(username=user_data['username']).first()
+        if existing:
+            print(f"User '{user_data['username']}' already exists. Skipping.")
+            continue
+        
+        user = User(**user_data, is_active=True)
+        user.set_password(password)
+        db.session.add(user)
+    
     db.session.commit()
-    print("Admin user created. Username: admin, Password: Admin@2025!")
-    print("IMPORTANT: Change the password immediately after first login.")
+    
+    print("\n" + "="*60)
+    print("DEFAULT USER ACCOUNTS CREATED")
+    print("="*60)
+    for user_data in users_to_create:
+        print(f"Role: {user_data['role'].upper()}")
+        print(f"  Username: {user_data['username']}")
+        print(f"  Password: {user_data['username'].capitalize()}@2025!")
+        print(f"  Email: {user_data['email']}")
+        print()
+    print("="*60)
+    print("⚠️  IMPORTANT: Change all passwords after first login!")
+    print("="*60)
 
 
 if __name__ == '__main__':

@@ -42,7 +42,6 @@ def _on_duty_users(duty_date: date, shift_type: str):
 
 
 @apron_bp.route('/stand-allocation', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor', 'inspector', 'operator')
 def stand_allocation():
     if request.method == 'POST':
@@ -84,7 +83,6 @@ def stand_allocation():
 # ---------------------------------------------------------------------------
 
 @apron_bp.route('/aodb-sync', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor', 'operator')
 def aodb_sync():
     """Manual AODB flight data sync page."""
@@ -218,7 +216,6 @@ def shift_handover():
 
 
 @apron_bp.route('/shift-roster', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def shift_roster():
     if request.method == 'POST':

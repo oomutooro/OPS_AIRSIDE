@@ -38,7 +38,6 @@ def _save_generic_form(form_number: int, location='Airside'):
 
 
 @inspection_bp.route('/form/<int:form_number>', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor', 'inspector', 'operator')
 def generic_form(form_number):
     template_name_map = {

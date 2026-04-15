@@ -43,7 +43,6 @@ def _validate_user_role(selected_role):
 
 
 @admin_bp.route('/users', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor', 'auditor', 'inspector')
 def user_management():
     if request.method == 'POST':
@@ -85,7 +84,6 @@ def user_management():
 
 
 @admin_bp.route('/users/<int:user_id>/edit', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor', 'auditor', 'inspector')
 def edit_user(user_id):
     user = db.session.get(User, user_id)
@@ -138,7 +136,6 @@ def edit_user(user_id):
 
 
 @admin_bp.route('/reference-data')
-@login_required
 @role_required('admin', 'supervisor')
 def reference_data():
     companies = Company.query.order_by(Company.name).all()
@@ -155,7 +152,6 @@ def reference_data():
 
 
 @admin_bp.route('/reference-data/company/new', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def create_company():
     if request.method == 'POST':
@@ -188,7 +184,6 @@ def create_company():
 
 
 @admin_bp.route('/reference-data/company/<int:company_id>/edit', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def edit_company(company_id):
     company = db.session.get(Company, company_id)
@@ -225,7 +220,6 @@ def edit_company(company_id):
 
 
 @admin_bp.route('/reference-data/company/<int:company_id>/delete', methods=['POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def delete_company(company_id):
     company = db.session.get(Company, company_id)
@@ -244,7 +238,6 @@ def delete_company(company_id):
 
 
 @admin_bp.route('/reference-data/location/new', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def create_location():
     if request.method == 'POST':
@@ -276,7 +269,6 @@ def create_location():
 
 
 @admin_bp.route('/reference-data/location/<int:location_id>/edit', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def edit_location(location_id):
     location = db.session.get(AirsideLocation, location_id)
@@ -313,7 +305,6 @@ def edit_location(location_id):
 
 
 @admin_bp.route('/reference-data/location/<int:location_id>/delete', methods=['POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def delete_location(location_id):
     location = db.session.get(AirsideLocation, location_id)
@@ -332,7 +323,6 @@ def delete_location(location_id):
 
 
 @admin_bp.route('/reference-data/stand/new', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def create_stand():
     if request.method == 'POST':
@@ -367,7 +357,6 @@ def create_stand():
 
 
 @admin_bp.route('/reference-data/stand/<int:stand_id>/edit', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def edit_stand(stand_id):
     stand = db.session.get(ParkingStand, stand_id)
@@ -407,7 +396,6 @@ def edit_stand(stand_id):
 
 
 @admin_bp.route('/reference-data/stand/<int:stand_id>/delete', methods=['POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def delete_stand(stand_id):
     stand = db.session.get(ParkingStand, stand_id)
@@ -426,7 +414,6 @@ def delete_stand(stand_id):
 
 
 @admin_bp.route('/reference-data/bridge/new', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def create_bridge():
     available_stands = ParkingStand.query.filter_by(has_pbb=False).order_by(ParkingStand.stand_code).all()
@@ -452,7 +439,6 @@ def create_bridge():
 
 
 @admin_bp.route('/reference-data/bridge/<int:stand_id>/edit', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def edit_bridge(stand_id):
     stand = db.session.get(ParkingStand, stand_id)
@@ -477,7 +463,6 @@ def edit_bridge(stand_id):
 
 
 @admin_bp.route('/reference-data/bridge/<int:stand_id>/delete', methods=['POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def delete_bridge(stand_id):
     stand = db.session.get(ParkingStand, stand_id)
@@ -493,7 +478,6 @@ def delete_bridge(stand_id):
 
 
 @admin_bp.route('/form-builder', methods=['GET', 'POST'])
-@login_required
 @role_required('admin')
 def form_builder():
     if request.method == 'POST':
@@ -512,7 +496,6 @@ def form_builder():
 
 
 @admin_bp.route('/system-settings')
-@login_required
 @role_required('admin')
 def system_settings():
     return render_template('admin/system_settings.html')
@@ -523,7 +506,6 @@ def system_settings():
 # ──────────────────────────────────────────────────────────────────
 
 @admin_bp.route('/aodb-writeback-queue', methods=['GET', 'POST'])
-@login_required
 @role_required('admin', 'supervisor')
 def aodb_writeback_queue():
     """Monitor and manage AODB write-back queue."""
@@ -553,7 +535,6 @@ def aodb_writeback_queue():
 
 
 @admin_bp.route('/api/aodb-writeback/<int:item_id>', methods=['GET'])
-@login_required
 @role_required('admin', 'supervisor')
 def api_aodb_writeback_detail(item_id):
     """API endpoint to get write-back item details."""
