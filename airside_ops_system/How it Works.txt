@@ -1,0 +1,41 @@
+Field Staff on iPad/Phone:
+1. Opens TPBB form in app
+2. Enters flight number → autocomplete from AODB
+3. Enters bridge docking time (HH:MM)
+4. Clicks "Save TPBB Record"
+   ↓
+App:
+5. Saves form submission locally
+6. Looks up flight in FlightMovement cache
+7. Queues write-back: { flightId, BTI, time_value }
+8. Returns to form with success message
+   ↓
+Background (every 5 min):
+9. Scheduler picks up pending write-backs
+10. Calls AodbClient.write_movement_time()
+11. Updates queue item status → "completed"
+12. On failure: retry up to 3 times, log error
+   ↓
+Admin/Supervisor:
+13. Monitors queue via Admin → AODB Write-back Queue
+14. Can manually trigger process or retry failed items
+
+
+""
+TPBB Docking Time (14:32)
+  ↓
+AodbWritebackService.queue_docking_time()
+  ↓
+Queue item: { aodb_flight_id, field: "BTI", value: "202604101432" }
+  ↓
+Background processor calls:
+  AodbClient.write_movement_time(
+    flight_id="...",
+    time_type="BTI",
+    time_value="202604101432"
+  )
+  ↓
+POST /standapi/movementtime
+  ↓
+AODB updated with actual bridge docking time
+""
