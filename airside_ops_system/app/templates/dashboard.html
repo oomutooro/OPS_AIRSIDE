@@ -2,6 +2,7 @@
 {% block title %}Dashboard - Airside Ops{% endblock %}
 
 {% block content %}
+{% set can_sync_aodb = current_user.role in ['admin', 'supervisor', 'operator'] %}
 <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3">
         <div class="kpi-card kpi-blue">
@@ -224,7 +225,9 @@
                 <span>Today's Flights — AODB Live Schedule</span>
                 <div class="d-flex gap-2 align-items-center">
                     {% if last_sync %}<small class="text-muted">Synced {{ last_sync|datetime_fmt }}</small>{% endif %}
+                    {% if can_sync_aodb %}
                     <a href="{{ url_for('apron.aodb_sync') }}" class="btn btn-sm btn-outline-primary">Sync AODB</a>
+                    {% endif %}
                 </div>
             </div>
             <div class="card-body table-responsive p-0" style="max-height:280px;overflow-y:auto;">
@@ -244,7 +247,7 @@
                             <td><span class="badge bg-secondary">{{ f.operation_status or '—' }}</span></td>
                         </tr>
                     {% else %}
-                        <tr><td colspan="7" class="text-center text-muted py-2">No AODB data for today. <a href="{{ url_for('apron.aodb_sync') }}">Run a sync</a>.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-2">No AODB data for today.{% if can_sync_aodb %} <a href="{{ url_for('apron.aodb_sync') }}">Run a sync</a>.{% endif %}</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>

@@ -34,6 +34,7 @@ def create_app(config_name='default'):
     # Load configuration
     from app.config import config
     app.config.from_object(config[config_name])
+    _validate_aodb_config(app)
 
     # Initialize extensions
     db.init_app(app)
@@ -76,6 +77,29 @@ def create_app(config_name='default'):
         _start_aodb_scheduler(app)
 
     return app
+
+
+def _validate_aodb_config(app):
+    """Validate AODB auth settings to fail fast on invalid live configuration."""
+    if app.config.get('TESTING'):
+        return
+
+    mock_mode = bool(app.config.get('AODB_MOCK_MODE', False))
+    auth_key = (app.config.get('AODB_AUTH_KEY', '') or '').strip()
+    user_id = (app.config.get('AODB_USER_ID', '') or '').strip()
+    password = (app.config.get('AODB_PASSWORD', '') or '').strip()
+
+    if mock_mode:
+        return
+
+    if not auth_key and not (user_id and password):
+        raise RuntimeError(
+            'AODB live mode requires authentication. Set AODB_AUTH_KEY '
+            'or provide AODB_USER_ID and AODB_PASSWORD, or enable AODB_MOCK_MODE=True.'
+        )
+
+    if auth_key and (user_id or password):
+        app.logger.info('AODB auth key detected; username/password fallback values will be ignored.')
 
 
 def _start_aodb_scheduler(app):

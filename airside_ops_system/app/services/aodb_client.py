@@ -47,22 +47,28 @@ class AodbClient:
     def __init__(
         self,
         base_url: str,
-        user_id: str,
-        password: str,
+        user_id: str = '',
+        password: str = '',
         timeout: int = 30,
         mock_mode: bool = False,
         mock_writeback_fail_rate: float = 0.0,
+        auth_key: str = '',
     ):
-        if not base_url or not user_id or not password:
-            raise ValueError('AODB base_url, user_id, and password are required.')
+        if not base_url:
+            raise ValueError('AODB base_url is required.')
+        if not auth_key and (not user_id or not password):
+            raise ValueError('AODB requires either auth_key or user_id/password.')
         self._base_url = base_url.rstrip('/')
         self._user_id = user_id
         self._password = password
+        self._auth_key = (auth_key or '').strip()
         self._timeout = timeout
         self._mock_mode = mock_mode
         self._mock_writeback_fail_rate = max(0.0, min(1.0, float(mock_writeback_fail_rate)))
         self._session_id: Optional[str] = None
         self._http = requests.Session()
+        if self._auth_key:
+            self._http.headers.update({'X-Authentication-Key': self._auth_key})
 
     # ------------------------------------------------------------------
     # Context manager support
@@ -88,6 +94,7 @@ class AodbClient:
         from flask import current_app
         cfg = (app or current_app)._get_current_object().config
         base_url = cfg.get('AODB_BASE_URL', '')
+        auth_key = (cfg.get('AODB_AUTH_KEY', '') or '').strip()
         user_id  = cfg.get('AODB_USER_ID', '')
         password = cfg.get('AODB_PASSWORD', '')
         timeout  = int(cfg.get('AODB_TIMEOUT_SECONDS', 30))
@@ -100,6 +107,7 @@ class AodbClient:
             timeout,
             mock_mode=mock_mode,
             mock_writeback_fail_rate=mock_writeback_fail_rate,
+            auth_key=auth_key,
         )
 
     # ------------------------------------------------------------------
@@ -111,6 +119,11 @@ class AodbClient:
         if self._mock_mode:
             self._session_id = f'mock-{datetime.utcnow().strftime("%Y%m%d%H%M%S")}'
             logger.info('AODB mock mode: login simulated.')
+            return self._session_id
+
+        if self._auth_key:
+            self._session_id = 'auth-key'
+            logger.info('AODB key auth mode enabled: login skipped.')
             return self._session_id
 
         payload = {'userId': self._user_id, 'password': self._password}
@@ -130,6 +143,10 @@ class AodbClient:
             self._session_id = None
             logger.info('AODB mock mode: logout simulated.')
             return
+        if self._auth_key:
+            self._session_id = None
+            logger.info('AODB key auth mode enabled: logout skipped.')
+            return
         try:
             self._post('/standapi/logout', {'sessionId': self._session_id})
         finally:
@@ -148,12 +165,13 @@ class AodbClient:
         if self._mock_mode:
             return self._mock_movements(for_date, 'ARR')
 
+        if not self._auth_key and not self._session_id:
+            self.login()
+
         from_dt, to_dt = _make_window(for_date)
-        payload = {
-            'sessionId': self._session_id,
-            'fromDatetime': from_dt,
-            'toDatetime': to_dt,
-        }
+        payload = {'fromDatetime': from_dt, 'toDatetime': to_dt}
+        if self._session_id and not self._auth_key:
+            payload['sessionId'] = self._session_id
         data = self._post('/standapi/arrmovementinfo', payload)
         return self._extract_list(data)
 
@@ -165,12 +183,13 @@ class AodbClient:
         if self._mock_mode:
             return self._mock_movements(for_date, 'DEP')
 
+        if not self._auth_key and not self._session_id:
+            self.login()
+
         from_dt, to_dt = _make_window(for_date)
-        payload = {
-            'sessionId': self._session_id,
-            'fromDatetime': from_dt,
-            'toDatetime': to_dt,
-        }
+        payload = {'fromDatetime': from_dt, 'toDatetime': to_dt}
+        if self._session_id and not self._auth_key:
+            payload['sessionId'] = self._session_id
         data = self._post('/standapi/depmovementinfo', payload)
         return self._extract_list(data)
 
@@ -186,12 +205,16 @@ class AodbClient:
         else:
             time_str = str(time_value)
         
+        if not self._auth_key and not self._session_id:
+            self.login()
+
         payload = {
-            'sessionId': self._session_id,
             'flightId': flight_id,
             'timeType': time_type,
             'timeValue': time_str,
         }
+        if self._session_id and not self._auth_key:
+            payload['sessionId'] = self._session_id
 
         if self._mock_mode:
             # Optional fail rate allows local retry-flow testing.

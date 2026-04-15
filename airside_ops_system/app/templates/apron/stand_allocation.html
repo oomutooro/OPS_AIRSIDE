@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Stand Allocation{% endblock %}
 {% block content %}
+{% set can_sync_aodb = current_user.role in ['admin', 'supervisor', 'operator'] %}
 
 {# ── Date navigator ──────────────────────────────────────────────────── #}
 <div class="d-flex align-items-center gap-3 mb-3">
@@ -16,7 +17,9 @@
 <div class="card panel-card mb-3">
     <div class="card-header d-flex justify-content-between">
         <span>Live Flight Schedule — {{ alloc_date.strftime('%d %b %Y') }}</span>
+        {% if can_sync_aodb %}
         <a href="{{ url_for('apron.aodb_sync') }}" class="btn btn-sm btn-outline-primary">Sync AODB</a>
+        {% endif %}
     </div>
     <div class="card-body table-responsive p-0" style="max-height:320px;overflow-y:auto;">
         <table class="table table-sm table-hover mb-0 sticky-header no-datatable">
@@ -52,7 +55,7 @@
                     </td>
                 </tr>
             {% else %}
-                <tr><td colspan="9" class="text-center text-muted py-2">No AODB data for this date. <a href="{{ url_for('apron.aodb_sync') }}">Run a sync</a> to populate.</td></tr>
+                <tr><td colspan="9" class="text-center text-muted py-2">No AODB data for this date.{% if can_sync_aodb %} <a href="{{ url_for('apron.aodb_sync') }}">Run a sync</a> to populate.{% endif %}</td></tr>
             {% endfor %}
             </tbody>
         </table>

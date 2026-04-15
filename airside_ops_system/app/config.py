@@ -74,9 +74,11 @@ class Config:
     TOTP_ISSUER = 'EBB Airside Ops'
 
     # AODB REST API integration
-    AODB_BASE_URL = os.environ.get('AODB_BASE_URL', 'http://localhost:8080')
-    AODB_USER_ID  = os.environ.get('AODB_USER_ID', 'placeholder_user')
-    AODB_PASSWORD = os.environ.get('AODB_PASSWORD', 'placeholder_password')
+    AODB_BASE_URL = os.environ.get('AODB_BASE_URL', 'http://10.31.40.11:8085')
+    AODB_AUTH_KEY = (os.environ.get('AODB_AUTH_KEY', '') or '').strip()
+    # Legacy fallback mode only when auth key is not used.
+    AODB_USER_ID  = os.environ.get('AODB_USER_ID', '')
+    AODB_PASSWORD = os.environ.get('AODB_PASSWORD', '')
     AODB_TIMEOUT_SECONDS = int(os.environ.get('AODB_TIMEOUT_SECONDS', 30))
     AODB_MOCK_MODE = os.environ.get('AODB_MOCK_MODE', 'False').lower() == 'true'
     AODB_MOCK_WRITEBACK_FAIL_RATE = float(os.environ.get('AODB_MOCK_WRITEBACK_FAIL_RATE', 0.0))

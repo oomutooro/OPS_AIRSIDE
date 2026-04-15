@@ -80,12 +80,12 @@ def stand_allocation():
 
 
 # ---------------------------------------------------------------------------
-# AODB Sync management  (admin/supervisor only)
+# AODB Sync management  (admin/supervisor/operator)
 # ---------------------------------------------------------------------------
 
 @apron_bp.route('/aodb-sync', methods=['GET', 'POST'])
 @login_required
-@role_required('admin', 'supervisor')
+@role_required('admin', 'supervisor', 'operator')
 def aodb_sync():
     """Manual AODB flight data sync page."""
     sync_result = None
