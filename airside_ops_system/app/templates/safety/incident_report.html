@@ -5,14 +5,142 @@
     <div class="card-header">Form 10 - Airside Incident Report</div>
     <div class="card-body">
         <form method="post" class="row g-3">
+            <div class="col-12">
+                <label class="form-label fw-semibold">Title of the Report</label>
+                <input name="report_title" class="form-control form-control-lg" placeholder="Brief title of incident report">
+            </div>
+
+            <div class="col-12"><h6 class="text-primary mb-1">General Information</h6></div>
             <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
-            <div class="col-md-4"><label class="form-label">Occurrence Date</label><input type="date" name="occurrence_date" class="form-control form-control-lg" required></div>
-            <div class="col-md-4"><label class="form-label">Type</label><select name="incident_type" class="form-select form-select-lg"><option>incident</option><option>accident</option><option>near_miss</option><option>runway_incursion</option></select></div>
+            <div class="col-md-6"><label class="form-label">Company/Airline</label><input name="company_airline" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Operator</label><input name="operator" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Flight No.</label><input name="flight_no" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">POB</label><input name="pob" class="form-control form-control-lg" placeholder="Persons on board"></div>
+            <div class="col-md-4"><label class="form-label">Aircraft/Equip't Reg No.</label><input name="aircraft_equipment_reg_no" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Aircraft/Equip't Type</label><input name="aircraft_equipment_type" class="form-control form-control-lg"></div>
+            <div class="col-md-2"><label class="form-label">Date</label><input type="date" name="occurrence_date" class="form-control form-control-lg" required></div>
+            <div class="col-md-2"><label class="form-label">Time</label><input type="time" name="occurrence_time" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Origin</label><input name="origin" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Destination</label><input name="destination" class="form-control form-control-lg"></div>
+            <div class="col-md-2"><label class="form-label">Weather</label><input name="weather" class="form-control form-control-lg" placeholder="e.g. Rainy/Windy"></div>
+            <div class="col-md-4"><label class="form-label">Phase of Operation</label><input name="phase_of_operation" class="form-control form-control-lg" placeholder="Taxi, turnaround, parking, loading"></div>
+            <div class="col-md-4"><label class="form-label">Location</label><input name="location" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Type</label><select name="incident_type" class="form-select form-select-lg"><option>incident</option><option>accident</option><option>near_miss</option><option>runway_incursion</option><option>bird_strike</option><option>wildlife</option></select></div>
             <div class="col-md-4"><label class="form-label">Severity</label><select name="severity" class="form-select form-select-lg"><option>minor</option><option>moderate</option><option>major</option><option>critical</option></select></div>
-            <div class="col-12"><label class="form-label">Location</label><input name="location" class="form-control form-control-lg" required></div>
+
+            <div class="col-12"><h6 class="text-primary mb-1 mt-2">Accident and Incident Facts / Sequence of Events</h6></div>
             <div class="col-12"><label class="form-label">Description</label><textarea name="description" rows="4" class="form-control" required></textarea></div>
             <div class="col-12"><label class="form-label">Sequence of Events</label><textarea name="sequence_of_events" rows="4" class="form-control"></textarea></div>
-            <div class="col-12"><label class="form-label">Immediate Actions</label><textarea name="immediate_actions" rows="3" class="form-control"></textarea></div>
+            <div class="col-12"><label class="form-label">Actions Taken</label><textarea name="immediate_actions" rows="3" class="form-control"></textarea></div>
+            <div class="col-12"><label class="form-label">Observations</label><textarea name="observations" rows="3" class="form-control"></textarea></div>
+            <div class="col-12"><label class="form-label">Proposed Corrective Action to Prevent Future Occurrences</label><textarea name="proposed_corrective_action" rows="3" class="form-control"></textarea></div>
+            <div class="col-12"><label class="form-label">Recommended Corrective Action</label><textarea name="recommended_corrective_action" rows="3" class="form-control"></textarea></div>
+
+            <div class="col-12"><h6 class="text-primary mb-1 mt-2">Legend and Cause/To Classification</h6></div>
+            <div class="col-md-4">
+                <label class="form-label">Type of Legend</label>
+                <select name="incident_legend" class="form-select form-select-lg">
+                    <option value="INCIDENT">INCIDENT</option>
+                    <option value="ACCIDENT">ACCIDENT</option>
+                    <option value="NEAR MISS">NEAR MISS</option>
+                    <option value="RUNWAY INCURSION">RUNWAY INCURSION</option>
+                    <option value="BIRD STRIKE">BIRD STRIKE</option>
+                    <option value="WILDLIFE">WILDLIFE</option>
+                    <option value="MEDICAL">MEDICAL</option>
+                    <option value="PASSENGER MISCONDUCT">PASSENGER MISCONDUCT</option>
+                    <option value="OTHER">OTHER</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Legend Matrix Code (A-T)</label>
+                <select name="legend_code" class="form-select form-select-lg">
+                    <option value="">Select code</option>
+                    <option value="A">A - Equipment to Equipment</option>
+                    <option value="B">B - Equipment to Aircraft</option>
+                    <option value="C">C - Equipment to Personnel</option>
+                    <option value="D">D - Equipment to Property</option>
+                    <option value="E">E - Equipment to Passenger</option>
+                    <option value="F">F - Aircraft to Equipment</option>
+                    <option value="G">G - Aircraft to Aircraft</option>
+                    <option value="H">H - Aircraft to Personnel</option>
+                    <option value="I">I - Aircraft to Property</option>
+                    <option value="J">J - Aircraft to Passenger</option>
+                    <option value="K">K - Personnel to Equipment</option>
+                    <option value="L">L - Personnel to Aircraft</option>
+                    <option value="M">M - Personnel to Personnel</option>
+                    <option value="N">N - Personnel to Property</option>
+                    <option value="O">O - Personnel to Passenger</option>
+                    <option value="P">P - Property to Equipment</option>
+                    <option value="Q">Q - Property to Aircraft</option>
+                    <option value="R">R - Property to Personnel</option>
+                    <option value="S">S - Property to Property</option>
+                    <option value="T">T - Property to Passenger</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Cause Category</label>
+                <select name="cause_category" class="form-select form-select-lg">
+                    <option value="Human Error">Human Error</option>
+                    <option value="Bird Strike">Bird Strike</option>
+                    <option value="Bad Weather">Bad Weather</option>
+                    <option value="Medical">Medical</option>
+                    <option value="Passenger Misconduct">Passenger Misconduct</option>
+                    <option value="Passenger Cause">Passenger Cause</option>
+                    <option value="Tyre Burst">Tyre Burst</option>
+                    <option value="Wildlife">Wildlife</option>
+                    <option value="FOD">FOD</option>
+                    <option value="Airport Environment">Airport Environment</option>
+                    <option value="Infrastructure Failure">Infrastructure Failure</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label fw-semibold">Damage/Harm Categories</label>
+                <div class="d-flex flex-wrap gap-3 border rounded p-3">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="damage_equipment" id="damage_equipment"><label class="form-check-label" for="damage_equipment">Damage to Equipment</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="damage_aircraft" id="damage_aircraft"><label class="form-check-label" for="damage_aircraft">Damage to Aircraft</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="damage_property" id="damage_property"><label class="form-check-label" for="damage_property">Damage to Property</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="harm_personnel" id="harm_personnel"><label class="form-check-label" for="harm_personnel">Harm to Personnel</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="harm_passenger" id="harm_passenger"><label class="form-check-label" for="harm_passenger">Harm to Passenger</label></div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="table-responsive border rounded">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th colspan="6" class="text-center">Cause / To Legend Matrix (Reference)</th>
+                            </tr>
+                            <tr>
+                                <th>Cause \ To</th>
+                                <th>Equipment</th>
+                                <th>Aircraft</th>
+                                <th>Personnel</th>
+                                <th>Property</th>
+                                <th>Passenger</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><th>Equipment</th><td>A</td><td>B</td><td>C</td><td>D</td><td>E</td></tr>
+                            <tr><th>Aircraft</th><td>F</td><td>G</td><td>H</td><td>I</td><td>J</td></tr>
+                            <tr><th>Personnel</th><td>K</td><td>L</td><td>M</td><td>N</td><td>O</td></tr>
+                            <tr><th>Property/Others</th><td>P</td><td>Q</td><td>R</td><td>S</td><td>T</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="col-12"><h6 class="text-primary mb-1 mt-2">Reporting Chain (Digital Representation)</h6></div>
+            <div class="col-md-4"><label class="form-label">Reported by Name</label><input name="reported_by_name" class="form-control form-control-lg" value="{{ current_user.full_name }}"></div>
+            <div class="col-md-2"><label class="form-label">Reported Date</label><input type="date" name="reported_date" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Received by</label><input name="received_by" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Verified by POO</label><input name="verified_by_poo" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Forwarded by MO</label><input name="forwarded_by_mo" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">GM-EIA</label><input name="gm_eia" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">CC (Optional)</label><input name="cc_list" class="form-control form-control-lg" placeholder="DAAS, GM-EIA, MSMS, POO"></div>
+
             <div class="col-12"><button class="btn btn-warning btn-touch">Submit Incident Report</button></div>
         </form>
     </div>

@@ -1,7 +1,7 @@
 """
 Safety routes: incidents, violations, investigations, FOD walks.
 """
-from datetime import date
+from datetime import date, datetime
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from app import db
@@ -17,18 +17,45 @@ safety_bp = Blueprint('safety', __name__)
 @login_required
 def incident_report():
     if request.method == 'POST':
+        occurrence_time_raw = (request.form.get('occurrence_time') or '').strip()
+        occurrence_time = None
+        if occurrence_time_raw:
+            try:
+                occurrence_time = datetime.strptime(occurrence_time_raw, '%H:%M').time()
+            except ValueError:
+                occurrence_time = None
+
+        company_airline = (request.form.get('company_airline') or '').strip()
+        operator = (request.form.get('operator') or '').strip()
+        aircraft_equipment_reg_no = (request.form.get('aircraft_equipment_reg_no') or '').strip()
+        aircraft_equipment_type = (request.form.get('aircraft_equipment_type') or '').strip()
+        weather = (request.form.get('weather') or '').strip()
+        phase_of_operation = (request.form.get('phase_of_operation') or '').strip()
+
         incident = Incident(
             report_date=date.today(),
             occurrence_date=request.form.get('occurrence_date') or date.today(),
+            occurrence_time=occurrence_time,
             location=request.form.get('location'),
             incident_type=request.form.get('incident_type', 'incident'),
             severity=request.form.get('severity', 'minor'),
             description=request.form.get('description'),
             sequence_of_events=request.form.get('sequence_of_events'),
             immediate_actions_taken=request.form.get('immediate_actions'),
+            airline_operator=operator or company_airline or None,
+            flight_number=(request.form.get('flight_no') or '').strip() or None,
+            aircraft_registration=aircraft_equipment_reg_no or None,
+            aircraft_type=aircraft_equipment_type or None,
+            weather_conditions={
+                'weather': weather,
+                'phase_of_operation': phase_of_operation,
+            },
             reported_by_user_id=current_user.id,
+            reported_at=datetime.utcnow(),
+            operator_report_submitted=True,
             status='open',
         )
+        incident.set_reporting_deadlines()
         db.session.add(incident)
 
         template = FormTemplate.query.filter_by(form_number=10).first()
