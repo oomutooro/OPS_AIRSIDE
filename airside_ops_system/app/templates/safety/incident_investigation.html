@@ -5,6 +5,7 @@
     <div class="card-header">Form 11 - Preliminary Investigation</div>
     <div class="card-body">
         <form method="post" class="row g-3">
+            <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
             <div class="col-md-4"><label class="form-label">Incident</label><select name="incident_id" class="form-select form-select-lg" required>{% for i in incidents %}<option value="{{ i.id }}">{{ i.incident_number or ('INC-' ~ i.id) }} - {{ i.location }}</option>{% endfor %}</select></div>
             <div class="col-12"><label class="form-label">Investigation Findings</label><textarea name="investigation_findings" rows="4" class="form-control"></textarea></div>
             <div class="col-12"><label class="form-label">Probable Cause</label><textarea name="probable_cause" rows="4" class="form-control"></textarea></div>

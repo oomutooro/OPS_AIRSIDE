@@ -136,12 +136,13 @@ class AodbSyncService:
 
     @classmethod
     def flights_for_date(cls, for_date: date, arr_or_dep: Optional[str] = None) -> list[FlightMovement]:
-        """Return cached flight movements for a given date, sorted by scheduled time."""
+        """Return cached flight movements for a given date, sorted chronologically by scheduled time."""
+        from sqlalchemy import asc, nullslast
         date_str = for_date.strftime('%Y%m%d')
         q = FlightMovement.query.filter(FlightMovement.scheduled_date == date_str)
         if arr_or_dep:
             q = q.filter(FlightMovement.arr_or_dep == arr_or_dep.upper())
-        return q.order_by(FlightMovement.scheduled_datetime).all()
+        return q.order_by(nullslast(asc(FlightMovement.scheduled_datetime))).all()
 
     @classmethod
     def last_sync_time(cls) -> Optional[datetime]:

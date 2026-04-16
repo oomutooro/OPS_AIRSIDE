@@ -5,6 +5,7 @@
     <div class="card-header">Form 10 - Airside Incident Report</div>
     <div class="card-body">
         <form method="post" class="row g-3">
+            <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
             <div class="col-md-4"><label class="form-label">Occurrence Date</label><input type="date" name="occurrence_date" class="form-control form-control-lg" required></div>
             <div class="col-md-4"><label class="form-label">Type</label><select name="incident_type" class="form-select form-select-lg"><option>incident</option><option>accident</option><option>near_miss</option><option>runway_incursion</option></select></div>
             <div class="col-md-4"><label class="form-label">Severity</label><select name="severity" class="form-select form-select-lg"><option>minor</option><option>moderate</option><option>major</option><option>critical</option></select></div>

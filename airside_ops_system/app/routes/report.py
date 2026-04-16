@@ -2,10 +2,11 @@
 Reporting routes: daily ops report, analytics dashboard, custom report builder, exports.
 """
 from io import BytesIO
-from datetime import date
+from datetime import date, datetime
 from flask import Blueprint, Response, flash, redirect, render_template, request, send_file, url_for
 from flask_login import login_required
 from app.models.form import FormSubmission, FormTemplate
+from app.models.reference import Company
 from app.services.export_service import ExportService
 from app.services.analytics_service import AnalyticsService
 from app.services.pdf_generator import PDFGeneratorService
@@ -13,6 +14,52 @@ from app.services.workflow_service import WorkflowService
 from flask_login import current_user
 
 report_bp = Blueprint('report', __name__)
+
+
+def _normalize_sticker_status(value):
+    raw = (value or '').strip().upper()
+    if raw in ('GREEN', 'SERVICEABLE', 'COMPLIANT'):
+        return 'GREEN'
+    if raw in ('YELLOW', 'ORANGE', 'CONDITIONAL', 'GRACE'):
+        return 'YELLOW'
+    if raw in ('RED', 'GROUNDED', 'NON-COMPLIANT'):
+        return 'RED'
+    return ''
+
+
+def _safe_submission_datetime(submission):
+    data = submission.data or {}
+    inspection_date = data.get('inspection_date')
+    inspection_time = data.get('inspection_time')
+    if inspection_date and inspection_time:
+        try:
+            return datetime.fromisoformat(f'{inspection_date}T{inspection_time}')
+        except ValueError:
+            pass
+    if submission.submission_date and submission.submission_time:
+        return datetime.combine(submission.submission_date, submission.submission_time)
+    return submission.created_at
+
+
+def _build_essat_sticker_rows(submissions):
+    rows = []
+    for submission in submissions:
+        data = submission.data or {}
+        sticker_status = _normalize_sticker_status(data.get('sticker_status'))
+        rows.append({
+            'submission': submission,
+            'reference_number': submission.reference_number or f'SUB-{submission.id}',
+            'company': (data.get('organization_company') or 'Unspecified').strip() or 'Unspecified',
+            'vehicle_no': (data.get('airside_vehicle_no') or '').strip(),
+            'equipment_description': (data.get('vehicle_equipment_description') or '').strip(),
+            'sticker_no': (data.get('sticker_no') or '').strip(),
+            'sticker_status': sticker_status,
+            'serviceability_label': 'Serviceable' if sticker_status == 'GREEN' else 'Conditional (Grace)' if sticker_status == 'YELLOW' else 'Grounded' if sticker_status == 'RED' else 'Unknown',
+            'inspection_date': data.get('inspection_date') or '',
+            'inspection_time': data.get('inspection_time') or '',
+            'submitted_at': _safe_submission_datetime(submission),
+        })
+    return rows
 
 
 @report_bp.route('/daily-ops-report', methods=['GET', 'POST'])
@@ -55,6 +102,50 @@ def analytics_dashboard():
 def custom_report_builder():
     templates = FormTemplate.query.order_by(FormTemplate.form_number).all()
     return render_template('reports/custom_report_builder.html', templates=templates)
+
+
+@report_bp.route('/essat-sticker-report')
+@login_required
+def essat_sticker_report():
+    template = FormTemplate.query.filter_by(form_number=18).first()
+    if not template:
+        flash('ESSAT Motorised form template is not configured.', 'warning')
+        return redirect(url_for('report.custom_report_builder'))
+
+    registered_companies = Company.query.filter_by(is_active=True).order_by(Company.name).all()
+    company_filter = (request.args.get('company') or '').strip()
+    sticker_filter = _normalize_sticker_status(request.args.get('sticker_status') or 'GREEN') or 'GREEN'
+    from_date = (request.args.get('from_date') or '').strip()
+    to_date = (request.args.get('to_date') or '').strip()
+
+    submissions = FormSubmission.query.filter_by(form_template_id=template.id).order_by(FormSubmission.created_at.desc()).all()
+    rows = _build_essat_sticker_rows(submissions)
+
+    if company_filter:
+        rows = [row for row in rows if row['company'].lower() == company_filter.lower()]
+    if sticker_filter:
+        rows = [row for row in rows if row['sticker_status'] == sticker_filter]
+    if from_date:
+        rows = [row for row in rows if row['inspection_date'] and row['inspection_date'] >= from_date]
+    if to_date:
+        rows = [row for row in rows if row['inspection_date'] and row['inspection_date'] <= to_date]
+
+    rows.sort(key=lambda row: (
+        row['company'].lower(),
+        row['inspection_date'] or '9999-12-31',
+        row['inspection_time'] or '99:99',
+        row['vehicle_no'].lower(),
+    ))
+
+    return render_template(
+        'reports/essat_sticker_report.html',
+        rows=rows,
+        companies=registered_companies,
+        company_filter=company_filter,
+        sticker_filter=sticker_filter,
+        from_date=from_date,
+        to_date=to_date,
+    )
 
 
 @report_bp.route('/export/submissions.csv')

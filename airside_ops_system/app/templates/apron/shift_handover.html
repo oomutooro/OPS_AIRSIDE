@@ -64,7 +64,12 @@
         <label class="form-label">Pending Issues / Action Items</label>
         <textarea name="pending_issues" class="form-control" rows="3" placeholder="List any unresolved issues, follow-up actions, or items that require attention by the incoming shift..."></textarea>
       </div>
+      <div class="col-md-6">
+        <label class="form-label">Recorded By</label>
+        <input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly>
+      </div>
 
+      {% if signature_capture_enabled %}
       <!-- Signatures -->
       <div class="col-md-6">
         <label class="form-label">Outgoing Officer Signature</label>
@@ -78,6 +83,11 @@
         <input type="hidden" name="incoming_signature">
         <div class="mt-1"><button type="button" class="btn btn-outline-secondary btn-sm clear-sig" data-target="incoming_signature"><i class="fa fa-eraser me-1"></i>Clear</button></div>
       </div>
+      {% else %}
+      <div class="col-12">
+        <div class="alert alert-secondary py-2 mb-0">Signatures are captured on printed handover forms, not in the live system.</div>
+      </div>
+      {% endif %}
 
       <div class="col-12">
         <button class="btn btn-primary btn-touch" {% if not day_users and not night_users %}disabled title="Roster not yet generated for this date"{% endif %}>

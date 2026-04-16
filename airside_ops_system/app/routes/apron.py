@@ -143,6 +143,7 @@ def shift_handover():
     handover_date = _parse_iso_date(request.form.get('handover_date') if request.method == 'POST' else request.args.get('handover_date'))
 
     if request.method == 'POST':
+        signature_enabled = current_app.config.get('SIGNATURE_CAPTURE_ENABLED', False)
         outgoing_user_id = int(request.form.get('outgoing_user_id') or 0)
         incoming_user_id = int(request.form.get('incoming_user_id') or 0)
         outgoing_shift_type = (request.form.get('outgoing_shift_type') or 'day').lower()
@@ -171,9 +172,9 @@ def shift_handover():
             incoming_badge=incoming_user.badge_number,
             major_events=request.form.get('major_events'),
             pending_issues=request.form.get('pending_issues'),
-            outgoing_sign=request.form.get('outgoing_signature'),
-            incoming_sign=request.form.get('incoming_signature'),
-            status='complete' if request.form.get('outgoing_signature') and request.form.get('incoming_signature') else 'pending',
+            outgoing_sign=request.form.get('outgoing_signature') if signature_enabled else None,
+            incoming_sign=request.form.get('incoming_signature') if signature_enabled else None,
+            status='complete' if (not signature_enabled) or (request.form.get('outgoing_signature') and request.form.get('incoming_signature')) else 'pending',
         )
         db.session.add(report)
 
@@ -185,6 +186,7 @@ def shift_handover():
                 submitted_by_user_id=current_user.id,
                 location_ref='Apron Tower',
                 data={
+                    'recorded_by': current_user.full_name,
                     'handover_date': handover_date.isoformat(),
                     'outgoing_shift_type': outgoing_shift_type,
                     'incoming_shift_type': incoming_shift_type,
@@ -212,6 +214,7 @@ def shift_handover():
         handover_date=handover_date,
         day_users=day_users,
         night_users=night_users,
+        signature_capture_enabled=bool(current_app.config.get('SIGNATURE_CAPTURE_ENABLED', False)),
     )
 
 

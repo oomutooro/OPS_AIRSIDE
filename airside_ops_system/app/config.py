@@ -73,6 +73,9 @@ class Config:
     # Two-factor auth
     TOTP_ISSUER = 'EBB Airside Ops'
 
+    # Signatures are captured on printouts, not in the live system forms.
+    SIGNATURE_CAPTURE_ENABLED = os.environ.get('SIGNATURE_CAPTURE_ENABLED', 'False').lower() == 'true'
+
     # AODB REST API integration
     AODB_BASE_URL = os.environ.get('AODB_BASE_URL', 'http://10.31.40.11:8085')
     AODB_AUTH_KEY = (os.environ.get('AODB_AUTH_KEY', '') or '').strip()

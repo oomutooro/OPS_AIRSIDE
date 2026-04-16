@@ -39,7 +39,9 @@
         return;
       }
 
-      $table.DataTable({ responsive: true, pageLength: 10 });
+      const orderAttr = $table.attr('data-order');
+      const orderOpt = orderAttr ? JSON.parse(orderAttr) : [[0, 'asc']];
+      $table.DataTable({ responsive: true, pageLength: 10, order: orderOpt });
     });
   }
 

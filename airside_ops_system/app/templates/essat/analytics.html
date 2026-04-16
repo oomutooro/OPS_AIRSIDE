@@ -1,0 +1,349 @@
+{% extends 'base.html' %}
+{% block title %}ESSAT Analytics Dashboard{% endblock %}
+
+{% block content %}
+{# =========================================================
+   ESSAT Analytics Dashboard
+   ========================================================= #}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0">ESSAT Analytics &mdash; {{ cycle_filter }}</h4>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <label class="form-label mb-0 fw-semibold small">Cycle:</label>
+        <select name="cycle" class="form-select form-select-sm" style="min-width:140px" onchange="this.form.submit()">
+            {% for c in cycles %}
+            <option value="{{ c }}" {% if c == cycle_filter %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+{# ---- Summary KPI cards ---- #}
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-center border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="display-6 fw-bold text-primary">{{ total_submitted }}</div>
+                <div class="small text-muted mt-1">Equipment Submitted</div>
+                <div class="text-muted" style="font-size:.75rem">{{ total_submitted_motorised }} motorised / {{ total_submitted_non_motorised }} non-motorised</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="display-6 fw-bold text-info">{{ total_inspected }}</div>
+                <div class="small text-muted mt-1">Equipment Inspected (Form 18/19)</div>
+                {% set cov_pct = (total_inspected / total_submitted * 100)|round|int if total_submitted else 0 %}
+                <div class="text-muted" style="font-size:.75rem">{{ cov_pct }}% of submitted list</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="display-6 fw-bold text-success">{{ sticker_counts.GREEN }}</div>
+                <div class="small text-muted mt-1">GREEN — Serviceable</div>
+                {% set g_pct = (sticker_counts.GREEN / total_inspected * 100)|round|int if total_inspected else 0 %}
+                <div class="text-muted" style="font-size:.75rem">{{ g_pct }}% compliant</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center border-0 shadow-sm h-100">
+            <div class="card-body py-3">
+                <div class="display-6 fw-bold text-danger">{{ sticker_counts.RED }}</div>
+                <div class="small text-muted mt-1">RED — Grounded</div>
+                <div class="text-warning fw-semibold" style="font-size:.85rem">
+                    <i class="bi bi-circle-fill"></i> {{ sticker_counts.YELLOW }} YELLOW (Grace)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ---- Row 1: Sticker Distribution + Submitted vs Inspected ---- #}
+<div class="row g-3 mb-4">
+    {# Sticker status doughnut #}
+    <div class="col-md-4">
+        <div class="card panel-card h-100">
+            <div class="card-header">Sticker Status Distribution</div>
+            <div class="card-body d-flex flex-column align-items-center justify-content-center">
+                <canvas id="stickerChart" style="max-height:250px"></canvas>
+                <ul class="list-unstyled mt-3 small text-start w-100">
+                    <li><span class="badge bg-success me-1">&nbsp;</span> GREEN: {{ sticker_counts.GREEN }} (Serviceable)</li>
+                    <li><span class="badge bg-warning text-dark me-1">&nbsp;</span> YELLOW: {{ sticker_counts.YELLOW }} (Conditional/Grace)</li>
+                    <li><span class="badge bg-danger me-1">&nbsp;</span> RED: {{ sticker_counts.RED }} (Grounded)</li>
+                    {% if sticker_counts.UNKNOWN %}<li><span class="badge bg-secondary me-1">&nbsp;</span> Unknown: {{ sticker_counts.UNKNOWN }}</li>{% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    {# Submitted vs Inspected bar chart #}
+    <div class="col-md-8">
+        <div class="card panel-card h-100">
+            <div class="card-header">Quarterly Trend — Submitted Inventory vs. Equipment Audited</div>
+            <div class="card-body">
+                <canvas id="trendChart" style="max-height:260px"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ---- Row 2: Per-company compliance ---- #}
+{% if company_stats %}
+<div class="card panel-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        Compliance per Company — {{ cycle_filter }}
+        <a href="{{ url_for('report.essat_sticker_report') }}" class="btn btn-sm btn-outline-secondary">Detail Report</a>
+    </div>
+    <div class="card-body">
+        <canvas id="companyComplianceChart" style="max-height:320px"></canvas>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Company</th>
+                        <th class="text-center text-success">GREEN</th>
+                        <th class="text-center text-warning">YELLOW</th>
+                        <th class="text-center text-danger">RED</th>
+                        <th class="text-center">Total</th>
+                        <th>Compliance %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cname, stats in company_stats %}
+                    <tr>
+                        <td class="fw-semibold">{{ cname }}</td>
+                        <td class="text-center">{{ stats.GREEN }}</td>
+                        <td class="text-center">{{ stats.YELLOW }}</td>
+                        <td class="text-center">{{ stats.RED }}</td>
+                        <td class="text-center">{{ stats.total }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height:16px">
+                                    <div class="progress-bar bg-success" style="width:{{ stats.pct_compliant }}%"></div>
+                                    <div class="progress-bar bg-warning" style="width:{{ stats.pct_conditional }}%"></div>
+                                    <div class="progress-bar bg-danger" style="width:{{ stats.pct_non_compliant }}%"></div>
+                                </div>
+                                <span class="small text-muted">{{ stats.pct_compliant }}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ---- Row 3: Top Issues ---- #}
+{% if top_issues %}
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card panel-card h-100">
+            <div class="card-header">Top 15 Most Common Issues</div>
+            <div class="card-body">
+                <canvas id="topIssuesChart" style="max-height:380px"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card panel-card h-100">
+            <div class="card-header">Issues per Company (Total)</div>
+            <div class="card-body">
+                <canvas id="companyIssuesChart" style="max-height:380px"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Issue detail table #}
+<div class="card panel-card mb-4">
+    <div class="card-header">Issue Frequency Detail — {{ cycle_filter }}</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Issue / Checklist Item</th>
+                        <th class="text-center">Occurrences</th>
+                        <th>Frequency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set max_count = top_issues[0][1] if top_issues else 1 %}
+                    {% for issue, count in top_issues %}
+                    <tr>
+                        <td class="text-muted">{{ loop.index }}</td>
+                        <td>{{ issue }}</td>
+                        <td class="text-center fw-bold">{{ count }}</td>
+                        <td>
+                            <div class="progress" style="height:14px;min-width:100px">
+                                <div class="progress-bar bg-danger" style="width:{{ (count / max_count * 100)|round|int }}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">No checklist issue data recorded for {{ cycle_filter }}. Issues are captured from checklist items marked FAIL/NO on Form 18 ESSAT inspections.</div>
+{% endif %}
+
+{# ---- Observations and Recommendations ---- #}
+{% if observations %}
+<div class="card panel-card mb-4">
+    <div class="card-header">Observations &amp; Recommendations — {{ cycle_filter }}</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Company</th>
+                        <th>Vehicle/Equip.</th>
+                        <th>Date</th>
+                        <th>General Remarks</th>
+                        <th>Recommendations</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for obs in observations %}
+                    <tr>
+                        <td class="fw-semibold">{{ obs.company }}</td>
+                        <td>{{ obs.vehicle_no or '—' }}</td>
+                        <td>{{ obs.inspection_date or '—' }}</td>
+                        <td>{{ obs.general_remarks or '—' }}</td>
+                        <td>{{ obs.recommendations or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-light border">
+    No observations or recommendations recorded for {{ cycle_filter }}.
+    These are drawn from the <em>Remarks and Approvals</em> section of Form 18.
+</div>
+{% endif %}
+
+{# =========================================================
+   Chart.js initialisation (all charts)
+   ========================================================= #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const trendLabels   = {{ trend_data | map(attribute='cycle') | list | tojson }};
+    const trendSub      = {{ trend_data | map(attribute='submitted') | list | tojson }};
+    const trendInsp     = {{ trend_data | map(attribute='inspected') | list | tojson }};
+
+    const stickerData   = [{{ sticker_counts.GREEN }}, {{ sticker_counts.YELLOW }}, {{ sticker_counts.RED }}{% if sticker_counts.UNKNOWN %}, {{ sticker_counts.UNKNOWN }}{% endif %}];
+    const stickerLabels = ['GREEN – Serviceable', 'YELLOW – Conditional', 'RED – Grounded'{% if sticker_counts.UNKNOWN %}, 'Unknown'{% endif %}];
+    const stickerColors = ['#198754', '#ffc107', '#dc3545'{% if sticker_counts.UNKNOWN %}, '#6c757d'{% endif %}];
+
+    {# Per-company compliance data #}
+    const companyNames  = {{ company_stats | map(attribute=0) | list | tojson }};
+    const companyGreen  = {{ company_stats | map(attribute=1) | map(attribute='GREEN') | list | tojson }};
+    const companyYellow = {{ company_stats | map(attribute=1) | map(attribute='YELLOW') | list | tojson }};
+    const companyRed    = {{ company_stats | map(attribute=1) | map(attribute='RED') | list | tojson }};
+
+    {# Issue frequency #}
+    const issueLabels   = {{ top_issues | map(attribute=0) | list | tojson }};
+    const issueCounts   = {{ top_issues | map(attribute=1) | list | tojson }};
+
+    {# Company total issues #}
+    const ciLabels = {{ company_issues_sorted | map(attribute=0) | list | tojson }};
+    const ciCounts = {{ company_issues_sorted | map(attribute=1) | list | tojson }};
+
+    // Sticker doughnut
+    if (document.getElementById('stickerChart')) {
+        new Chart(document.getElementById('stickerChart'), {
+            type: 'doughnut',
+            data: { labels: stickerLabels, datasets: [{ data: stickerData, backgroundColor: stickerColors, borderWidth: 2 }] },
+            options: { plugins: { legend: { position: 'bottom' } }, cutout: '60%' },
+        });
+    }
+
+    // Trend bar chart
+    if (document.getElementById('trendChart')) {
+        new Chart(document.getElementById('trendChart'), {
+            type: 'bar',
+            data: {
+                labels: trendLabels,
+                datasets: [
+                    { label: 'Submitted (Inventory)', data: trendSub, backgroundColor: 'rgba(13,110,253,0.7)' },
+                    { label: 'Inspected (Form 18/19)', data: trendInsp, backgroundColor: 'rgba(25,135,84,0.7)' },
+                ],
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'top' } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+            },
+        });
+    }
+
+    // Per-company compliance stacked bar
+    if (document.getElementById('companyComplianceChart')) {
+        new Chart(document.getElementById('companyComplianceChart'), {
+            type: 'bar',
+            data: {
+                labels: companyNames,
+                datasets: [
+                    { label: 'GREEN', data: companyGreen, backgroundColor: '#198754' },
+                    { label: 'YELLOW', data: companyYellow, backgroundColor: '#ffc107' },
+                    { label: 'RED', data: companyRed, backgroundColor: '#dc3545' },
+                ],
+            },
+            options: {
+                responsive: true,
+                scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: { legend: { position: 'top' } },
+            },
+        });
+    }
+
+    // Top issues horizontal bar
+    if (document.getElementById('topIssuesChart') && issueLabels.length) {
+        new Chart(document.getElementById('topIssuesChart'), {
+            type: 'bar',
+            data: {
+                labels: issueLabels,
+                datasets: [{ label: 'Occurrences', data: issueCounts, backgroundColor: 'rgba(220,53,69,0.75)' }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+            },
+        });
+    }
+
+    // Company total issues bar
+    if (document.getElementById('companyIssuesChart') && ciLabels.length) {
+        new Chart(document.getElementById('companyIssuesChart'), {
+            type: 'bar',
+            data: {
+                labels: ciLabels,
+                datasets: [{ label: 'Total Issues', data: ciCounts, backgroundColor: 'rgba(255,193,7,0.85)' }],
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+            },
+        });
+    }
+})();
+</script>
+{% endblock %}

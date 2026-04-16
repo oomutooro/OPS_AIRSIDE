@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block title %}ESSAT Sticker Report{% endblock %}
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header">ESSAT Sticker Report</div>
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Company</label>
+                <select name="company" class="form-select form-select-lg">
+                    <option value="">All companies</option>
+                    {% for company in companies %}
+                    <option value="{{ company.name }}" {% if company.name == company_filter %}selected{% endif %}>{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sticker</label>
+                <select name="sticker_status" class="form-select form-select-lg">
+                    <option value="GREEN" {% if sticker_filter == 'GREEN' %}selected{% endif %}>GREEN &ndash; Serviceable</option>
+                    <option value="YELLOW" {% if sticker_filter == 'YELLOW' %}selected{% endif %}>YELLOW &ndash; Conditional (Grace)</option>
+                    <option value="RED" {% if sticker_filter == 'RED' %}selected{% endif %}>RED &ndash; Grounded</option>
+                    <option value="" {% if not sticker_filter %}selected{% endif %}>All Stickers</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From</label>
+                <input type="date" name="from_date" value="{{ from_date }}" class="form-control form-control-lg">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To</label>
+                <input type="date" name="to_date" value="{{ to_date }}" class="form-control form-control-lg">
+            </div>
+            <div class="col-md-1 d-grid">
+                <button class="btn btn-primary btn-touch">Apply</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-9">
+        <div class="card panel-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    {% if sticker_filter == 'GREEN' %}Serviceable Equipment{% elif sticker_filter == 'RED' %}Grounded Equipment{% else %}All ESSAT Sticker Records{% endif %}
+                    {% if company_filter %} for {{ company_filter }}{% endif %}
+                </span>
+                <small class="text-muted">{{ rows|length }} record{{ '' if rows|length == 1 else 's' }}</small>
+            </div>
+            <div class="card-body table-responsive p-0">
+                <table class="table table-sm table-hover mb-0" data-order='[[0,"asc"],[5,"asc"],[6,"asc"]]'>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Vehicle No.</th>
+                            <th>Equipment</th>
+                            <th>Sticker</th>
+                            <th>Sticker No.</th>
+                            <th>Inspection Date</th>
+                            <th>Inspection Time</th>
+                            <th>Reference</th>
+                            <th>Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td>{{ row.company }}</td>
+                            <td>{{ row.vehicle_no or '-' }}</td>
+                            <td>{{ row.equipment_description or '-' }}</td>
+                            <td>
+                                <span class="badge {% if row.sticker_status == 'GREEN' %}bg-success{% elif row.sticker_status == 'YELLOW' %}bg-warning text-dark{% elif row.sticker_status == 'RED' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                    {{ row.sticker_status or 'UNKNOWN' }}</span>
+                                <div class="small text-muted">{{ row.serviceability_label }}</div>
+                            </td>
+                            <td>{{ row.sticker_no or '-' }}</td>
+                            <td data-order="{{ row.inspection_date or '9999-12-31' }}">{{ row.inspection_date or '-' }}</td>
+                            <td data-order="{{ row.inspection_time or '99:99' }}">{{ row.inspection_time or '-' }}</td>
+                            <td>{{ row.reference_number }}</td>
+                            <td data-order="{{ row.submitted_at.isoformat() if row.submitted_at else '' }}">{{ row.submitted_at|datetime_fmt if row.submitted_at else '-' }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">No ESSAT equipment records match the current filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3">
+        <div class="card panel-card h-100">
+            <div class="card-header">Registered Companies</div>
+            <div class="card-body">
+                <div class="small text-muted mb-2">{{ companies|length }} active compan{{ 'y' if companies|length == 1 else 'ies' }}</div>
+                <div class="d-flex flex-column gap-2">
+                    {% for company in companies %}
+                    <a class="btn btn-outline-secondary text-start {% if company.name == company_filter %}active{% endif %}" href="{{ url_for('report.essat_sticker_report', company=company.name, sticker_status=sticker_filter, from_date=from_date, to_date=to_date) }}">{{ company.name }}</a>
+                    {% else %}
+                    <div class="text-muted small">No active companies found in the register.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

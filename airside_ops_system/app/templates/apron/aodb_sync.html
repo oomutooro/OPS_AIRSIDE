@@ -48,7 +48,7 @@
 <div class="card panel-card">
     <div class="card-header">Synced Flights for {{ selected_date|date_fmt }}</div>
     <div class="card-body table-responsive p-0">
-        <table class="table table-sm table-hover mb-0">
+        <table class="table table-sm table-hover mb-0" data-order='[[5,"asc"]]'>
             <thead>
                 <tr>
                     <th>Type</th>
@@ -73,7 +73,7 @@
                         {% endif %}
                     </td>
                     <td>{{ f.stand or '-' }}</td>
-                    <td>{{ f.scheduled_datetime|datetime_fmt if f.scheduled_datetime else (f.scheduled_date or '-') }}</td>
+                    <td data-order="{{ f.scheduled_datetime.strftime('%Y%m%d%H%M') if f.scheduled_datetime else '999999999999' }}">{{ f.scheduled_datetime|datetime_fmt if f.scheduled_datetime else (f.scheduled_date or '-') }}</td>
                     <td><span class="badge bg-secondary">{{ f.operation_status or 'unknown' }}</span></td>
                     <td class="small text-muted">{{ f.synced_at|datetime_fmt }}</td>
                 </tr>

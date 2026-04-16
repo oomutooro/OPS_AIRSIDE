@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}ESSAT Equipment Inventory{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">ESSAT Equipment Inventory</h4>
+    <a href="{{ url_for('essat.inventory_submit') }}" class="btn btn-primary btn-touch">
+        <i class="bi bi-plus-lg me-1"></i> Add Equipment
+    </a>
+</div>
+
+{# Filters #}
+<div class="card panel-card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Inspection Cycle</label>
+                <select name="cycle" class="form-select">
+                    {% for c in cycles %}
+                    <option value="{{ c }}" {% if c == cycle_filter %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Company</label>
+                <select name="company" class="form-select">
+                    <option value="">All Companies</option>
+                    {% for co in companies %}
+                    <option value="{{ co.name }}" {% if co.name == company_filter %}selected{% endif %}>{{ co.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Equipment Type</label>
+                <select name="equipment_type" class="form-select">
+                    <option value="">All Types</option>
+                    <option value="motorised" {% if type_filter == 'motorised' %}selected{% endif %}>Motorised</option>
+                    <option value="non-motorised" {% if type_filter == 'non-motorised' %}selected{% endif %}>Non-Motorised</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-grid">
+                <button class="btn btn-outline-primary btn-touch">Apply Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# Company coverage summary #}
+{% if totals_by_company %}
+<div class="card panel-card mb-3">
+    <div class="card-header">Coverage Summary — {{ cycle_filter }}</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Company</th>
+                        <th class="text-center">Submitted</th>
+                        <th class="text-center">Inspected</th>
+                        <th class="text-center">Coverage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cname, stats in totals_by_company.items() %}
+                    <tr>
+                        <td>{{ cname }}</td>
+                        <td class="text-center">{{ stats.total }}</td>
+                        <td class="text-center">{{ stats.inspected }}</td>
+                        <td class="text-center">
+                            {% set pct = (stats.inspected / stats.total * 100)|round|int if stats.total else 0 %}
+                            <div class="progress" style="height:18px;min-width:80px">
+                                <div class="progress-bar {% if pct >= 80 %}bg-success{% elif pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
+                                     role="progressbar" style="width:{{ pct }}%">{{ pct }}%</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# Inventory table #}
+<div class="card panel-card">
+    <div class="card-header">
+        Inventory ({{ items|length }} item{{ 's' if items|length != 1 }})
+    </div>
+    <div class="card-body p-0">
+        {% if items %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 datatable" data-order='[[0,"asc"]]'>
+                <thead class="table-dark">
+                    <tr>
+                        <th>Company</th>
+                        <th>Type</th>
+                        <th>Registration</th>
+                        <th>Description</th>
+                        <th>Make/Model</th>
+                        <th>Year</th>
+                        <th>Submitted By</th>
+                        <th class="text-center">Inspected?</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.company.name if item.company else '—' }}</td>
+                        <td>
+                            <span class="badge {% if item.equipment_type == 'motorised' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                {{ item.equipment_type|title }}
+                            </span>
+                        </td>
+                        <td>{{ item.registration or '—' }}</td>
+                        <td>{{ item.description or '—' }}</td>
+                        <td>{{ item.make_model or '—' }}</td>
+                        <td>{{ item.year_of_manufacture or '—' }}</td>
+                        <td>{{ item.submitted_by or '—' }}</td>
+                        <td class="text-center">
+                            {% if item.is_inspected %}
+                            <span class="badge bg-success">Yes</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if current_user.role in ('admin', 'supervisor') %}
+                            <form method="post" action="{{ url_for('essat.inventory_delete', item_id=item.id) }}"
+                                  onsubmit="return confirm('Remove this equipment entry?')" class="d-inline">
+                                <button class="btn btn-sm btn-outline-danger">Remove</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4">
+            No equipment entries found for <strong>{{ cycle_filter }}</strong>.
+            <a href="{{ url_for('essat.inventory_submit') }}">Add the first entry.</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -223,3 +223,57 @@ class AirsideLocation(db.Model):
 
     def __repr__(self):
         return f'<AirsideLocation {self.code} ({self.zone})>'
+
+
+class EquipmentInventory(db.Model):
+    """
+    Equipment inventory submitted by companies prior to ESSAT inspection cycles.
+    Covers both motorised and non-motorised equipment.
+    Linked to FormSubmission via inspection_submission_id once inspected.
+    """
+    __tablename__ = 'equipment_inventory'
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False, index=True)
+    # Inspection cycle identifier, e.g. "2026-Q1" or "2026"
+    inspection_cycle = db.Column(db.String(16), nullable=False, index=True)
+    equipment_type = db.Column(db.String(16), nullable=False, default='motorised')
+    # 'motorised' | 'non-motorised'
+    registration = db.Column(db.String(64), nullable=True)
+    description = db.Column(db.String(256), nullable=True)
+    make_model = db.Column(db.String(128), nullable=True)
+    year_of_manufacture = db.Column(db.Integer, nullable=True)
+    # Linked inspection form submission (once inspected)
+    inspection_submission_id = db.Column(db.Integer, db.ForeignKey('form_submissions.id'), nullable=True)
+    # Holds FormSubmission.id of the ESSAT inspection result, when inspected
+    submitted_date = db.Column(db.Date, default=date.today, nullable=False)
+    submitted_by = db.Column(db.String(128), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    company = db.relationship('Company', backref=db.backref('equipment_inventory', lazy='dynamic'))
+
+    @property
+    def is_inspected(self):
+        return self.inspection_submission_id is not None
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'company_id': self.company_id,
+            'company_name': self.company.name if self.company else None,
+            'inspection_cycle': self.inspection_cycle,
+            'equipment_type': self.equipment_type,
+            'registration': self.registration,
+            'description': self.description,
+            'make_model': self.make_model,
+            'year_of_manufacture': self.year_of_manufacture,
+            'is_inspected': self.is_inspected,
+            'submitted_date': self.submitted_date.isoformat() if self.submitted_date else None,
+            'submitted_by': self.submitted_by,
+        }
+
+    def __repr__(self):
+        return f'<EquipmentInventory {self.registration or self.description} ({self.inspection_cycle})>'

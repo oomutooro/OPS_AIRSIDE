@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Submit Equipment Inventory{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card panel-card">
+            <div class="card-header">
+                <h5 class="mb-0">Submit Equipment to Inspection Cycle Inventory</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Companies must submit their full equipment list prior to ESSAT inspections.
+                    Add one entry per piece of equipment (motorised and non-motorised).
+                </p>
+                <form method="post">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Company <span class="text-danger">*</span></label>
+                            <select name="company_id" class="form-select form-select-lg" required>
+                                <option value="">Select company&hellip;</option>
+                                {% for co in companies %}
+                                <option value="{{ co.id }}">{{ co.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Inspection Cycle <span class="text-danger">*</span></label>
+                            <select name="inspection_cycle" class="form-select form-select-lg" required>
+                                {% for c in cycles %}
+                                <option value="{{ c }}" {% if c == current_cycle %}selected{% endif %}>{{ c }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Equipment Type</label>
+                            <select name="equipment_type" class="form-select form-select-lg">
+                                <option value="motorised">Motorised</option>
+                                <option value="non-motorised">Non-Motorised</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Registration / Vehicle No.</label>
+                            <input type="text" name="registration" class="form-control form-control-lg"
+                                   placeholder="e.g. UAX 123B">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Description / Equipment Name</label>
+                            <input type="text" name="description" class="form-control form-control-lg"
+                                   placeholder="e.g. Baggage Tractor, Highloader, Dolly">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold">Make / Model</label>
+                            <input type="text" name="make_model" class="form-control form-control-lg"
+                                   placeholder="e.g. Toyota Hilux">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Year of Manufacture</label>
+                            <input type="number" name="year_of_manufacture" class="form-control form-control-lg"
+                                   min="1970" max="{{ now.year if now else 2030 }}" placeholder="e.g. 2018">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Notes</label>
+                            <textarea name="notes" class="form-control" rows="2"
+                                      placeholder="Any additional remarks…"></textarea>
+                        </div>
+                        <div class="col-12 d-flex gap-2 pt-2">
+                            <button type="submit" class="btn btn-primary btn-touch px-4">Add Equipment</button>
+                            <a href="{{ url_for('essat.inventory_list') }}" class="btn btn-outline-secondary btn-touch">Cancel</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

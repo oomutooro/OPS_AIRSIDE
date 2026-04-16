@@ -172,6 +172,7 @@ def _register_blueprints(app):
     from app.routes.permit import permit_bp
     from app.routes.report import report_bp
     from app.routes.admin import admin_bp
+    from app.routes.essat import essat_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
@@ -181,6 +182,7 @@ def _register_blueprints(app):
     app.register_blueprint(permit_bp, url_prefix='/permit')
     app.register_blueprint(report_bp, url_prefix='/report')
     app.register_blueprint(admin_bp, url_prefix='/admin')
+    app.register_blueprint(essat_bp, url_prefix='/essat')
 
 
 def _register_error_handlers(app):

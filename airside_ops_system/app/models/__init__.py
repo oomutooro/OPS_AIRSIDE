@@ -1,6 +1,6 @@
 """Models package initialization."""
 from app.models.user import User, Role
-from app.models.reference import Company, Aircraft, AirsideVehicle, AirsidePersonnel, ParkingStand, AirsideLocation
+from app.models.reference import Company, Aircraft, AirsideVehicle, AirsidePersonnel, ParkingStand, AirsideLocation, EquipmentInventory
 from app.models.form import FormTemplate, FormSubmission, Attachment, AuditLog, IssueWorkflow
 from app.models.inspection import ESSTATMotorisedInspection, ESSTATNonMotorisedInspection, FODCleaningRecord, FODWalk, ScheduledInspection
 from app.models.permit import ADPApplication, ADPPermit
@@ -10,7 +10,7 @@ from app.models.flight import FlightMovement, AodbWriteback
 
 __all__ = [
     'User', 'Role',
-    'Company', 'Aircraft', 'AirsideVehicle', 'AirsidePersonnel', 'ParkingStand', 'AirsideLocation',
+    'Company', 'Aircraft', 'AirsideVehicle', 'AirsidePersonnel', 'ParkingStand', 'AirsideLocation', 'EquipmentInventory',
     'FormTemplate', 'FormSubmission', 'Attachment', 'AuditLog', 'IssueWorkflow',
     'ESSTATMotorisedInspection', 'ESSTATNonMotorisedInspection', 'FODCleaningRecord', 'FODWalk',
     'ScheduledInspection', 'ADPApplication', 'ADPPermit',

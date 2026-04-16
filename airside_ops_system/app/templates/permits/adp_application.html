@@ -15,11 +15,18 @@
             <div class="col-md-6"><label class="form-label">Vehicle Categories</label><select name="vehicle_categories" class="form-select form-select-lg" multiple><option value="brown">BROWN</option><option value="green">GREEN</option><option value="blue">BLUE</option><option value="red">RED</option></select></div>
             <div class="col-md-6"><label class="form-label">Sponsor Name</label><input name="sponsor_name" class="form-control form-control-lg"></div>
             <div class="col-md-6"><label class="form-label">Sponsor Title</label><input name="sponsor_title" class="form-control form-control-lg"></div>
+            <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
+            {% if signature_capture_enabled %}
             <div class="col-12">
                 <label class="form-label">Applicant Signature</label>
                 <canvas class="signature-pad border rounded w-100" data-target="applicant_signature" height="150"></canvas>
                 <input type="hidden" name="applicant_signature">
             </div>
+            {% else %}
+            <div class="col-12">
+                <div class="alert alert-secondary py-2 mb-0">Applicant signature will be added on the printed permit form.</div>
+            </div>
+            {% endif %}
             <div class="col-12"><button class="btn btn-primary btn-touch">Submit ADP Application</button></div>
         </form>
     </div>

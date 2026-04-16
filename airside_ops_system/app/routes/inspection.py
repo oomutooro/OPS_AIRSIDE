@@ -1,11 +1,12 @@
 """
 Inspection routes for forms 1,4,5,6,7,8,9,13,14,18,19,20,21,22,24,25.
 """
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from app import db
 from app.models.form import FormSubmission, FormTemplate
 from app.models.inspection import ESSTATMotorisedInspection, ESSTATNonMotorisedInspection
+from app.models.reference import Company
 from app.services.workflow_service import WorkflowService
 from app.utils.decorators import role_required
 from app.utils.form_schemas import FORM_SCHEMAS
@@ -19,6 +20,7 @@ def _save_generic_form(form_number: int, location='Airside'):
         return False, f'Form template {form_number} not found.'
 
     data = request.form.to_dict(flat=True)
+    data['recorded_by'] = current_user.full_name
     data['checkboxes'] = request.form.getlist('checklist_items')
 
     submission = FormSubmission(
@@ -28,7 +30,7 @@ def _save_generic_form(form_number: int, location='Airside'):
         location_ref=request.form.get('location_ref', location),
         gps_latitude=request.form.get('gps_latitude') or None,
         gps_longitude=request.form.get('gps_longitude') or None,
-        outgoing_signature=request.form.get('signature_data'),
+        outgoing_signature=request.form.get('signature_data') if current_app.config.get('SIGNATURE_CAPTURE_ENABLED', False) else None,
         data=data,
     )
     db.session.add(submission)
@@ -72,11 +74,13 @@ def generic_form(form_number):
     ).order_by(FormSubmission.created_at.desc()).limit(10).all()
 
     schema = FORM_SCHEMAS.get(form_number, {'title': f'Form {form_number}', 'sections': []})
+    companies = Company.query.filter_by(is_active=True).order_by(Company.name).all() if form_number == 18 else []
     return render_template(
         template_name_map[form_number],
         recent=recent,
         form_number=form_number,
         schema=schema,
+        companies=companies,
     )
 
 

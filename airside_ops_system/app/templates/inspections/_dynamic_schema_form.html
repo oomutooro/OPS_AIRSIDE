@@ -9,20 +9,133 @@
       <div class="col-md-3"><label class="form-label">Time</label><input type="time" name="inspection_time" class="form-control form-control-lg" required></div>
       <div class="col-md-3"><label class="form-label">Location</label><input name="location_ref" class="form-control form-control-lg" required></div>
       <div class="col-md-3"><label class="form-label">Status</label><select name="status" class="form-select form-select-lg"><option value="draft">Draft</option><option value="submitted" selected>Submitted</option></select></div>
+      <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
 
       {% for section in schema.sections %}
       <div class="col-12">
         <div class="form-section p-3">
           <div class="form-section-title">{{ section.name }}</div>
+          {% if form_number == 18 and section.name == 'ESSAT Team' %}
+          <div class="alert alert-info py-2 mb-3">
+            Enter one team leader and up to 6 additional group members. Maximum group size is 7 members, and only the team leader signs below.
+          </div>
+          {% endif %}
           {% if section.fields %}
+          {% if form_number == 18 and section.name == 'ESSAT Team' %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width: 50%;">Name</th>
+                  <th style="width: 50%;">Organization / Company</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input name="team_leader_name" class="form-control form-control-lg" placeholder="Team leader name"></td>
+                  <td>
+                    <select name="team_leader_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input name="team_member_2_name" class="form-control form-control-lg" placeholder="Member 2 name"></td>
+                  <td>
+                    <select name="team_member_2_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input name="team_member_3_name" class="form-control form-control-lg" placeholder="Member 3 name"></td>
+                  <td>
+                    <select name="team_member_3_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input name="team_member_4_name" class="form-control form-control-lg" placeholder="Member 4 name"></td>
+                  <td>
+                    <select name="team_member_4_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input name="team_member_5_name" class="form-control form-control-lg" placeholder="Member 5 name"></td>
+                  <td>
+                    <select name="team_member_5_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input name="team_member_6_name" class="form-control form-control-lg" placeholder="Member 6 name"></td>
+                  <td>
+                    <select name="team_member_6_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input name="team_member_7_name" class="form-control form-control-lg" placeholder="Member 7 name"></td>
+                  <td>
+                    <select name="team_member_7_organization" class="form-select form-select-lg">
+                      <option value="">Select organization / company</option>
+                      {% for company in companies %}
+                      <option value="{{ company.name }}">{{ company.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {% else %}
           <div class="row g-2">
             {% for field in section.fields %}
             <div class="col-md-4">
               <label class="form-label">{{ field.replace('_', ' ').title() }}</label>
+              {% if field == 'sticker_status' %}
+              <select name="{{ field }}" class="form-select form-select-lg">
+                <option value="GREEN">GREEN – Serviceable (Compliant)</option>
+                <option value="YELLOW">YELLOW – Conditional (Grace Period)</option>
+                <option value="RED">RED – Grounded (Non-Compliant)</option>
+              </select>
+              {% elif form_number == 18 and field == 'organization_company' %}
+              <select name="{{ field }}" class="form-select form-select-lg">
+                <option value="">Select company</option>
+                {% for company in companies %}
+                <option value="{{ company.name }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+              {% else %}
               <input name="{{ field }}" class="form-control form-control-lg">
+              {% endif %}
             </div>
             {% endfor %}
           </div>
+          {% endif %}
           {% endif %}
           {% if section.checklist %}
           <div class="row g-2 mt-1">
@@ -55,11 +168,17 @@
       <div class="col-md-2"><label class="form-label">Latitude</label><input name="gps_latitude" class="form-control form-control-lg gps-lat" readonly></div>
       <div class="col-md-2"><label class="form-label">Longitude</label><input name="gps_longitude" class="form-control form-control-lg gps-lng" readonly></div>
 
+      {% if config.SIGNATURE_CAPTURE_ENABLED %}
       <div class="col-12">
-        <label class="form-label">Inspector Signature</label>
+        <label class="form-label">{{ 'Team Leader Signature' if form_number == 18 else 'Inspector Signature' }}</label>
         <canvas class="signature-pad border rounded w-100" data-target="signature_data" height="140"></canvas>
         <input type="hidden" name="signature_data">
       </div>
+      {% else %}
+      <div class="col-12">
+        <div class="alert alert-secondary py-2 mb-0">Signature is not captured in the system. A signature space will be provided on printed forms.</div>
+      </div>
+      {% endif %}
 
       <div class="col-12 d-flex gap-2">
         <button type="button" class="btn btn-outline-secondary btn-touch btn-capture-gps">Capture GPS</button>
