@@ -53,7 +53,7 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label">Legend Matrix Code (A-T)</label>
-                <select name="legend_code" class="form-select form-select-lg">
+                <select name="legend_code" id="legendCode" class="form-select form-select-lg">
                     <option value="">Select code</option>
                     <option value="A">A - Equipment to Equipment</option>
                     <option value="B">B - Equipment to Aircraft</option>
@@ -76,6 +76,11 @@
                     <option value="S">S - Property to Property</option>
                     <option value="T">T - Property to Passenger</option>
                 </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Derived Interaction Category</label>
+                <input id="interactionCategoryDisplay" class="form-control form-control-lg" readonly placeholder="Auto-filled from legend code">
+                <input type="hidden" id="interactionCategory" name="interaction_category">
             </div>
             <div class="col-md-4">
                 <label class="form-label">Cause Category</label>
@@ -145,4 +150,46 @@
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    const legendCode = document.getElementById('legendCode');
+    const interactionCategory = document.getElementById('interactionCategory');
+    const interactionCategoryDisplay = document.getElementById('interactionCategoryDisplay');
+    if (!legendCode || !interactionCategory || !interactionCategoryDisplay) return;
+
+    const map = {
+        A: 'EQUIPMENT TO EQUIPMENT',
+        B: 'EQUIPMENT TO AIRCRAFT',
+        C: 'EQUIPMENT TO PERSONNEL',
+        D: 'EQUIPMENT TO PROPERTY',
+        E: 'EQUIPMENT TO PASSENGER',
+        F: 'AIRCRAFT TO EQUIPMENT',
+        G: 'AIRCRAFT TO AIRCRAFT',
+        H: 'AIRCRAFT TO PERSONNEL',
+        I: 'AIRCRAFT TO PROPERTY',
+        J: 'AIRCRAFT TO PASSENGER',
+        K: 'PERSONNEL TO EQUIPMENT',
+        L: 'PERSONNEL TO AIRCRAFT',
+        M: 'PERSONNEL TO PERSONNEL',
+        N: 'PERSONNEL TO PROPERTY',
+        O: 'PERSONNEL TO PASSENGER',
+        P: 'PROPERTY TO EQUIPMENT',
+        Q: 'PROPERTY TO AIRCRAFT',
+        R: 'PROPERTY TO PERSONNEL',
+        S: 'PROPERTY TO PROPERTY',
+        T: 'PROPERTY TO PASSENGER'
+    };
+
+    function syncInteraction() {
+        const code = (legendCode.value || '').trim().toUpperCase();
+        const value = map[code] || '';
+        interactionCategory.value = value;
+        interactionCategoryDisplay.value = value;
+    }
+
+    legendCode.addEventListener('change', syncInteraction);
+    syncInteraction();
+})();
+</script>
 {% endblock %}
