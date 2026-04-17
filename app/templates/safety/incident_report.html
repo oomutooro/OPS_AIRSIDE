@@ -42,19 +42,13 @@
                 <select name="incident_legend" class="form-select form-select-lg">
                     <option value="INCIDENT">INCIDENT</option>
                     <option value="ACCIDENT">ACCIDENT</option>
-                    <option value="NEAR MISS">NEAR MISS</option>
-                    <option value="RUNWAY INCURSION">RUNWAY INCURSION</option>
-                    <option value="BIRD STRIKE">BIRD STRIKE</option>
-                    <option value="WILDLIFE">WILDLIFE</option>
-                    <option value="MEDICAL">MEDICAL</option>
-                    <option value="PASSENGER MISCONDUCT">PASSENGER MISCONDUCT</option>
-                    <option value="OTHER">OTHER</option>
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label">Legend Matrix Code (A-T)</label>
+                <label class="form-label">Legend Code (A-T, X1-X10)</label>
                 <select name="legend_code" id="legendCode" class="form-select form-select-lg">
                     <option value="">Select code</option>
+                    <optgroup label="Collision Matrix (A-T)">
                     <option value="A">A - Equipment to Equipment</option>
                     <option value="B">B - Equipment to Aircraft</option>
                     <option value="C">C - Equipment to Personnel</option>
@@ -75,6 +69,15 @@
                     <option value="R">R - Property to Personnel</option>
                     <option value="S">S - Property to Property</option>
                     <option value="T">T - Property to Passenger</option>
+                    </optgroup>
+                    <optgroup label="Others as Cause (X Series)">
+                    <option value="X1">X1 - Others to Equipment</option>
+                    <option value="X2">X2 - Others to Aircraft</option>
+                    <option value="X3">X3 - Others to Personnel</option>
+                    <option value="X4">X4 - Others to Property</option>
+                    <option value="X5">X5 - Others to Passenger</option>
+                    <option value="X6">X6 - Others to Others</option>
+                    </optgroup>
                 </select>
             </div>
             <div class="col-md-4">
@@ -84,7 +87,7 @@
             </div>
             <div class="col-md-4">
                 <label class="form-label">Cause Category</label>
-                <select name="cause_category" class="form-select form-select-lg">
+                <select name="cause_category" id="causeCategory" class="form-select form-select-lg">
                     <option value="Human Error">Human Error</option>
                     <option value="Bird Strike">Bird Strike</option>
                     <option value="Bad Weather">Bad Weather</option>
@@ -92,12 +95,17 @@
                     <option value="Passenger Misconduct">Passenger Misconduct</option>
                     <option value="Passenger Cause">Passenger Cause</option>
                     <option value="Tyre Burst">Tyre Burst</option>
+                    <option value="Technical Problem">Technical Problem</option>
                     <option value="Wildlife">Wildlife</option>
                     <option value="FOD">FOD</option>
                     <option value="Airport Environment">Airport Environment</option>
                     <option value="Infrastructure Failure">Infrastructure Failure</option>
                     <option value="Other">Other</option>
                 </select>
+            </div>
+            <div class="col-md-8 d-none" id="otherCauseWrap">
+                <label class="form-label">If Other, Describe Cause</label>
+                <input name="other_cause_details" id="otherCauseDetails" class="form-control form-control-lg" placeholder="Describe what 'Other' means (e.g. strong crosswinds, unusual apron obstruction)">
             </div>
 
             <div class="col-12">
@@ -131,9 +139,13 @@
                             <tr><th>Equipment</th><td>A</td><td>B</td><td>C</td><td>D</td><td>E</td></tr>
                             <tr><th>Aircraft</th><td>F</td><td>G</td><td>H</td><td>I</td><td>J</td></tr>
                             <tr><th>Personnel</th><td>K</td><td>L</td><td>M</td><td>N</td><td>O</td></tr>
-                            <tr><th>Property/Others</th><td>P</td><td>Q</td><td>R</td><td>S</td><td>T</td></tr>
+                            <tr><th>Property</th><td>P</td><td>Q</td><td>R</td><td>S</td><td>T</td></tr>
+                            <tr><th>Others</th><td>X1</td><td>X2</td><td>X3</td><td>X4</td><td>X5</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="small text-muted mt-2">
+                    Use X-series when the cause is "Others" (for example bad weather) and the target is Equipment/Aircraft/Personnel/Property/Passenger.
                 </div>
             </div>
 
@@ -156,6 +168,9 @@
     const legendCode = document.getElementById('legendCode');
     const interactionCategory = document.getElementById('interactionCategory');
     const interactionCategoryDisplay = document.getElementById('interactionCategoryDisplay');
+    const causeCategory = document.getElementById('causeCategory');
+    const otherCauseWrap = document.getElementById('otherCauseWrap');
+    const otherCauseDetails = document.getElementById('otherCauseDetails');
     if (!legendCode || !interactionCategory || !interactionCategoryDisplay) return;
 
     const map = {
@@ -179,6 +194,12 @@
         R: 'PROPERTY TO PERSONNEL',
         S: 'PROPERTY TO PROPERTY',
         T: 'PROPERTY TO PASSENGER'
+        ,X1: 'OTHERS TO EQUIPMENT'
+        ,X2: 'OTHERS TO AIRCRAFT'
+        ,X3: 'OTHERS TO PERSONNEL'
+        ,X4: 'OTHERS TO PROPERTY'
+        ,X5: 'OTHERS TO PASSENGER'
+        ,X6: 'OTHERS TO OTHERS'
     };
 
     function syncInteraction() {
@@ -190,6 +211,21 @@
 
     legendCode.addEventListener('change', syncInteraction);
     syncInteraction();
+
+    function syncOtherCausePrompt() {
+        if (!causeCategory || !otherCauseWrap || !otherCauseDetails) return;
+        const isOther = (causeCategory.value || '').trim().toLowerCase() === 'other';
+        otherCauseWrap.classList.toggle('d-none', !isOther);
+        otherCauseDetails.required = isOther;
+        if (!isOther) {
+            otherCauseDetails.value = '';
+        }
+    }
+
+    if (causeCategory) {
+        causeCategory.addEventListener('change', syncOtherCausePrompt);
+        syncOtherCausePrompt();
+    }
 })();
 </script>
 {% endblock %}

@@ -3,6 +3,7 @@ Administration routes: user management, reference data, form builder, system set
 """
 from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify
 from flask_login import current_user, login_required
+from sqlalchemy.exc import IntegrityError
 from app import db
 from app.models.user import User, Role
 from app.models.reference import Company, AirsideLocation, ParkingStand
@@ -42,35 +43,54 @@ def _validate_user_role(selected_role):
     return True
 
 
+def _normalize_optional_text(value):
+    value = (value or '').strip()
+    return value or None
+
+
 @admin_bp.route('/users', methods=['GET', 'POST'])
 @role_required('admin', 'supervisor', 'auditor', 'inspector')
 def user_management():
     if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        full_name = (request.form.get('full_name') or '').strip()
+        badge_number = _normalize_optional_text(request.form.get('badge_number'))
+        department = _normalize_optional_text(request.form.get('department'))
         selected_role = request.form.get('role', 'viewer')
         if not _validate_user_role(selected_role):
             flash('You are not allowed to assign that role.', 'danger')
             return redirect(url_for('admin.user_management'))
 
-        if User.query.filter_by(username=request.form.get('username')).first():
+        if User.query.filter_by(username=username).first():
             flash('Username already exists.', 'danger')
             return redirect(url_for('admin.user_management'))
 
-        if User.query.filter_by(email=request.form.get('email')).first():
+        if User.query.filter_by(email=email).first():
             flash('Email already exists.', 'danger')
             return redirect(url_for('admin.user_management'))
 
+        if badge_number and User.query.filter_by(badge_number=badge_number).first():
+            flash('Badge number already exists.', 'danger')
+            return redirect(url_for('admin.user_management'))
+
         user = User(
-            username=request.form.get('username'),
-            email=request.form.get('email'),
-            full_name=request.form.get('full_name'),
+            username=username,
+            email=email,
+            full_name=full_name,
             role=selected_role,
-            badge_number=request.form.get('badge_number'),
-            department=request.form.get('department'),
+            badge_number=badge_number,
+            department=department,
             is_active=bool(request.form.get('is_active', True)),
         )
         user.set_password(request.form.get('password', 'ChangeMe123!'))
         db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash('User could not be created due to duplicate unique fields (username, email, or badge number).', 'danger')
+            return redirect(url_for('admin.user_management'))
         flash('User created.', 'success')
         return redirect(url_for('admin.user_management'))
 
@@ -96,26 +116,38 @@ def edit_user(user_id):
         return redirect(url_for('admin.user_management'))
 
     if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        full_name = (request.form.get('full_name') or '').strip()
+        email = (request.form.get('email') or '').strip()
+        badge_number = _normalize_optional_text(request.form.get('badge_number'))
+        department = _normalize_optional_text(request.form.get('department'))
         selected_role = request.form.get('role', user.role)
         if not _validate_user_role(selected_role):
             flash('You are not allowed to assign that role.', 'danger')
             return redirect(url_for('admin.edit_user', user_id=user.id))
 
-        existing_username = User.query.filter(User.username == request.form.get('username'), User.id != user.id).first()
+        existing_username = User.query.filter(User.username == username, User.id != user.id).first()
         if existing_username:
             flash('Username already exists.', 'danger')
             return redirect(url_for('admin.edit_user', user_id=user.id))
 
-        existing_email = User.query.filter(User.email == request.form.get('email'), User.id != user.id).first()
+        existing_email = User.query.filter(User.email == email, User.id != user.id).first()
         if existing_email:
             flash('Email already exists.', 'danger')
             return redirect(url_for('admin.edit_user', user_id=user.id))
 
-        user.username = request.form.get('username')
-        user.full_name = request.form.get('full_name')
-        user.email = request.form.get('email')
-        user.badge_number = request.form.get('badge_number')
-        user.department = request.form.get('department')
+        existing_badge = None
+        if badge_number:
+            existing_badge = User.query.filter(User.badge_number == badge_number, User.id != user.id).first()
+        if existing_badge:
+            flash('Badge number already exists.', 'danger')
+            return redirect(url_for('admin.edit_user', user_id=user.id))
+
+        user.username = username
+        user.full_name = full_name
+        user.email = email
+        user.badge_number = badge_number
+        user.department = department
         user.role = selected_role
         user.is_active = request.form.get('is_active') == 'on'
 
@@ -123,7 +155,12 @@ def edit_user(user_id):
         if new_password:
             user.set_password(new_password)
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            flash('User could not be updated due to duplicate unique fields (username, email, or badge number).', 'danger')
+            return redirect(url_for('admin.edit_user', user_id=user.id))
         flash('User access updated.', 'success')
         return redirect(url_for('admin.user_management'))
 

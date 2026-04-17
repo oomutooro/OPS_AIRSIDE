@@ -41,6 +41,75 @@ def _on_duty_users(duty_date: date, shift_type: str):
     ).order_by(User.full_name).all()
 
 
+def _eligible_roster_users():
+    """Default roster pool used for auto generation."""
+    return User.query.filter(
+        User.is_active.is_(True),
+        User.role.in_(['operator', 'inspector', 'supervisor'])
+    ).order_by(User.full_name).all()
+
+
+def _build_shift_members(duty_date: date, shift_type: str):
+    members = []
+    entries = ShiftRoster.query.filter_by(duty_date=duty_date, duty_type=shift_type).all()
+    for entry in entries:
+        if not entry.user:
+            continue
+        members.append({
+            'user_id': entry.user.id,
+            'name': entry.user.full_name,
+            'badge': entry.user.badge_number,
+            'role': entry.user.role,
+            'station': None,
+        })
+    return members
+
+
+def _choose_shift_leader(member_user_ids, preferred_leader_ids):
+    for uid in preferred_leader_ids:
+        if uid in member_user_ids:
+            return uid
+    return member_user_ids[0] if member_user_ids else None
+
+
+def _resolve_fixed_shift_leaders(preferred_leader_ids):
+    """Resolve month-fixed shift leaders from selected users: first=day, second=night."""
+    day_leader_id = preferred_leader_ids[0] if preferred_leader_ids else None
+    night_leader_id = preferred_leader_ids[1] if len(preferred_leader_ids) > 1 else day_leader_id
+    return {
+        'day': day_leader_id,
+        'night': night_leader_id,
+    }
+
+
+def _upsert_shift_records_for_range(start_date: date, end_date: date, preferred_leader_ids, fixed_leaders=None):
+    """Create/update Shift records from rostered day/night entries."""
+    fixed_leaders = fixed_leaders or {}
+    days = (end_date - start_date).days + 1
+    for offset in range(days):
+        shift_date = start_date + timedelta(days=offset)
+        for shift_type in ('day', 'night'):
+            members = _build_shift_members(shift_date, shift_type)
+            member_user_ids = [m['user_id'] for m in members if m.get('user_id')]
+            fixed_leader_id = fixed_leaders.get(shift_type)
+            leader_user_id = fixed_leader_id if fixed_leader_id else _choose_shift_leader(member_user_ids, preferred_leader_ids)
+            leader = db.session.get(User, leader_user_id) if leader_user_id else None
+
+            record = Shift.query.filter_by(shift_date=shift_date, shift_type=shift_type).first()
+            if not record:
+                record = Shift(
+                    shift_date=shift_date,
+                    shift_type=shift_type,
+                    status='active',
+                )
+                db.session.add(record)
+
+            record.members = members
+            record.attending_count = len(members)
+            record.leader_user_id = leader_user_id
+            record.leader_name = leader.full_name if leader else None
+
+
 @apron_bp.route('/stand-allocation', methods=['GET', 'POST'])
 @role_required('admin', 'supervisor', 'inspector', 'operator')
 def stand_allocation():
@@ -222,9 +291,68 @@ def shift_handover():
 @role_required('admin', 'supervisor')
 def shift_roster():
     if request.method == 'POST':
+        action = (request.form.get('action') or 'generate').strip().lower()
+
+        if action == 'availability':
+            user_id = int(request.form.get('availability_user_id') or 0)
+            start_date = _parse_iso_date(request.form.get('availability_start_date'))
+            end_date = _parse_iso_date(request.form.get('availability_end_date'), start_date)
+            availability_type = (request.form.get('availability_type') or '').strip().lower()
+            availability_note = (request.form.get('availability_note') or '').strip()
+
+            availability_duty_map = {
+                'leave': 'leave',
+                'study_leave': 'study_leave',
+                'office_hours': 'office',
+            }
+
+            if user_id <= 0 or availability_type not in availability_duty_map:
+                flash('Please provide valid availability details.', 'danger')
+                return redirect(url_for('apron.shift_roster'))
+
+            if end_date < start_date:
+                flash('Availability end date must be on or after start date.', 'danger')
+                return redirect(url_for('apron.shift_roster'))
+
+            duty_value = availability_duty_map[availability_type]
+            days = (end_date - start_date).days + 1
+            created_count = 0
+            updated_count = 0
+
+            for offset in range(days):
+                duty_date = start_date + timedelta(days=offset)
+                entry = ShiftRoster.query.filter_by(user_id=user_id, duty_date=duty_date).first()
+                note_text = f'availability:{availability_type}' + (f' | {availability_note}' if availability_note else '')
+                if entry:
+                    entry.duty_type = duty_value
+                    entry.cycle_day_index = 2
+                    entry.notes = note_text
+                    entry.created_by_user_id = current_user.id
+                    updated_count += 1
+                else:
+                    db.session.add(ShiftRoster(
+                        duty_date=duty_date,
+                        user_id=user_id,
+                        duty_type=duty_value,
+                        cycle_day_index=2,
+                        notes=note_text,
+                        created_by_user_id=current_user.id,
+                    ))
+                    created_count += 1
+
+            db.session.commit()
+            flash(f'Availability saved: {created_count} created, {updated_count} updated.', 'success')
+            return redirect(url_for('apron.shift_roster', date=start_date.isoformat()))
+
         start_date = _parse_iso_date(request.form.get('start_date'))
         end_date = _parse_iso_date(request.form.get('end_date'), start_date)
-        user_ids = [int(uid) for uid in request.form.getlist('user_ids') if uid.isdigit()]
+        auto_select_available = request.form.get('auto_select_available') == 'on'
+        if auto_select_available:
+            user_ids = [u.id for u in _eligible_roster_users()]
+        else:
+            user_ids = [int(uid) for uid in request.form.getlist('user_ids') if uid.isdigit()]
+
+        leader_user_ids = [int(uid) for uid in request.form.getlist('leader_user_ids') if uid.isdigit()]
         start_cycle = (request.form.get('start_cycle') or 'day').lower()
         overwrite_existing = request.form.get('overwrite_existing') == 'on'
 
@@ -241,17 +369,24 @@ def shift_roster():
         created_count = 0
         updated_count = 0
 
-        for user_id in user_ids:
+        # Split selected personnel into 4 rotating cohorts so day/night/off/off are concurrent.
+        ordered_user_ids = sorted(set(user_ids))
+        for order_idx, user_id in enumerate(ordered_user_ids):
+            cohort_offset = order_idx % 4
             for offset in range(days):
                 duty_date = start_date + timedelta(days=offset)
-                cycle_idx = (start_idx + offset) % 4
+                cycle_idx = (start_idx + cohort_offset + offset) % 4
                 duty_type = ShiftRoster.duty_for_index(cycle_idx)
                 entry = ShiftRoster.query.filter_by(user_id=user_id, duty_date=duty_date).first()
                 if entry:
+                    # Preserve explicit availability blocks unless user asked to force overwrite.
+                    if entry.duty_type in ('leave', 'study_leave', 'office') and not overwrite_existing:
+                        continue
                     if overwrite_existing:
                         entry.duty_type = duty_type
                         entry.cycle_day_index = cycle_idx
                         entry.created_by_user_id = current_user.id
+                        entry.notes = None
                         updated_count += 1
                 else:
                     db.session.add(ShiftRoster(
@@ -263,33 +398,85 @@ def shift_roster():
                     ))
                     created_count += 1
 
+        fixed_leaders = _resolve_fixed_shift_leaders(leader_user_ids)
+        _upsert_shift_records_for_range(start_date, end_date, leader_user_ids, fixed_leaders=fixed_leaders)
         db.session.commit()
-        flash(f'Roster saved: {created_count} created, {updated_count} updated.', 'success')
+        flash(f'Roster saved: {created_count} created, {updated_count} updated. Fixed leaders applied for the generated period.', 'success')
         return redirect(url_for('apron.shift_roster'))
 
     target_date = _parse_iso_date(request.args.get('date'))
     users = User.query.filter_by(is_active=True).order_by(User.full_name).all()
     roster_entries = ShiftRoster.query.filter_by(duty_date=target_date).order_by(ShiftRoster.duty_type, ShiftRoster.user_id).all()
+    availability_entries = ShiftRoster.query.filter(
+        ShiftRoster.duty_date >= target_date,
+        ShiftRoster.duty_date <= (target_date + timedelta(days=30)),
+        ShiftRoster.duty_type.in_(['leave', 'study_leave', 'office'])
+    ).order_by(ShiftRoster.duty_date, ShiftRoster.user_id).all()
     return render_template(
         'apron/shift_roster.html',
         users=users,
         target_date=target_date,
         roster_entries=roster_entries,
+        availability_entries=availability_entries,
     )
 
 
 @apron_bp.route('/staff-deployment', methods=['GET', 'POST'])
 @login_required
 def staff_deployment():
+    shift_date = _parse_iso_date(request.form.get('shift_date') if request.method == 'POST' else request.args.get('shift_date'))
+    shift_type = (request.form.get('shift_type') if request.method == 'POST' else request.args.get('shift_type') or 'day').lower()
+    if shift_type not in ('day', 'night'):
+        shift_type = 'day'
+
+    on_duty_users = _on_duty_users(shift_date, shift_type)
+    on_duty_user_ids = {u.id for u in on_duty_users}
+    shift_record = Shift.query.filter_by(shift_date=shift_date, shift_type=shift_type).first()
+    is_shift_leader = bool(shift_record and shift_record.leader_user_id == current_user.id)
+    can_submit = current_user.role in ('admin', 'supervisor') or is_shift_leader
+
     if request.method == 'POST':
+        if not can_submit:
+            flash('Only the assigned shift leader (or admin/supervisor) can submit daily deployment.', 'danger')
+            return redirect(url_for('apron.staff_deployment', shift_date=shift_date.isoformat(), shift_type=shift_type))
+
         template = FormTemplate.query.filter_by(form_number=23).first()
         if template:
+            role_slots = {
+                'apron_runway_inspection': request.form.get('apron_runway_inspection'),
+                'enforcement_general_aviation': request.form.get('enforcement_general_aviation'),
+                'pbb_operations': request.form.get('pbb_operations'),
+                'special_ops_aircraft_turnaround': request.form.get('special_ops_aircraft_turnaround'),
+                'works_facilitation': request.form.get('works_facilitation'),
+                'general_aircraft_marshalling': request.form.get('general_aircraft_marshalling'),
+                'tpbb_operations': request.form.get('tpbb_operations'),
+                'general_aviation_marshalling': request.form.get('general_aviation_marshalling'),
+                'apron4_operations': request.form.get('apron4_operations'),
+                'apron5_operations': request.form.get('apron5_operations'),
+                'aodb_desk_calls_information': request.form.get('aodb_desk_calls_information'),
+            }
+
+            deployment_names = []
+            deployment_ids = []
+            for val in role_slots.values():
+                if val and val.isdigit():
+                    uid = int(val)
+                    if uid in on_duty_user_ids:
+                        deployment_ids.append(uid)
+            deployment_ids = sorted(set(deployment_ids))
+            if deployment_ids:
+                deployment_names = [u.full_name for u in User.query.filter(User.id.in_(deployment_ids)).order_by(User.full_name).all()]
+
             data = {
-                'shift_date': request.form.get('shift_date'),
-                'shift_type': request.form.get('shift_type'),
+                'shift_date': shift_date.isoformat(),
+                'shift_type': shift_type,
+                'shift_leader_user_id': shift_record.leader_user_id if shift_record else None,
+                'shift_leader_name': shift_record.leader_name if shift_record else None,
                 'scheduled_movements': request.form.get('scheduled_movements'),
                 'non_scheduled_movements': request.form.get('non_scheduled_movements'),
-                'deployed_officers': request.form.getlist('deployed_officers'),
+                'deployed_officer_ids': deployment_ids,
+                'deployed_officers': deployment_names,
+                'deployment_roles': role_slots,
                 'other_deployments': request.form.get('other_deployments'),
             }
             submission = FormSubmission(
@@ -308,7 +495,15 @@ def staff_deployment():
     submissions = FormSubmission.query.join(FormTemplate).filter(
         FormTemplate.form_number == 23
     ).order_by(FormSubmission.created_at.desc()).limit(20).all()
-    return render_template('apron/staff_deployment.html', submissions=submissions)
+    return render_template(
+        'apron/staff_deployment.html',
+        submissions=submissions,
+        shift_date=shift_date,
+        shift_type=shift_type,
+        on_duty_users=on_duty_users,
+        shift_record=shift_record,
+        can_submit=can_submit,
+    )
 
 
 @apron_bp.route('/tpbb-operations', methods=['GET', 'POST'])

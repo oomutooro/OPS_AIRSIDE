@@ -38,6 +38,13 @@ LEGEND_CODE_TO_INTERACTION = {
     'R': 'PROPERTY TO PERSONNEL',
     'S': 'PROPERTY TO PROPERTY',
     'T': 'PROPERTY TO PASSENGER',
+    # Others-as-cause extended series
+    'X1': 'OTHERS TO EQUIPMENT',
+    'X2': 'OTHERS TO AIRCRAFT',
+    'X3': 'OTHERS TO PERSONNEL',
+    'X4': 'OTHERS TO PROPERTY',
+    'X5': 'OTHERS TO PASSENGER',
+    'X6': 'OTHERS TO OTHERS',
 }
 
 
@@ -86,6 +93,13 @@ def _normalize_incident_cause(value):
         'airport_environment': 'AIRPORT ENVIRONMENT',
         'fod': 'FOD',
         'wildlife': 'WILDLIFE',
+        'technical problem': 'TECHNICAL PROBLEM',
+        'technical issue': 'TECHNICAL PROBLEM',
+        'technical fault': 'TECHNICAL PROBLEM',
+        'system fault': 'TECHNICAL PROBLEM',
+        'mechanical failure': 'TECHNICAL PROBLEM',
+        'apu fault': 'TECHNICAL PROBLEM',
+        'smoking apu': 'TECHNICAL PROBLEM',
     }
     if raw in mapping:
         return mapping[raw]
@@ -104,6 +118,7 @@ def _normalize_incident_legend(value):
         'bird_strike': 'BIRD STRIKE',
         'bird strike': 'BIRD STRIKE',
         'wildlife': 'WILDLIFE',
+        'other': 'INCIDENT',
     }
     return mapping.get(raw, (value or 'OTHER').strip().upper() or 'OTHER')
 
@@ -115,6 +130,8 @@ def _normalize_interaction(data):
     legend_code = (data.get('legend_code') or '').strip().upper()
     if legend_code in LEGEND_CODE_TO_INTERACTION:
         return LEGEND_CODE_TO_INTERACTION[legend_code]
+    if legend_code.startswith('X'):
+        return 'OTHER NON-COLLISION'
     source = (data.get('interaction_source') or '').strip().upper()
     target = (data.get('interaction_target') or '').strip().upper()
     if source and target:

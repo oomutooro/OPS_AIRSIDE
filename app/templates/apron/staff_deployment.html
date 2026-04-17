@@ -4,15 +4,143 @@
 <div class="card panel-card">
     <div class="card-header">Form 23 - Staff Deployment / Parking Plan</div>
     <div class="card-body">
+        <div class="alert {% if can_submit %}alert-light{% else %}alert-warning{% endif %} border">
+            <div><strong>Shift:</strong> {{ shift_date.strftime('%A, %d %B %Y') }} ({{ shift_type|upper }})</div>
+            <div><strong>Shift Leader:</strong> {{ shift_record.leader_name if shift_record and shift_record.leader_name else 'Not assigned' }}</div>
+            {% if not can_submit %}
+            <div class="small mt-1">Only the assigned shift leader can submit deployment for this shift (admin/supervisor can override).</div>
+            {% endif %}
+        </div>
+
+        <form method="get" class="row g-3 mb-4 border rounded p-3 bg-light-subtle">
+            <div class="col-md-4"><label class="form-label">Shift Date</label><input type="date" name="shift_date" value="{{ shift_date.isoformat() }}" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Shift</label><select name="shift_type" class="form-select form-select-lg"><option value="day" {% if shift_type == 'day' %}selected{% endif %}>day</option><option value="night" {% if shift_type == 'night' %}selected{% endif %}>night</option></select></div>
+            <div class="col-md-3 d-grid align-items-end"><button class="btn btn-outline-primary btn-touch mt-4">Load Rostered Team</button></div>
+        </form>
+
+        {% if on_duty_users %}
         <form method="post" class="row g-3">
-            <div class="col-md-3"><label class="form-label">Shift Date</label><input type="date" name="shift_date" class="form-control form-control-lg" required></div>
-            <div class="col-md-3"><label class="form-label">Shift</label><select name="shift_type" class="form-select form-select-lg"><option>day</option><option>night</option></select></div>
+            <input type="hidden" name="shift_date" value="{{ shift_date.isoformat() }}">
+            <input type="hidden" name="shift_type" value="{{ shift_type }}">
             <div class="col-md-3"><label class="form-label">Scheduled Movements</label><input type="number" name="scheduled_movements" class="form-control form-control-lg"></div>
             <div class="col-md-3"><label class="form-label">Non-Scheduled Movements</label><input type="number" name="non_scheduled_movements" class="form-control form-control-lg"></div>
-            <div class="col-12"><label class="form-label">Deployed Officers (comma-separated)</label><input name="deployed_officers" class="form-control form-control-lg"></div>
-            <div class="col-12"><label class="form-label">Other Deployments</label><textarea name="other_deployments" class="form-control" rows="4"></textarea></div>
-            <div class="col-12"><button class="btn btn-primary btn-touch">Submit Deployment</button></div>
+
+            <div class="col-12"><h6 class="text-primary mt-2 mb-1">Daily Deployment Slots</h6></div>
+
+            <div class="col-md-6"><label class="form-label">Apron / Runway Inspection</label>
+                <select name="apron_runway_inspection" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6"><label class="form-label">Enforcement / General Aviation</label>
+                <select name="enforcement_general_aviation" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="form-label">PBB Operations</label>
+                <select name="pbb_operations" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6"><label class="form-label">Special Ops / Aircraft Turnaround</label>
+                <select name="special_ops_aircraft_turnaround" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="form-label">Works Facilitation</label>
+                <select name="works_facilitation" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="form-label">General Aircraft Marshalling</label>
+                <select name="general_aircraft_marshalling" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="form-label">TPBB Operations Desk</label>
+                <select name="tpbb_operations" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="form-label">General Aviation Marshalling</label>
+                <select name="general_aviation_marshalling" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3"><label class="form-label">Apron 4 Operations</label>
+                <select name="apron4_operations" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3"><label class="form-label">Apron 5 Operations</label>
+                <select name="apron5_operations" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6"><label class="form-label">AODB Desk / Calls / Information Desk</label>
+                <select name="aodb_desk_calls_information" class="form-select form-select-lg" required>
+                    <option value="">Select officer</option>
+                    {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="col-12"><label class="form-label">Other Deployments / Notes</label><textarea name="other_deployments" class="form-control" rows="4"></textarea></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch" {% if not can_submit %}disabled{% endif %}>Submit Deployment</button></div>
         </form>
+        {% else %}
+        <div class="alert alert-info mb-0">No rostered staff found for {{ shift_date.strftime('%d %B %Y') }} ({{ shift_type|upper }}). Generate roster first.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card panel-card mt-3">
+    <div class="card-header">Recent Deployment Submissions</div>
+    <div class="card-body p-0">
+        {% if submissions %}
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Submitted</th>
+                        <th>Shift Date</th>
+                        <th>Shift</th>
+                        <th>Leader</th>
+                        <th>Deployed Officers</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in submissions %}
+                    {% set d = s.data or {} %}
+                    <tr>
+                        <td>{{ s.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ d.get('shift_date', '-') }}</td>
+                        <td>{{ (d.get('shift_type', '-') or '-')|upper }}</td>
+                        <td>{{ d.get('shift_leader_name', '-') }}</td>
+                        <td>{{ (d.get('deployed_officers') or [])|join(', ') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="p-3 text-muted">No deployment submissions yet.</div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
