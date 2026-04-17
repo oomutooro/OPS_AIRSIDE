@@ -37,15 +37,16 @@ def _on_duty_users(duty_date: date, shift_type: str):
     return db.session.query(User).join(ShiftRoster, ShiftRoster.user_id == User.id).filter(
         ShiftRoster.duty_date == duty_date,
         ShiftRoster.duty_type == shift_type,
-        User.is_active.is_(True)
+        User.is_active.is_(True),
+        User.role == 'operator',
     ).order_by(User.full_name).all()
 
 
 def _eligible_roster_users():
-    """Default roster pool used for auto generation."""
+    """Default roster pool used for auto generation (operators only)."""
     return User.query.filter(
         User.is_active.is_(True),
-        User.role.in_(['operator', 'inspector', 'supervisor'])
+        User.role == 'operator'
     ).order_by(User.full_name).all()
 
 
@@ -299,6 +300,7 @@ def shift_roster():
             end_date = _parse_iso_date(request.form.get('availability_end_date'), start_date)
             availability_type = (request.form.get('availability_type') or '').strip().lower()
             availability_note = (request.form.get('availability_note') or '').strip()
+            operator_ids = {u.id for u in _eligible_roster_users()}
 
             availability_duty_map = {
                 'leave': 'leave',
@@ -306,7 +308,7 @@ def shift_roster():
                 'office_hours': 'office',
             }
 
-            if user_id <= 0 or availability_type not in availability_duty_map:
+            if user_id <= 0 or availability_type not in availability_duty_map or user_id not in operator_ids:
                 flash('Please provide valid availability details.', 'danger')
                 return redirect(url_for('apron.shift_roster'))
 
@@ -347,12 +349,13 @@ def shift_roster():
         start_date = _parse_iso_date(request.form.get('start_date'))
         end_date = _parse_iso_date(request.form.get('end_date'), start_date)
         auto_select_available = request.form.get('auto_select_available') == 'on'
+        operator_ids = {u.id for u in _eligible_roster_users()}
         if auto_select_available:
-            user_ids = [u.id for u in _eligible_roster_users()]
+            user_ids = sorted(operator_ids)
         else:
-            user_ids = [int(uid) for uid in request.form.getlist('user_ids') if uid.isdigit()]
+            user_ids = [int(uid) for uid in request.form.getlist('user_ids') if uid.isdigit() and int(uid) in operator_ids]
 
-        leader_user_ids = [int(uid) for uid in request.form.getlist('leader_user_ids') if uid.isdigit()]
+        leader_user_ids = [int(uid) for uid in request.form.getlist('leader_user_ids') if uid.isdigit() and int(uid) in operator_ids]
         start_cycle = (request.form.get('start_cycle') or 'day').lower()
         overwrite_existing = request.form.get('overwrite_existing') == 'on'
 
@@ -438,7 +441,10 @@ def shift_roster():
         return redirect(url_for('apron.shift_roster'))
 
     target_date = _parse_iso_date(request.args.get('date'))
-    users = User.query.filter_by(is_active=True).order_by(User.full_name).all()
+    users = User.query.filter(
+        User.is_active.is_(True),
+        User.role == 'operator'
+    ).order_by(User.full_name).all()
     roster_entries = ShiftRoster.query.filter_by(duty_date=target_date).order_by(ShiftRoster.duty_type, ShiftRoster.user_id).all()
     availability_entries = ShiftRoster.query.filter(
         ShiftRoster.duty_date >= target_date,
