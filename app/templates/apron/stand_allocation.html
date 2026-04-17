@@ -1,5 +1,32 @@
 {% extends 'base.html' %}
 {% block title %}Stand Allocation{% endblock %}
+{% block extra_css %}
+<style>
+/* Keep header and main identifier column visible while scrolling live flight list. */
+.live-flight-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: var(--bs-dark);
+    color: #ffffff;
+}
+
+.live-flight-table th.flight-col,
+.live-flight-table td.flight-col {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #ffffff;
+    border-right: 1px solid #dfe3e8;
+}
+
+.live-flight-table thead th.flight-col {
+    z-index: 5;
+    background: var(--bs-dark);
+    color: #ffffff;
+}
+</style>
+{% endblock %}
 {% block content %}
 {% set can_sync_aodb = current_user.role in ['admin', 'supervisor', 'operator'] %}
 
@@ -21,13 +48,13 @@
         <a href="{{ url_for('apron.aodb_sync') }}" class="btn btn-sm btn-outline-primary">Sync AODB</a>
         {% endif %}
     </div>
-    <div class="card-body table-responsive p-0" style="max-height:320px;overflow-y:auto;">
-        <table class="table table-sm table-hover mb-0 sticky-header no-datatable">
+    <div class="card-body table-responsive p-0" style="max-height:320px;overflow:auto;">
+        <table class="table table-sm table-hover mb-0 sticky-header no-datatable live-flight-table">
             <thead class="table-dark">
                 <tr>
                     <th>Type</th>
-                    <th>Flight</th>
-                    <th>Airline</th>
+                    <th class="flight-col">Flight</th>
+                    <th>Registration</th>
                     <th>Route</th>
                     <th>Stand (AODB)</th>
                     <th>Scheduled</th>
@@ -38,10 +65,11 @@
             </thead>
             <tbody>
             {% for f in aodb_flights %}
+                {% set flight_code = ((f.flight_icao_code or '') ~ (f.flight_number or '')).strip() %}
                 <tr>
                     <td><span class="badge {% if f.arr_or_dep == 'ARR' %}bg-info{% else %}bg-warning text-dark{% endif %}">{{ f.arr_or_dep }}</span></td>
-                    <td><strong>{{ f.flight_number or '-' }}</strong></td>
-                    <td>{{ f.airline_name or '-' }}</td>
+                    <td class="flight-col"><strong>{{ flight_code or f.flight_number or '-' }}</strong></td>
+                    <td>{{ (f.raw_payload or {}).get('aircraftRegistration') or (f.raw_payload or {}).get('registration') or '—' }}</td>
                     <td>{% if f.arr_or_dep == 'ARR' %}{{ f.origin_airport or '?' }} → EBB{% else %}EBB → {{ f.destination_airport or '?' }}{% endif %}</td>
                     <td>{{ f.stand or '—' }}</td>
                     <td>{{ f.scheduled_datetime.strftime('%H:%M') if f.scheduled_datetime else (f.scheduled_date or '-') }}</td>
@@ -49,7 +77,7 @@
                     <td><span class="badge bg-secondary">{{ f.operation_status or '—' }}</span></td>
                     <td>
                         <button class="btn btn-xs btn-outline-primary py-0 px-1 use-flight-btn"
-                                data-flight="{{ f.flight_number or '' }}"
+                                data-flight="{{ flight_code or f.flight_number or '' }}"
                                 data-stand="{{ f.stand or '' }}"
                                 title="Pre-fill allocation form">&#9654;</button>
                     </td>
