@@ -64,8 +64,8 @@
           <div class="col-12">
             <label class="form-label">Personnel</label>
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="overwrite_existing" id="overwrite">
-              <label class="form-check-label" for="overwrite">Overwrite existing roster entries for the selected period</label>
+              <input class="form-check-input" type="checkbox" name="overwrite_existing" id="overwrite" checked>
+              <label class="form-check-label" for="overwrite">Overwrite existing roster entries for the selected period <small class="text-muted">(always tick when regenerating)</small></label>
             </div>
           </div>
           <div class="col-12">
@@ -183,12 +183,13 @@
               <td>{{ entry.user.badge_number or '-' }}</td>
               <td><span class="badge bg-secondary">{{ entry.user.role }}</span></td>
               <td>
-                {% if entry.duty_type == 'day' %}<span class="badge bg-warning text-dark"><i class="fa fa-sun me-1"></i>Day</span>
-                {% elif entry.duty_type == 'night' %}<span class="badge bg-dark"><i class="fa fa-moon me-1"></i>Night</span>
+                {% if entry.duty_type == 'day' %}<span class="badge bg-warning text-dark"><i class="fa fa-sun me-1"></i>Day Shift</span>
+                {% elif entry.duty_type == 'night' %}<span class="badge bg-dark"><i class="fa fa-moon me-1"></i>Night Shift</span>
                 {% elif entry.duty_type == 'leave' %}<span class="badge bg-danger"><i class="fa fa-plane me-1"></i>Leave</span>
                 {% elif entry.duty_type == 'study_leave' %}<span class="badge bg-warning text-dark"><i class="fa fa-graduation-cap me-1"></i>Study Leave</span>
                 {% elif entry.duty_type == 'office' %}<span class="badge bg-info text-dark"><i class="fa fa-building me-1"></i>Office Hours</span>
-                {% else %}<span class="badge bg-light text-muted"><i class="fa fa-bed me-1"></i>Off</span>{% endif %}
+                {% elif entry.cycle_day_index == 2 %}<span class="badge bg-secondary"><i class="fa fa-bed me-1"></i>Off-1 <small>(post-night rest)</small></span>
+                {% else %}<span class="badge bg-light text-dark border"><i class="fa fa-home me-1"></i>Off-2 <small>(prep for day)</small></span>{% endif %}
               </td>
               <td>
                 {% if entry.duty_type in ['day', 'night', 'off'] %}
@@ -213,15 +214,17 @@
   <div class="card-header"><i class="fa fa-info-circle me-2"></i>Duty Cycle Reference</div>
   <div class="card-body">
     <table class="table table-sm table-bordered w-auto">
-      <thead><tr><th>Cycle Day</th><th>Type</th><th>Hours</th></tr></thead>
+      <thead><tr><th>Cycle Day</th><th>Status</th><th>Hours / Description</th></tr></thead>
       <tbody>
-        <tr><td>1</td><td><span class="badge bg-warning text-dark">Day</span></td><td>06:00 – 18:00</td></tr>
-        <tr><td>2</td><td><span class="badge bg-dark">Night</span></td><td>18:00 – 06:00 (+1)</td></tr>
-        <tr><td>3</td><td><span class="badge bg-light text-muted">Off</span></td><td>Rest day after night duty</td></tr>
-        <tr><td>4</td><td><span class="badge bg-light text-muted">Off</span></td><td>Full off day</td></tr>
+        <tr><td>1</td><td><span class="badge bg-warning text-dark"><i class="fa fa-sun me-1"></i>Day Shift</span></td><td>06:00 – 18:00 — on duty at the airport</td></tr>
+        <tr><td>2</td><td><span class="badge bg-dark"><i class="fa fa-moon me-1"></i>Night Shift</span></td><td>18:00 – 06:00 (+1) — coming in for night duty</td></tr>
+        <tr><td>3</td><td><span class="badge bg-secondary"><i class="fa fa-bed me-1"></i>Off-1 (post-night rest)</span></td><td>Just finished night shift — mandatory rest</td></tr>
+        <tr><td>4</td><td><span class="badge bg-light text-dark border"><i class="fa fa-home me-1"></i>Off-2 (prep for day)</span></td><td>Full off day — returns for day shift tomorrow</td></tr>
       </tbody>
     </table>
-    <p class="text-muted small mt-2">After day 4, the cycle repeats from day 1. Officers must be rostered for their duty type before they can sign or fill forms for that shift.</p>
+    <p class="text-muted small mt-2">
+      On any given day all 4 states are active simultaneously across the 4 cohorts. Staff on Leave, Study Leave, or Office Hours are excluded from the active roster for those days only and their absence triggers a coverage warning if shifts fall below 2 staff each.
+    </p>
   </div>
 </div>
 {% endblock %}

@@ -369,25 +369,40 @@ def shift_roster():
         created_count = 0
         updated_count = 0
 
-        # Split selected personnel into 4 rotating cohorts so day/night/off/off are concurrent.
+        # Pre-load all existing leave/availability blocks in the period for quick lookup.
+        # These are NEVER overwritten — leave dates are excluded from roster generation entirely.
         ordered_user_ids = sorted(set(user_ids))
+        leave_date_set = set()
+        leave_rows = ShiftRoster.query.filter(
+            ShiftRoster.user_id.in_(ordered_user_ids),
+            ShiftRoster.duty_date >= start_date,
+            ShiftRoster.duty_date <= end_date,
+            ShiftRoster.duty_type.in_(['leave', 'study_leave', 'office']),
+        ).all()
+        for lv in leave_rows:
+            leave_date_set.add((lv.user_id, lv.duty_date))
+
+        # Split selected personnel into 4 rotating cohorts so day/night/off/off are concurrent.
         for order_idx, user_id in enumerate(ordered_user_ids):
             cohort_offset = order_idx % 4
             for offset in range(days):
                 duty_date = start_date + timedelta(days=offset)
+
+                # Always skip dates where this user has a leave/availability block.
+                if (user_id, duty_date) in leave_date_set:
+                    continue
+
                 cycle_idx = (start_idx + cohort_offset + offset) % 4
                 duty_type = ShiftRoster.duty_for_index(cycle_idx)
                 entry = ShiftRoster.query.filter_by(user_id=user_id, duty_date=duty_date).first()
                 if entry:
-                    # Preserve explicit availability blocks unless user asked to force overwrite.
-                    if entry.duty_type in ('leave', 'study_leave', 'office') and not overwrite_existing:
-                        continue
                     if overwrite_existing:
                         entry.duty_type = duty_type
                         entry.cycle_day_index = cycle_idx
                         entry.created_by_user_id = current_user.id
                         entry.notes = None
                         updated_count += 1
+                    # else: leave existing day/night/off entries untouched
                 else:
                     db.session.add(ShiftRoster(
                         duty_date=duty_date,
@@ -401,7 +416,25 @@ def shift_roster():
         fixed_leaders = _resolve_fixed_shift_leaders(leader_user_ids)
         _upsert_shift_records_for_range(start_date, end_date, leader_user_ids, fixed_leaders=fixed_leaders)
         db.session.commit()
-        flash(f'Roster saved: {created_count} created, {updated_count} updated. Fixed leaders applied for the generated period.', 'success')
+
+        # Coverage check: warn for any date where day or night shift has fewer than 2 staff.
+        low_coverage = []
+        for offset in range(min(days, 62)):
+            check_date = start_date + timedelta(days=offset)
+            day_n = ShiftRoster.query.filter_by(duty_date=check_date, duty_type='day').count()
+            night_n = ShiftRoster.query.filter_by(duty_date=check_date, duty_type='night').count()
+            if day_n < 2 or night_n < 2:
+                low_coverage.append(f"{check_date.strftime('%d %b')} (D:{day_n} N:{night_n})")
+        if low_coverage:
+            sample = ', '.join(low_coverage[:5])
+            extra = f' +{len(low_coverage) - 5} more' if len(low_coverage) > 5 else ''
+            flash(
+                f'Low shift coverage on {len(low_coverage)} day(s): {sample}{extra}. '
+                'Add more staff or adjust leave before this period.',
+                'warning',
+            )
+
+        flash(f'Roster saved: {created_count} created, {updated_count} updated.', 'success')
         return redirect(url_for('apron.shift_roster'))
 
     target_date = _parse_iso_date(request.args.get('date'))
