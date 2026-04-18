@@ -17,6 +17,7 @@ This project provides:
 - **AODB REST API integration** — Live flight schedule sync from AODB, flight dropdown autocomplete in forms, stand allocation with live schedule view.
 - **Mobile-first field data write-back** — Staff submit times/data from field via forms; automatic async sync back to AODB with retry logic and queue monitoring.
 - **TPBB bridge operations (Form 5)** — Docking/back-off time recording with completeness validation (both times required or none), time-order validation against flight ATA/ATD, and red-flag alerting for incomplete records on functional bridge stands (A1S05, A1S06).
+- **Interactive Apron Stand Map (ATC panel)** — Integrated apron map page with stand state machine (Planned → On Chocks → Off Chocks), simulation controls, split-stand Code C half-occupancy logic (05/06/07), and merged preload data from both AODB stand assignments and local stand allocations.
 
 ## 2. Technology Stack
 

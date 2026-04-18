@@ -68,6 +68,7 @@
 
                 <div class="menu-group">Apron Management</div>
                 <a href="{{ url_for('apron.stand_allocation') }}">Stand Allocation</a>
+                <a href="{{ url_for('apron.stand_map') }}">Apron Stand Map (ATC)</a>
                 <a href="{{ url_for('apron.shift_handover') }}">Shift Handover (Form 2)</a>
                 {% if current_user.role in ['admin', 'supervisor'] %}<a href="{{ url_for('apron.shift_roster') }}"><i class="fa fa-calendar-alt me-2"></i>Shift Roster</a>{% endif %}
                 <a href="{{ url_for('apron.staff_deployment') }}">Staff Deployment (Form 23)</a>

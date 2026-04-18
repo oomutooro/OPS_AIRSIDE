@@ -26,6 +26,24 @@ def _parse_iso_date(value: str, default_value: date = None) -> date:
         return default_value or date.today()
 
 
+def _normalize_stand_code(raw: str) -> str:
+    """Normalize stand code from AODB/system values to map stand IDs (02..10, 20..25)."""
+    if not raw:
+        return ''
+    stand = str(raw).strip().upper().replace(' ', '')
+    if stand.startswith('A1S') and len(stand) >= 5:
+        return stand[-2:]
+    if stand.startswith('S') and len(stand) >= 3 and stand[1:].isdigit():
+        return stand[1:].zfill(2)
+    if stand.isdigit():
+        return stand.zfill(2)
+    return stand
+
+
+def _valid_map_stands():
+    return {'02', '03', '04', '05', '06', '07', '08', '09', '10', '20', '21', '22', '23', '24', '25'}
+
+
 def _user_is_on_shift(user_id: int, duty_date: date, shift_type: str) -> bool:
     entry = ShiftRoster.query.filter_by(user_id=user_id, duty_date=duty_date).first()
     if not entry:
@@ -205,6 +223,104 @@ def api_flights():
         arr_or_dep = None
     flights = AodbSyncService.flights_for_date(query_date, arr_or_dep)
     return jsonify([f.to_dict() for f in flights])
+
+
+@apron_bp.route('/stand-map')
+@role_required('admin', 'supervisor', 'inspector', 'operator')
+def stand_map():
+    map_date = _parse_iso_date(request.args.get('date'))
+    return render_template('apron/stand_map.html', map_date=map_date)
+
+
+@apron_bp.route('/api/stand-map-data')
+@role_required('admin', 'supervisor', 'inspector', 'operator')
+def api_stand_map_data():
+    """Merged stand-map feed from AODB flights and locally saved stand allocations."""
+    query_date = _parse_iso_date(request.args.get('date', date.today().isoformat()))
+    valid_stands = _valid_map_stands()
+
+    # 1) AODB schedule view for selected date
+    flights = AodbSyncService.flights_for_date(query_date)
+
+    # 2) Local allocations created in this system for selected date
+    allocations = StandAllocation.query.filter_by(allocation_date=query_date).order_by(StandAllocation.created_at.desc()).all()
+
+    # Build merged planned entries by stand; prefer local allocation over AODB when both exist.
+    planned_by_stand = {}
+    flight_options = []
+
+    for f in flights:
+        stand_id = _normalize_stand_code(f.stand)
+        if stand_id not in valid_stands:
+            continue
+
+        icao_num = f"{(f.flight_icao_code or '').strip()}{(f.flight_number or '').strip()}".strip()
+        flight_label = icao_num or (f.flight_number or '').strip()
+        if not flight_label:
+            continue
+
+        raw = f.raw_payload or {}
+        aircraft_type = (raw.get('acType') or raw.get('aircraftType') or '').strip()
+        sta_dt = f.estimated_datetime if f.arr_or_dep == 'ARR' and f.estimated_datetime else f.scheduled_datetime
+        std_dt = f.scheduled_datetime
+
+        planned_by_stand[stand_id] = {
+            'stand_id': stand_id,
+            'flight_number': flight_label,
+            'aircraft_type': aircraft_type,
+            'sta': sta_dt.strftime('%H:%M') if sta_dt else '',
+            'std': std_dt.strftime('%H:%M') if std_dt else '',
+            'source': 'aodb',
+            'status': 'Planned',
+        }
+
+        flight_options.append({
+            'flight_number': flight_label,
+            'aircraft_type': aircraft_type,
+            'stand_id': stand_id,
+            'source': 'aodb',
+        })
+
+    for a in allocations:
+        stand_id = _normalize_stand_code(a.allocated_stand_code or a.requested_stand_code)
+        if stand_id not in valid_stands:
+            continue
+        flight_number = (a.flight_number or '').strip()
+        if not flight_number:
+            continue
+
+        planned_by_stand[stand_id] = {
+            'stand_id': stand_id,
+            'flight_number': flight_number,
+            'aircraft_type': (a.aircraft_type or '').strip(),
+            'sta': a.eta.strftime('%H:%M') if a.eta else '',
+            'std': a.etd.strftime('%H:%M') if a.etd else '',
+            'source': 'system',
+            'status': 'Planned',
+        }
+
+        flight_options.append({
+            'flight_number': flight_number,
+            'aircraft_type': (a.aircraft_type or '').strip(),
+            'stand_id': stand_id,
+            'source': 'system',
+        })
+
+    # Deduplicate flight options by flight+stand
+    seen = set()
+    unique_options = []
+    for option in flight_options:
+        key = (option['flight_number'], option['stand_id'])
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_options.append(option)
+
+    return jsonify({
+        'date': query_date.isoformat(),
+        'planned_assignments': list(planned_by_stand.values()),
+        'flight_options': unique_options,
+    })
 
 
 @apron_bp.route('/shift-handover', methods=['GET', 'POST'])
