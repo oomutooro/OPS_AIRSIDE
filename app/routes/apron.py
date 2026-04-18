@@ -545,25 +545,66 @@ def staff_deployment():
     )
 
 
+# PBB stands with functional bridges
+_PBB_STANDS = {'A1S05': 'PBB 01', 'A1S06': 'PBB 02'}
+
+# Aircraft ICAO type prefixes that are turboprops / non-bridge capable
+_NON_BRIDGE_TYPE_PREFIXES = ('AT4', 'AT5', 'AT7', 'AT6', 'AT7', 'DH8', 'DHC', 'SF3',
+                              'BE1', 'PA2', 'PA3', 'C208', 'PC12', 'TBM', 'AN2', 'AN4')
+
+
+def _is_bridge_capable_type(actype: str) -> bool:
+    """Return True if the aircraft ICAO type is likely bridge-capable (i.e. a jet)."""
+    if not actype:
+        return True  # assume capable if unknown
+    t = actype.upper().strip()
+    return not any(t.startswith(pfx) for pfx in _NON_BRIDGE_TYPE_PREFIXES)
+
+
 @apron_bp.route('/tpbb-operations', methods=['GET', 'POST'])
 @login_required
 def tpbb_operations():
     if request.method == 'POST':
         from app.services.aodb_writeback import AodbWritebackService
-        
+
         template = FormTemplate.query.filter_by(form_number=5).first()
         if template:
             flight_number = request.form.get('flight_number', '').strip()
             docking_time = request.form.get('docking_time', '').strip()
             backoff_time = request.form.get('backoff_time', '').strip()
-            
+            bridge_no = request.form.get('bridge_no', '').strip()
+
+            # Determine bridge flag: XOR = red flag; both = ok; neither = no_dock
+            has_dock = bool(docking_time)
+            has_backoff = bool(backoff_time)
+            if has_dock and has_backoff:
+                bridge_flag = 'ok'
+            elif has_dock or has_backoff:
+                bridge_flag = 'incomplete'
+            else:
+                bridge_flag = 'no_dock'
+
+            # Look up flight in AODB cache for stand/aircraft context
+            flight_stand = None
+            flight_actype = None
+            flight = None
+            if flight_number:
+                flight = FlightMovement.query.filter_by(flight_number=flight_number).first()
+                if flight:
+                    flight_stand = (flight.stand or '').strip().upper() or None
+                    raw = flight.raw_payload or {}
+                    flight_actype = (raw.get('acType') or raw.get('aircraftType') or '').strip() or None
+
             data = {
-                'bridge_no': request.form.get('bridge_no'),
+                'bridge_no': bridge_no,
                 'flight_number': flight_number,
                 'pre_arrival_test': request.form.get('pre_arrival_test'),
                 'docking_time': docking_time,
                 'backoff_time': backoff_time,
                 'remarks': request.form.get('remarks'),
+                'bridge_flag': bridge_flag,
+                'flight_stand': flight_stand,
+                'flight_actype': flight_actype,
             }
             submission = FormSubmission(
                 form_template_id=template.id,
@@ -575,61 +616,104 @@ def tpbb_operations():
             db.session.add(submission)
             WorkflowService.ensure_issue_for_submission(submission, current_user)
             db.session.flush()  # Get submission.id
-            
-            # Queue write-backs to AODB if flight data available
-            if flight_number:
-                flight = FlightMovement.query.filter_by(flight_number=flight_number).first()
-                if flight:
-                    # Queue docking time (BTI for arrivals)
-                    if docking_time and flight.arr_or_dep == 'ARR':
-                        try:
-                            from datetime import datetime
-                            dock_dt = datetime.strptime(docking_time, '%H:%M')
-                            # Combine with scheduled date if available
-                            if flight.scheduled_datetime:
-                                dock_dt = dock_dt.replace(
-                                    year=flight.scheduled_datetime.year,
-                                    month=flight.scheduled_datetime.month,
-                                    day=flight.scheduled_datetime.day,
-                                )
-                            AodbWritebackService.queue_docking_time(
-                                aodb_flight_id=flight.aodb_flight_id,
-                                docking_time=dock_dt,
-                                form_submission=submission,
-                                user=current_user,
+
+            # Flash bridge-flag warning before AODB write-back
+            if bridge_flag == 'incomplete':
+                missing = 'Back-off Time' if has_dock else 'Docking Time'
+                flash(
+                    f'\u26a0\ufe0f RED FLAG — Bridge record for {flight_number or bridge_no} is incomplete: '
+                    f'{missing} is missing. A record must have both Docking Time and Back-off Time, '
+                    f'or neither if the bridge was not used.',
+                    'danger',
+                )
+            elif bridge_flag == 'no_dock' and flight_stand in _PBB_STANDS:
+                bridge_capable = _is_bridge_capable_type(flight_actype)
+                if bridge_capable:
+                    flash(
+                        f'Note: {flight_number} is allocated to {flight_stand} ({_PBB_STANDS[flight_stand]}) '
+                        f'but no bridge times were recorded. Confirm the bridge was not used.',
+                        'warning',
+                    )
+
+            # Validate bridge times against flight actual times (ATA/ATD)
+            if flight:
+                from datetime import datetime
+                try:
+                    # Docking time (bridge on) must be AFTER ATA
+                    if docking_time and flight.arr_or_dep == 'ARR' and flight.actual_datetime:
+                        dock_dt = datetime.strptime(docking_time, '%H:%M').time()
+                        ata_time = flight.actual_datetime.time()
+                        if dock_dt < ata_time:
+                            flash(
+                                f'⚠️ Warning: Docking Time ({docking_time}) is BEFORE Actual Time of Arrival ({ata_time.strftime("%H:%M")}). '
+                                f'Bridge docking should occur after landing.',
+                                'warning',
                             )
-                            flash(f'Docking time queued for write-back to AODB.', 'info')
-                        except (ValueError, AttributeError) as exc:
-                            flash(f'Could not queue docking time: {exc}', 'warning')
                     
-                    # Queue backoff time (BTO for departures)
-                    if backoff_time and flight.arr_or_dep == 'DEP':
-                        try:
-                            from datetime import datetime
-                            back_dt = datetime.strptime(backoff_time, '%H:%M')
-                            if flight.scheduled_datetime:
-                                back_dt = back_dt.replace(
-                                    year=flight.scheduled_datetime.year,
-                                    month=flight.scheduled_datetime.month,
-                                    day=flight.scheduled_datetime.day,
-                                )
-                            AodbWritebackService.queue_backoff_time(
-                                aodb_flight_id=flight.aodb_flight_id,
-                                backoff_time=back_dt,
-                                form_submission=submission,
-                                user=current_user,
+                    # Back-off time (bridge off) must be BEFORE ATD
+                    if backoff_time and flight.arr_or_dep == 'DEP' and flight.actual_datetime:
+                        back_dt = datetime.strptime(backoff_time, '%H:%M').time()
+                        atd_time = flight.actual_datetime.time()
+                        if back_dt > atd_time:
+                            flash(
+                                f'⚠️ Warning: Back-off Time ({backoff_time}) is AFTER Actual Time of Departure ({atd_time.strftime("%H:%M")}). '
+                                f'Bridge should be disconnected before takeoff.',
+                                'warning',
                             )
-                            flash(f'Backoff time queued for write-back to AODB.', 'info')
-                        except (ValueError, AttributeError) as exc:
-                            flash(f'Could not queue backoff time: {exc}', 'warning')
-                else:
-                    flash(f'Flight {flight_number} not found in AODB cache. Write-back skipped.', 'warning')
-            
+                except (ValueError, AttributeError, TypeError):
+                    pass  # Times invalid or unavailable; let AODB write-back handle it
+
+            # Queue write-backs to AODB if flight data available
+            if flight:
+                # Queue docking time (BTI for arrivals)
+                if docking_time and flight.arr_or_dep == 'ARR':
+                    try:
+                        from datetime import datetime
+                        dock_dt = datetime.strptime(docking_time, '%H:%M')
+                        if flight.scheduled_datetime:
+                            dock_dt = dock_dt.replace(
+                                year=flight.scheduled_datetime.year,
+                                month=flight.scheduled_datetime.month,
+                                day=flight.scheduled_datetime.day,
+                            )
+                        AodbWritebackService.queue_docking_time(
+                            aodb_flight_id=flight.aodb_flight_id,
+                            docking_time=dock_dt,
+                            form_submission=submission,
+                            user=current_user,
+                        )
+                        flash('Docking time queued for write-back to AODB.', 'info')
+                    except (ValueError, AttributeError) as exc:
+                        flash(f'Could not queue docking time: {exc}', 'warning')
+
+                # Queue backoff time (BTO for departures)
+                if backoff_time and flight.arr_or_dep == 'DEP':
+                    try:
+                        from datetime import datetime
+                        back_dt = datetime.strptime(backoff_time, '%H:%M')
+                        if flight.scheduled_datetime:
+                            back_dt = back_dt.replace(
+                                year=flight.scheduled_datetime.year,
+                                month=flight.scheduled_datetime.month,
+                                day=flight.scheduled_datetime.day,
+                            )
+                        AodbWritebackService.queue_backoff_time(
+                            aodb_flight_id=flight.aodb_flight_id,
+                            backoff_time=back_dt,
+                            form_submission=submission,
+                            user=current_user,
+                        )
+                        flash('Back-off time queued for write-back to AODB.', 'info')
+                    except (ValueError, AttributeError) as exc:
+                        flash(f'Could not queue backoff time: {exc}', 'warning')
+            elif flight_number:
+                flash(f'Flight {flight_number} not found in AODB cache. Write-back skipped.', 'warning')
+
             db.session.commit()
             flash('TPBB operation recorded.', 'success')
         return redirect(url_for('apron.tpbb_operations'))
 
     logs = FormSubmission.query.join(FormTemplate).filter(
         FormTemplate.form_number == 5
-    ).order_by(FormSubmission.created_at.desc()).limit(20).all()
-    return render_template('apron/tpbb_operations.html', logs=logs)
+    ).order_by(FormSubmission.created_at.desc()).limit(30).all()
+    return render_template('apron/tpbb_operations.html', logs=logs, pbb_stands=_PBB_STANDS)
