@@ -16,6 +16,7 @@ This project provides:
 - **Hierarchical issue escalation workflow** — Reports flow up the chain (operator → inspector → auditor → supervisor) with role-based visibility and closure tracking.
 - **AODB REST API integration** — Live flight schedule sync from AODB, flight dropdown autocomplete in forms, stand allocation with live schedule view.
 - **Mobile-first field data write-back** — Staff submit times/data from field via forms; automatic async sync back to AODB with retry logic and queue monitoring.
+- **TPBB bridge operations (Form 5)** — Docking/back-off time recording with completeness validation (both times required or none), time-order validation against flight ATA/ATD, and red-flag alerting for incomplete records on functional bridge stands (A1S05, A1S06).
 
 ## 2. Technology Stack
 
