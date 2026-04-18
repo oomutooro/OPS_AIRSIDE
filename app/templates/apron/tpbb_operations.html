@@ -1,22 +1,176 @@
 {% extends 'base.html' %}
 {% block title %}TPBB Operations (Form 5){% endblock %}
+
+{% block extra_css %}
+<style>
+.flag-ok      { color: #198754; font-weight: 600; }
+.flag-incomplete { color: #dc3545; font-weight: 600; }
+.flag-no-dock { color: #6c757d; }
+.tpbb-log-table th, .tpbb-log-table td { vertical-align: middle; white-space: nowrap; }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- ── Form ─────────────────────────────────────────────────────────── -->
 <div class="card panel-card mb-3">
-    <div class="card-header">Form 5 - TPBB Docking Record and Inspection</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Form 5 — TPBB Docking Record and Inspection</span>
+        <small class="text-muted">Active PBBs: PBB 01 (A1S05) &amp; PBB 02 (A1S06)</small>
+    </div>
     <div class="card-body">
         <form method="post" class="row g-3">
-            <div class="col-md-3"><label class="form-label">Bridge No</label><input name="bridge_no" class="form-control form-control-lg" required></div>
+
+            <div class="col-md-3">
+                <label class="form-label">Bridge No</label>
+                <select name="bridge_no" class="form-select form-select-lg" required>
+                    <option value="" disabled selected>— Select PBB —</option>
+                    <option value="PBB 01">PBB 01 &mdash; Stand A1S05</option>
+                    <option value="PBB 02">PBB 02 &mdash; Stand A1S06</option>
+                </select>
+            </div>
+
             <div class="col-md-3">
                 <label class="form-label">Flight Number</label>
-                <input name="flight_number" class="form-control form-control-lg" list="flight_numbers_tpbb" required>
+                <input name="flight_number" class="form-control form-control-lg"
+                       list="flight_numbers_tpbb" required autocomplete="off">
                 <datalist id="flight_numbers_tpbb" data-aodb-datalist data-aodb-type="arr"></datalist>
             </div>
-            <div class="col-md-3"><label class="form-label">Pre-Arrival Test</label><select name="pre_arrival_test" class="form-select form-select-lg"><option>PASS</option><option>FAIL</option></select></div>
-            <div class="col-md-3"><label class="form-label">Docking Time</label><input type="time" name="docking_time" class="form-control form-control-lg"></div>
-            <div class="col-md-3"><label class="form-label">Back-off Time</label><input type="time" name="backoff_time" class="form-control form-control-lg"></div>
-            <div class="col-12"><label class="form-label">Remarks</label><textarea name="remarks" class="form-control" rows="3"></textarea></div>
-            <div class="col-12"><button class="btn btn-primary btn-touch">Save TPBB Record</button></div>
+
+            <div class="col-md-3">
+                <label class="form-label">Pre-Arrival Test</label>
+                <select name="pre_arrival_test" class="form-select form-select-lg">
+                    <option>PASS</option>
+                    <option>FAIL</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">
+                    Docking Time
+                    <span class="text-muted small">(Bridge On)</span>
+                </label>
+                <input type="time" name="docking_time" class="form-control form-control-lg"
+                       id="docking_time">
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">
+                    Back-off Time
+                    <span class="text-muted small">(Bridge Off)</span>
+                </label>
+                <input type="time" name="backoff_time" class="form-control form-control-lg"
+                       id="backoff_time">
+            </div>
+
+            <!-- Live bridge completeness hint -->
+            <div class="col-md-9 d-flex align-items-end">
+                <div id="bridge-hint" class="small text-muted fst-italic mt-1"></div>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Remarks</label>
+                <textarea name="remarks" class="form-control" rows="3"></textarea>
+            </div>
+
+            <div class="col-12">
+                <button class="btn btn-primary btn-touch">Save TPBB Record</button>
+            </div>
         </form>
     </div>
 </div>
+
+<!-- ── Logs table ────────────────────────────────────────────────────── -->
+<div class="card panel-card">
+    <div class="card-header">Recent TPBB Records</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tpbb-log-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date / Time</th>
+                        <th>Bridge</th>
+                        <th>Flight</th>
+                        <th>Stand</th>
+                        <th>A/C Type</th>
+                        <th>Pre-Test</th>
+                        <th>Docking (On)</th>
+                        <th>Back-off (Off)</th>
+                        <th>Status</th>
+                        <th>Recorded by</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for s in logs %}
+                {% set d = s.data or {} %}
+                {% set flag = d.get('bridge_flag', 'no_dock') %}
+                {% set on_pbb_stand = d.get('flight_stand') in pbb_stands %}
+                <tr class="{% if flag == 'incomplete' %}table-danger{% elif flag == 'ok' %}table-success{% endif %}">
+                    <td>{{ s.created_at.strftime('%d %b %Y %H:%M') if s.created_at else '—' }}</td>
+                    <td>{{ d.get('bridge_no') or '—' }}</td>
+                    <td><strong>{{ d.get('flight_number') or '—' }}</strong></td>
+                    <td>
+                        {{ d.get('flight_stand') or '—' }}
+                        {% if on_pbb_stand %}
+                        <span class="badge bg-info text-dark ms-1" title="PBB Stand">PBB</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ d.get('flight_actype') or '—' }}</td>
+                    <td>
+                        {% set pt = d.get('pre_arrival_test', '') %}
+                        {% if pt == 'FAIL' %}
+                        <span class="badge bg-danger">FAIL</span>
+                        {% elif pt == 'PASS' %}
+                        <span class="badge bg-success">PASS</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ d.get('docking_time') or '<span class="text-muted">—</span>'|safe }}</td>
+                    <td>{{ d.get('backoff_time') or '<span class="text-muted">—</span>'|safe }}</td>
+                    <td>
+                        {% if flag == 'ok' %}
+                        <span class="flag-ok">&#10003; Complete</span>
+                        {% elif flag == 'incomplete' %}
+                        <span class="flag-incomplete">&#9888; Incomplete</span>
+                        {% else %}
+                        <span class="flag-no-dock">&#8212; No dock</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.submitted_by.name if s.submitted_by else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" class="text-center text-muted py-3">No TPBB records yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const dock = document.getElementById('docking_time');
+    const back = document.getElementById('backoff_time');
+    const hint = document.getElementById('bridge-hint');
+
+    function updateHint() {
+        const hasDock = dock.value.trim() !== '';
+        const hasBack = back.value.trim() !== '';
+        if (hasDock && hasBack) {
+            hint.innerHTML = '<span class="text-success fw-semibold">&#10003; Both bridge times provided — record is complete.</span>';
+        } else if (hasDock && !hasBack) {
+            hint.innerHTML = '<span class="text-danger fw-semibold">&#9888; Back-off Time is missing — this will be flagged as incomplete.</span>';
+        } else if (!hasDock && hasBack) {
+            hint.innerHTML = '<span class="text-danger fw-semibold">&#9888; Docking Time is missing — this will be flagged as incomplete.</span>';
+        } else {
+            hint.innerHTML = 'Leave both blank if the bridge was not used (no-dock).';
+        }
+    }
+
+    dock.addEventListener('change', updateHint);
+    back.addEventListener('change', updateHint);
+    updateHint();
+})();
+</script>
+{% endblock %}
+

@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entebbe (EBB) - Apron 1 and Extended Apron Map</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Consolas", "Courier New", monospace;
+            background: #0a0f1c;
+            color: #e6edf5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1550px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 22px;
+            border-bottom: 2px solid #19c2ff;
+            padding-bottom: 12px;
+        }
+
+        h1 {
+            font-size: 1.9rem;
+            color: #19c2ff;
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            margin-top: 4px;
+            color: #9ab0c9;
+            font-size: 0.92rem;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: #11192b;
+            border: 1px solid #20344a;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 12px 14px;
+            border-bottom: 1px solid #20344a;
+            background: #0f1626;
+            color: #8fdaf6;
+            font-size: 0.9rem;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+
+        .card-body {
+            padding: 14px;
+        }
+
+        svg {
+            width: 100%;
+            min-height: 560px;
+            display: block;
+            border-radius: 6px;
+            background: radial-gradient(circle at 20% 20%, #17253d 0%, #0c1322 40%, #090f1a 100%);
+        }
+
+        .controls {
+            display: grid;
+            gap: 12px;
+        }
+
+        .row {
+            display: grid;
+            gap: 8px;
+        }
+
+        label {
+            color: #9ab0c9;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input,
+        select,
+        button {
+            font-family: inherit;
+            font-size: 0.92rem;
+        }
+
+        input,
+        select {
+            width: 100%;
+            border: 1px solid #355a79;
+            background: #0e1a2d;
+            color: #e6edf5;
+            border-radius: 7px;
+            padding: 10px;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #19c2ff;
+            box-shadow: 0 0 0 3px rgba(25, 194, 255, 0.15);
+        }
+
+        .button-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 7px;
+            padding: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            color: #fff;
+        }
+
+        .btn-on {
+            background: #1f9f5b;
+        }
+
+        .btn-off {
+            background: #c74343;
+        }
+
+        .btn-clear {
+            background: #4c5f73;
+            grid-column: 1 / -1;
+        }
+
+        .legend {
+            margin-top: 8px;
+            padding: 10px;
+            border: 1px solid #2e4258;
+            border-radius: 8px;
+            background: #0d1627;
+        }
+
+        .legend h3 {
+            margin-bottom: 8px;
+            font-size: 0.86rem;
+            color: #8fdaf6;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 0.83rem;
+            color: #c7d7e8;
+        }
+
+        .swatch {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            border: 1px solid #5f7388;
+        }
+
+        .table-card {
+            margin-top: 18px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+
+        th,
+        td {
+            padding: 9px;
+            border-bottom: 1px solid #2c3e53;
+            text-align: left;
+        }
+
+        th {
+            color: #f9c56c;
+            background: #121f35;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            font-size: 0.77rem;
+        }
+
+        .timer {
+            color: #ffd174;
+            font-weight: 700;
+        }
+
+        .timer.critical {
+            color: #ff7f7f;
+        }
+
+        .code-pill {
+            color: #fff;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-weight: 700;
+            display: inline-block;
+            min-width: 28px;
+            text-align: center;
+        }
+
+        .code-e { background: #2b8fd8; }
+        .code-f { background: #d84d4d; }
+        .code-c { background: #22a48d; }
+        .code-b { background: #8d63c7; }
+
+        .muted {
+            color: #8ea2b9;
+            font-size: 0.82rem;
+        }
+
+        @media (max-width: 1180px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Entebbe Airport (EBB) - Apron 1 and Extended Apron</h1>
+        <p class="subtitle">Interactive stand assignment simulation with split-stand handling for Code C aircraft.</p>
+    </header>
+
+    <div class="layout">
+        <section class="card">
+            <div class="card-header">SVG Apron Map</div>
+            <div class="card-body">
+                <svg id="apronMap" viewBox="0 0 1200 860" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="0" y="0" width="1200" height="860" fill="#09111f"/>
+
+                    <!-- Runway reference -->
+                    <line x1="1070" y1="40" x2="1070" y2="820" stroke="#6f7d8f" stroke-width="3" stroke-dasharray="10 8"/>
+                    <text x="1084" y="70" fill="#9aa9ba" font-size="12">Runway 17/35 (Ref)</text>
+
+                    <!-- Apron 1 area -->
+                    <rect x="70" y="90" width="980" height="300" fill="#14233b" stroke="#19c2ff" stroke-width="2" rx="8"/>
+                    <text x="90" y="120" fill="#55d7ff" font-size="16" font-weight="700">APRON 1</text>
+
+                    <!-- Terminal blocks (behind stands) -->
+                    <rect x="160" y="130" width="220" height="70" fill="#374963" stroke="#8ea2b9" stroke-width="1.5" stroke-dasharray="6 4"/>
+                    <text x="270" y="165" text-anchor="middle" fill="#b8c7d8" font-size="12" font-weight="700">Terminal 2</text>
+                    <text x="270" y="182" text-anchor="middle" fill="#93a6ba" font-size="11">Closed / Not Active</text>
+
+                    <rect x="420" y="130" width="200" height="70" fill="#2f425a" stroke="#99b3c9" stroke-width="1.5"/>
+                    <text x="520" y="165" text-anchor="middle" fill="#d9e4ef" font-size="12" font-weight="700">Terminal 1</text>
+
+                    <!-- Apron 1 stand row 02-10 (single horizontal row) -->
+                    <!-- Nose-up symbols (towards terminal) -->
+                    <g id="apron1-stands" font-size="13" font-weight="700" fill="#f8fbff">
+                        <!-- 02 -->
+                        <rect class="stand stand-02" x="120" y="230" width="72" height="64" rx="5" fill="#2b8fd8" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="156,214 148,226 164,226" fill="#d7e9ff"/>
+                        <text x="156" y="268" text-anchor="middle">02</text>
+
+                        <!-- 03 -->
+                        <rect class="stand stand-03" x="212" y="230" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="248,214 240,226 256,226" fill="#d7e9ff"/>
+                        <text x="248" y="268" text-anchor="middle">03</text>
+
+                        <!-- 04 -->
+                        <rect class="stand stand-04" x="304" y="230" width="72" height="64" rx="5" fill="#2b8fd8" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="340,214 332,226 348,226" fill="#d7e9ff"/>
+                        <text x="340" y="268" text-anchor="middle">04</text>
+
+                        <!-- 05 split -->
+                        <g>
+                            <rect class="stand stand-05" x="396" y="230" width="72" height="64" rx="5" fill="#2b8fd8" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                            <line x1="432" y1="230" x2="432" y2="294" stroke="#7ad9ff" stroke-width="1.3" stroke-dasharray="4 3"/>
+                            <polygon points="432,214 424,226 440,226" fill="#d7e9ff"/>
+                            <text x="418" y="268" text-anchor="middle" font-size="11">05L</text>
+                            <text x="446" y="268" text-anchor="middle" font-size="11">05R</text>
+                        </g>
+
+                        <!-- 06 split -->
+                        <g>
+                            <rect class="stand stand-06" x="488" y="230" width="72" height="64" rx="5" fill="#2b8fd8" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                            <line x1="524" y1="230" x2="524" y2="294" stroke="#7ad9ff" stroke-width="1.3" stroke-dasharray="4 3"/>
+                            <polygon points="524,214 516,226 532,226" fill="#d7e9ff"/>
+                            <text x="510" y="268" text-anchor="middle" font-size="11">06L</text>
+                            <text x="538" y="268" text-anchor="middle" font-size="11">06R</text>
+                        </g>
+
+                        <!-- Gap after 06 -> remote area marker -->
+                        <line x1="580" y1="208" x2="580" y2="305" stroke="#ffd17c" stroke-width="2" stroke-dasharray="6 4"/>
+                        <text x="590" y="218" fill="#ffd17c" font-size="11">Remote split starts</text>
+
+                        <!-- Remote parking background 07-10 -->
+                        <rect x="602" y="206" width="366" height="96" fill="#3a2f25" opacity="0.4" stroke="#d0a36d" stroke-width="1" stroke-dasharray="6 4"/>
+                        <text x="615" y="222" fill="#f0be88" font-size="11">Remote parking zone (07-10, not facing terminal directly)</text>
+
+                        <!-- 07 split -->
+                        <g>
+                            <rect class="stand stand-07" x="620" y="230" width="72" height="64" rx="5" fill="#d84d4d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                            <line x1="656" y1="230" x2="656" y2="294" stroke="#7ad9ff" stroke-width="1.3" stroke-dasharray="4 3"/>
+                            <polygon points="656,214 648,226 664,226" fill="#d7e9ff"/>
+                            <text x="642" y="268" text-anchor="middle" font-size="11">07L</text>
+                            <text x="670" y="268" text-anchor="middle" font-size="11">07R</text>
+                        </g>
+
+                        <!-- 08 -->
+                        <rect class="stand stand-08" x="712" y="230" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="748,214 740,226 756,226" fill="#d7e9ff"/>
+                        <text x="748" y="268" text-anchor="middle">08</text>
+
+                        <!-- 09 -->
+                        <rect class="stand stand-09" x="804" y="230" width="72" height="64" rx="5" fill="#2b8fd8" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="840,214 832,226 848,226" fill="#d7e9ff"/>
+                        <text x="840" y="268" text-anchor="middle">09</text>
+
+                        <!-- 10 -->
+                        <rect class="stand stand-10" x="896" y="230" width="72" height="64" rx="5" fill="#8d63c7" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="932,214 924,226 940,226" fill="#d7e9ff"/>
+                        <text x="932" y="268" text-anchor="middle">10</text>
+                    </g>
+
+                    <!-- TPBB markers for 02-06; only 05/06 functional -->
+                    <circle cx="156" cy="304" r="6" fill="#8d9bad" stroke="#e6edf5" stroke-width="1"/>
+                    <circle cx="248" cy="304" r="6" fill="#8d9bad" stroke="#e6edf5" stroke-width="1"/>
+                    <circle cx="340" cy="304" r="6" fill="#8d9bad" stroke="#e6edf5" stroke-width="1"/>
+                    <circle cx="432" cy="304" r="6" fill="#ffd166" stroke="#fff5d6" stroke-width="1.2"/>
+                    <circle cx="524" cy="304" r="6" fill="#ffd166" stroke="#fff5d6" stroke-width="1.2"/>
+                    <text x="90" y="334" fill="#9fb2c8" font-size="11">TPBB: 02-06 installed, only 05 and 06 are functional.</text>
+
+                    <!-- Taxiway D parallel to bottom edge of Apron 1 stands -->
+                    <rect x="90" y="332" width="940" height="44" fill="#4f5964" rx="3"/>
+                    <text x="100" y="360" fill="#d7dfe8" font-size="13" font-weight="700">Taxiway D (Apron 1 Entrance)</text>
+
+                    <!-- C2 connector between B and D -->
+                    <rect x="980" y="376" width="50" height="190" fill="#55606c"/>
+                    <text x="1005" y="470" text-anchor="middle" fill="#e7edf5" font-size="12" font-weight="700">C2</text>
+
+                    <!-- Extended apron -->
+                    <rect x="70" y="470" width="980" height="260" fill="#15263a" stroke="#24c8a8" stroke-width="2" rx="8"/>
+                    <text x="90" y="500" fill="#63e6c5" font-size="16" font-weight="700">EXTENDED APRON</text>
+
+                    <!-- Extended stands 20-25 nose-out (nose down toward Taxiway B) -->
+                    <g id="extended-stands" font-size="13" font-weight="700" fill="#f8fbff">
+                        <rect class="stand stand-20" x="170" y="545" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="206,625 198,613 214,613" fill="#d7e9ff"/>
+                        <text x="206" y="583" text-anchor="middle">20</text>
+
+                        <rect class="stand stand-21" x="262" y="545" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="298,625 290,613 306,613" fill="#d7e9ff"/>
+                        <text x="298" y="583" text-anchor="middle">21</text>
+
+                        <rect class="stand stand-22" x="354" y="545" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="390,625 382,613 398,613" fill="#d7e9ff"/>
+                        <text x="390" y="583" text-anchor="middle">22</text>
+
+                        <rect class="stand stand-23" x="446" y="545" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="482,625 474,613 490,613" fill="#d7e9ff"/>
+                        <text x="482" y="583" text-anchor="middle">23</text>
+
+                        <rect class="stand stand-24" x="538" y="545" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="574,625 566,613 582,613" fill="#d7e9ff"/>
+                        <text x="574" y="583" text-anchor="middle">24</text>
+
+                        <rect class="stand stand-25" x="630" y="545" width="72" height="64" rx="5" fill="#22a48d" stroke="#7ad9ff" stroke-width="2" cursor="pointer"/>
+                        <polygon points="666,625 658,613 674,613" fill="#d7e9ff"/>
+                        <text x="666" y="583" text-anchor="middle">25</text>
+                    </g>
+
+                    <!-- Taxiway B -->
+                    <rect x="90" y="650" width="940" height="46" fill="#4f5964" rx="3"/>
+                    <text x="100" y="679" fill="#d7dfe8" font-size="13" font-weight="700">Taxiway B (Extended Apron Exit)</text>
+
+                    <!-- Tooltip -->
+                    <g id="tooltip" opacity="0">
+                        <rect x="0" y="0" width="220" height="66" rx="6" fill="#101a2c" stroke="#f2be64" stroke-width="1.3"/>
+                        <text id="tooltipFlight" x="10" y="20" fill="#f2be64" font-size="12" font-weight="700">Flight: -</text>
+                        <text id="tooltipPlan" x="10" y="39" fill="#dae7f5" font-size="11">STA-STD: -</text>
+                        <text id="tooltipRemain" x="10" y="56" fill="#9fb1c6" font-size="10">Remaining: -</text>
+                    </g>
+                </svg>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="card-header">Assignment Controls</div>
+            <div class="card-body controls">
+                <div class="row">
+                    <label for="standSelect">Stand</label>
+                    <select id="standSelect">
+                        <option value="">Select stand...</option>
+                        <optgroup label="Apron 1">
+                            <option value="02">02 (Code E)</option>
+                            <option value="03">03 (Code C)</option>
+                            <option value="04">04 (Code E)</option>
+                            <option value="05">05 (Split)</option>
+                            <option value="06">06 (Split)</option>
+                            <option value="07">07 (Split)</option>
+                            <option value="08">08 (Code C)</option>
+                            <option value="09">09 (Code E)</option>
+                            <option value="10">10 (Code B)</option>
+                        </optgroup>
+                        <optgroup label="Extended Apron">
+                            <option value="20">20 (Code C)</option>
+                            <option value="21">21 (Code C)</option>
+                            <option value="22">22 (Code C)</option>
+                            <option value="23">23 (Code C)</option>
+                            <option value="24">24 (Code C)</option>
+                            <option value="25">25 (Code C)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <label for="flightNumber">Flight Number</label>
+                    <input id="flightNumber" type="text" placeholder="e.g., ETH338" maxlength="24">
+                </div>
+
+                <div class="row">
+                    <label for="aircraftCode">Assigned Aircraft Code</label>
+                    <select id="aircraftCode">
+                        <option value="">Select code...</option>
+                        <option value="B">Code B</option>
+                        <option value="C">Code C</option>
+                        <option value="E">Code E</option>
+                        <option value="F">Code F</option>
+                    </select>
+                </div>
+
+                <div class="row">
+                    <label for="splitSide">Split side (for 05/06/07 when Code C)</label>
+                    <select id="splitSide" disabled>
+                        <option value="">N/A</option>
+                        <option value="L">Left half</option>
+                        <option value="R">Right half</option>
+                    </select>
+                    <div class="muted" id="splitHint">Choose a split stand and Code C to enable side selection.</div>
+                </div>
+
+                <div class="row">
+                    <label for="staTime">STA</label>
+                    <input id="staTime" type="time">
+                </div>
+
+                <div class="row">
+                    <label for="stdTime">STD</label>
+                    <input id="stdTime" type="time">
+                </div>
+
+                <div class="button-grid">
+                    <button class="btn btn-on" type="button" onclick="setOnChocks()">Set On Chocks</button>
+                    <button class="btn btn-off" type="button" onclick="setOffChocks()">Set Off Chocks</button>
+                    <button class="btn btn-clear" type="button" onclick="clearSelection()">Clear Inputs</button>
+                </div>
+
+                <div class="legend">
+                    <h3>Legend</h3>
+                    <div class="legend-item"><span class="swatch" style="background:#2b8fd8"></span>Code E stand</div>
+                    <div class="legend-item"><span class="swatch" style="background:#d84d4d"></span>Code F stand</div>
+                    <div class="legend-item"><span class="swatch" style="background:#22a48d"></span>Code C stand</div>
+                    <div class="legend-item"><span class="swatch" style="background:#8d63c7"></span>Code B stand</div>
+                    <div class="legend-item"><span class="swatch" style="background:#1f9f5b"></span>On-chock occupied fill</div>
+                    <div class="legend-item"><span class="swatch" style="background:#ffd166"></span>Functional TPBB (05/06)</div>
+                    <div class="legend-item"><span class="swatch" style="background:#8d9bad"></span>Installed, not active TPBB</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <section class="card table-card">
+        <div class="card-header">Current Assignments and Countdown</div>
+        <div class="card-body" id="assignmentTable"></div>
+    </section>
+</div>
+
+<script>
+    const stands = {
+        "02": { code: "E", apron: "Apron 1", split: false, x: 120, y: 230, w: 72, h: 64 },
+        "03": { code: "C", apron: "Apron 1", split: false, x: 212, y: 230, w: 72, h: 64 },
+        "04": { code: "E", apron: "Apron 1", split: false, x: 304, y: 230, w: 72, h: 64 },
+        "05": { code: "E", apron: "Apron 1", split: true, x: 396, y: 230, w: 72, h: 64 },
+        "06": { code: "E", apron: "Apron 1", split: true, x: 488, y: 230, w: 72, h: 64 },
+        "07": { code: "F", apron: "Apron 1", split: true, x: 620, y: 230, w: 72, h: 64 },
+        "08": { code: "C", apron: "Apron 1", split: false, x: 712, y: 230, w: 72, h: 64 },
+        "09": { code: "E", apron: "Apron 1", split: false, x: 804, y: 230, w: 72, h: 64 },
+        "10": { code: "B", apron: "Apron 1", split: false, x: 896, y: 230, w: 72, h: 64 },
+        "20": { code: "C", apron: "Extended Apron", split: false, x: 170, y: 545, w: 72, h: 64 },
+        "21": { code: "C", apron: "Extended Apron", split: false, x: 262, y: 545, w: 72, h: 64 },
+        "22": { code: "C", apron: "Extended Apron", split: false, x: 354, y: 545, w: 72, h: 64 },
+        "23": { code: "C", apron: "Extended Apron", split: false, x: 446, y: 545, w: 72, h: 64 },
+        "24": { code: "C", apron: "Extended Apron", split: false, x: 538, y: 545, w: 72, h: 64 },
+        "25": { code: "C", apron: "Extended Apron", split: false, x: 630, y: 545, w: 72, h: 64 }
+    };
+
+    const assignments = {};
+
+    const standSelect = document.getElementById("standSelect");
+    const flightInput = document.getElementById("flightNumber");
+    const aircraftCodeSelect = document.getElementById("aircraftCode");
+    const splitSideSelect = document.getElementById("splitSide");
+    const splitHint = document.getElementById("splitHint");
+    const staInput = document.getElementById("staTime");
+    const stdInput = document.getElementById("stdTime");
+
+    standSelect.addEventListener("change", updateSplitControlsState);
+    aircraftCodeSelect.addEventListener("change", updateSplitControlsState);
+
+    document.querySelectorAll(".stand").forEach((el) => {
+        el.addEventListener("click", () => {
+            const match = el.className.baseVal.match(/stand-(\d+)/);
+            if (!match) {
+                return;
+            }
+            const standId = match[1];
+            standSelect.value = standId;
+            if (assignments[standId]) {
+                const data = assignments[standId];
+                flightInput.value = data.flight;
+                staInput.value = data.sta;
+                stdInput.value = data.std;
+                aircraftCodeSelect.value = data.aircraftCode;
+                splitSideSelect.value = data.side || "";
+                showTooltip(standId);
+            }
+            updateSplitControlsState();
+        });
+    });
+
+    function updateSplitControlsState() {
+        const standId = standSelect.value;
+        const stand = stands[standId];
+        const isSplitStand = stand && stand.split;
+        const isCodeC = aircraftCodeSelect.value === "C";
+        const shouldEnable = Boolean(isSplitStand && isCodeC);
+
+        splitSideSelect.disabled = !shouldEnable;
+        if (!shouldEnable) {
+            splitSideSelect.value = "";
+        }
+
+        if (shouldEnable) {
+            splitHint.textContent = "Code C on split stand: choose Left or Right half fill.";
+        } else if (isSplitStand) {
+            splitHint.textContent = "Code E/F on split stand fills full rectangle.";
+        } else {
+            splitHint.textContent = "Choose a split stand and Code C to enable side selection.";
+        }
+    }
+
+    function setOnChocks() {
+        const standId = standSelect.value;
+        const flight = flightInput.value.trim();
+        const sta = staInput.value;
+        const std = stdInput.value;
+        const aircraftCode = aircraftCodeSelect.value;
+
+        if (!standId) {
+            alert("Select a stand first.");
+            return;
+        }
+        if (!flight) {
+            alert("Enter flight number.");
+            return;
+        }
+        if (!sta || !std) {
+            alert("Enter both STA and STD.");
+            return;
+        }
+        if (!aircraftCode) {
+            alert("Select aircraft code.");
+            return;
+        }
+
+        const stand = stands[standId];
+        const side = splitSideSelect.value;
+
+        if (stand.split && aircraftCode === "C" && !side) {
+            alert("For Code C on split stand, choose Left or Right side.");
+            return;
+        }
+
+        assignments[standId] = {
+            flight,
+            sta,
+            std,
+            aircraftCode,
+            side: stand.split && aircraftCode === "C" ? side : "",
+            onChocks: true,
+            assignedAt: new Date().toISOString()
+        };
+
+        paintStand(standId);
+        showTooltip(standId);
+        renderAssignmentTable();
+    }
+
+    function setOffChocks() {
+        const standId = standSelect.value;
+        if (!standId) {
+            alert("Select a stand first.");
+            return;
+        }
+        delete assignments[standId];
+        clearStandPaint(standId);
+        hideTooltip();
+        renderAssignmentTable();
+    }
+
+    function clearSelection() {
+        standSelect.value = "";
+        flightInput.value = "";
+        staInput.value = "";
+        stdInput.value = "";
+        aircraftCodeSelect.value = "";
+        splitSideSelect.value = "";
+        updateSplitControlsState();
+        hideTooltip();
+    }
+
+    function paintStand(standId) {
+        clearStandPaint(standId);
+        const stand = stands[standId];
+        const assignment = assignments[standId];
+        if (!stand || !assignment || !assignment.onChocks) {
+            return;
+        }
+
+        const map = document.getElementById("apronMap");
+        const overlay = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        overlay.setAttribute("id", `overlay-${standId}`);
+        overlay.setAttribute("rx", "4");
+        overlay.setAttribute("fill", "#1f9f5b");
+        overlay.setAttribute("opacity", "0.85");
+        overlay.setAttribute("pointer-events", "none");
+
+        if (stand.split && assignment.aircraftCode === "C") {
+            const halfW = stand.w / 2;
+            const drawX = assignment.side === "R" ? stand.x + halfW : stand.x;
+            overlay.setAttribute("x", String(drawX));
+            overlay.setAttribute("y", String(stand.y));
+            overlay.setAttribute("width", String(halfW));
+            overlay.setAttribute("height", String(stand.h));
+        } else {
+            overlay.setAttribute("x", String(stand.x));
+            overlay.setAttribute("y", String(stand.y));
+            overlay.setAttribute("width", String(stand.w));
+            overlay.setAttribute("height", String(stand.h));
+        }
+
+        map.appendChild(overlay);
+    }
+
+    function clearStandPaint(standId) {
+        const existing = document.getElementById(`overlay-${standId}`);
+        if (existing) {
+            existing.remove();
+        }
+    }
+
+    function showTooltip(standId) {
+        const tooltip = document.getElementById("tooltip");
+        const a = assignments[standId];
+        const stand = stands[standId];
+        if (!a || !stand) {
+            return;
+        }
+
+        const blockTime = formatDurationFromStaStd(a.sta, a.std);
+        const remain = formatCountdown(a.std);
+
+        document.getElementById("tooltipFlight").textContent = `Flight: ${a.flight} (Stand ${standId})`;
+        document.getElementById("tooltipPlan").textContent = `STA-STD: ${a.sta} - ${a.std}  Block: ${blockTime}`;
+        document.getElementById("tooltipRemain").textContent = `Remaining: ${remain}`;
+
+        const tx = stand.x + stand.w + 12;
+        const ty = stand.y - 8;
+        tooltip.setAttribute("transform", `translate(${tx}, ${ty})`);
+        tooltip.setAttribute("opacity", "1");
+    }
+
+    function hideTooltip() {
+        document.getElementById("tooltip").setAttribute("opacity", "0");
+    }
+
+    function formatDurationFromStaStd(sta, std) {
+        const staDate = timeToDate(sta);
+        const stdDate = timeToDate(std);
+        let diffMs = stdDate - staDate;
+        if (diffMs < 0) {
+            diffMs += 24 * 60 * 60 * 1000;
+        }
+        return msToHm(diffMs);
+    }
+
+    function formatCountdown(std) {
+        const now = new Date();
+        let target = timeToDate(std);
+        if (target < now) {
+            target = new Date(target.getTime() + 24 * 60 * 60 * 1000);
+        }
+        const diffMs = target - now;
+        return msToHm(diffMs);
+    }
+
+    function msToHm(ms) {
+        const totalMin = Math.max(0, Math.floor(ms / 60000));
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        return `${h}h ${m}m`;
+    }
+
+    function timeToDate(hhmm) {
+        const [h, m] = hhmm.split(":").map(Number);
+        const d = new Date();
+        d.setHours(h, m, 0, 0);
+        return d;
+    }
+
+    function renderAssignmentTable() {
+        const container = document.getElementById("assignmentTable");
+        const ids = Object.keys(assignments).sort((a, b) => Number(a) - Number(b));
+
+        if (ids.length === 0) {
+            container.innerHTML = "<div class='muted'>No active assignments. Use Set On Chocks to occupy a stand.</div>";
+            return;
+        }
+
+        let html = "";
+        html += "<table>";
+        html += "<thead><tr><th>Stand</th><th>Apron</th><th>Code</th><th>Flight</th><th>STA</th><th>STD</th><th>Split</th><th>Time Remaining</th><th>Status</th></tr></thead>";
+        html += "<tbody>";
+
+        ids.forEach((id) => {
+            const stand = stands[id];
+            const a = assignments[id];
+            const remaining = countdownToStd(a.std);
+            const timerClass = remaining.ms < 30 * 60000 ? "timer critical" : "timer";
+            const splitLabel = a.side ? a.side : "Full";
+
+            html += "<tr>";
+            html += `<td><strong>${id}</strong></td>`;
+            html += `<td>${stand.apron}</td>`;
+            html += `<td><span class='code-pill code-${a.aircraftCode.toLowerCase()}'>${a.aircraftCode}</span></td>`;
+            html += `<td><strong>${a.flight}</strong></td>`;
+            html += `<td>${a.sta}</td>`;
+            html += `<td>${a.std}</td>`;
+            html += `<td>${splitLabel}</td>`;
+            html += `<td><span class='${timerClass}'>${remaining.label}</span></td>`;
+            html += "<td>On Chocks</td>";
+            html += "</tr>";
+        });
+
+        html += "</tbody></table>";
+        container.innerHTML = html;
+    }
+
+    function countdownToStd(std) {
+        const now = new Date();
+        let target = timeToDate(std);
+        if (target < now) {
+            target = new Date(target.getTime() + 24 * 60 * 60 * 1000);
+        }
+        const ms = target - now;
+        return { ms, label: msToHm(ms) };
+    }
+
+    function redrawAllPaint() {
+        Object.keys(stands).forEach((id) => clearStandPaint(id));
+        Object.keys(assignments).forEach((id) => paintStand(id));
+    }
+
+    setInterval(() => {
+        renderAssignmentTable();
+        if (standSelect.value && assignments[standSelect.value]) {
+            showTooltip(standSelect.value);
+        }
+    }, 5000);
+
+    updateSplitControlsState();
+    redrawAllPaint();
+    renderAssignmentTable();
+</script>
+</body>
+</html>
