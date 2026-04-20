@@ -163,8 +163,9 @@ class AodbSyncService:
         if arr_or_dep:
             q = q.filter(FlightMovement.arr_or_dep == arr_or_dep.upper())
 
-        # Global list behavior: only show flights from current time minus 2h onward.
-        if apply_recent_window:
+        # For today's view, show flights from current time minus 2h onward.
+        # For past/future dates, keep full-day history.
+        if apply_recent_window and for_date == date.today():
             q = q.filter(cls._effective_time_expr() >= cls._window_start(recent_window_hours))
 
         return q.order_by(nullslast(asc(cls._effective_time_expr()))).all()
@@ -187,7 +188,8 @@ class AodbSyncService:
             .filter(FlightMovement.flight_number.isnot(None))
             .order_by(effective_time)
         )
-        rows = rows.filter(effective_time >= cls._window_start(2))
+        if for_date == date.today():
+            rows = rows.filter(effective_time >= cls._window_start(2))
         rows = rows.all()
         seen = set()
         result = []
