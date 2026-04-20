@@ -1,0 +1,390 @@
+{% extends 'base.html' %}
+
+{% block title %}Procurement Workflow - {{ procurement.po_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('budget.procurements') }}">Procurements</a></li>
+            <li class="breadcrumb-item active">{{ procurement.po_number }}</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{{ procurement.po_number }}</h1>
+            <h5 class="text-muted">{{ procurement.item_description }}</h5>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <span class="badge" style="font-size: 14px;">
+                {% if procurement.status == 'rfq_pending' %}
+                    <span class="bg-secondary">RFQ Pending</span>
+                {% elif procurement.status == 'rfq_issued' %}
+                    <span class="bg-info">RFQ Issued</span>
+                {% elif procurement.status == 'vendor_selection' %}
+                    <span class="bg-info">Vendor Selection</span>
+                {% elif procurement.status == 'finance_approval' %}
+                    <span class="bg-warning text-dark">Finance Approval</span>
+                {% elif procurement.status == 'po_issued' %}
+                    <span class="bg-primary">PO Issued</span>
+                {% elif procurement.status == 'in_delivery' %}
+                    <span class="bg-secondary">In Delivery</span>
+                {% elif procurement.status == 'delivered' %}
+                    <span class="bg-info">Delivered</span>
+                {% elif procurement.status == 'invoiced' %}
+                    <span class="bg-primary">Invoiced</span>
+                {% elif procurement.status == 'paid' %}
+                    <span class="bg-success">Paid</span>
+                {% elif procurement.status == 'cancelled' %}
+                    <span class="bg-danger">Cancelled</span>
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- Summary Info -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Vendor</h6>
+                    <h5 class="mb-0">{{ procurement.vendor.vendor_name if procurement.vendor else 'N/A' }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Quantity</h6>
+                    <h5 class="mb-0">{{ procurement.quantity }} units</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Unit Price</h6>
+                    <h5 class="mb-0">UGX {{ "%.0f"|format(procurement.unit_price) }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Total Cost</h6>
+                    <h5 class="mb-0 text-primary">UGX {{ "%.0f"|format(procurement.total_cost) }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Workflow Timeline -->
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Procurement Workflow Timeline</h5>
+                </div>
+                <div class="card-body">
+                    <div class="timeline">
+                        <!-- RFQ Stage -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['rfq_issued', 'vendor_selection', 'finance_approval', 'po_issued', 'in_delivery', 'delivered', 'invoiced', 'paid'] %}completed{% elif procurement.status == 'rfq_pending' %}pending{% endif %}">
+                                <i class="bi bi-clipboard-check"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>RFQ / Quotation Request</h6>
+                                {% if procurement.rfq_date %}
+                                    <small class="text-success">✓ Issued on {{ procurement.rfq_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Vendor Selection -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['vendor_selection', 'finance_approval', 'po_issued', 'in_delivery', 'delivered', 'invoiced', 'paid'] %}completed{% elif procurement.status in ['rfq_issued'] %}pending{% endif %}">
+                                <i class="bi bi-briefcase"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>Vendor Selection & Negotiation</h6>
+                                {% if procurement.vendor_selected_date %}
+                                    <small class="text-success">✓ Completed on {{ procurement.vendor_selected_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Finance Approval -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['finance_approval', 'po_issued', 'in_delivery', 'delivered', 'invoiced', 'paid'] %}completed{% elif procurement.status in ['rfq_issued', 'vendor_selection'] %}pending{% endif %}">
+                                <i class="bi bi-bank"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>Finance Approval</h6>
+                                {% if procurement.finance_approval_date %}
+                                    <small class="text-success">✓ Approved on {{ procurement.finance_approval_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    {% if procurement.finance_approval_notes %}
+                                        <br><small class="text-muted">Notes: {{ procurement.finance_approval_notes }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- PO Issued -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['po_issued', 'in_delivery', 'delivered', 'invoiced', 'paid'] %}completed{% elif procurement.status in ['rfq_issued', 'vendor_selection', 'finance_approval'] %}pending{% endif %}">
+                                <i class="bi bi-file-earmark-text"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>Purchase Order Issued</h6>
+                                {% if procurement.po_date %}
+                                    <small class="text-success">✓ Issued on {{ procurement.po_date.strftime('%Y-%m-%d') }}</small>
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- In Delivery -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['in_delivery', 'delivered', 'invoiced', 'paid'] %}completed{% elif procurement.status in ['po_issued'] %}pending{% endif %}">
+                                <i class="bi bi-truck"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>In Delivery / Transit</h6>
+                                {% if procurement.status in ['in_delivery', 'delivered', 'invoiced', 'paid'] %}
+                                    <small class="text-success">✓ In transit</small>
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Delivered -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['delivered', 'invoiced', 'paid'] %}completed{% elif procurement.status in ['in_delivery'] %}pending{% endif %}">
+                                <i class="bi bi-box-seam"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>Goods Received / Delivered</h6>
+                                {% if procurement.actual_delivery_date %}
+                                    <small class="text-success">✓ Received on {{ procurement.actual_delivery_date.strftime('%Y-%m-%d') }}</small>
+                                    {% if procurement.delivery_note_number %}
+                                        <br><small class="text-muted">Delivery Note: {{ procurement.delivery_note_number }}</small>
+                                    {% endif %}
+                                    {% if procurement.received_by %}
+                                        <br><small class="text-muted">Received by: {{ procurement.received_by.username }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Invoiced -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status in ['invoiced', 'paid'] %}completed{% elif procurement.status in ['delivered'] %}pending{% endif %}">
+                                <i class="bi bi-receipt"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>Invoice Received</h6>
+                                {% if procurement.invoice_number %}
+                                    <small class="text-success">✓ Invoice {{ procurement.invoice_number }}</small>
+                                    {% if procurement.invoice_date %}
+                                        <br><small class="text-muted">Date: {{ procurement.invoice_date.strftime('%Y-%m-%d') }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Paid -->
+                        <div class="timeline-item">
+                            <div class="timeline-marker {% if procurement.status == 'paid' %}completed{% elif procurement.status in ['invoiced'] %}pending{% endif %}">
+                                <i class="bi bi-credit-card"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h6>Payment Made</h6>
+                                {% if procurement.payment_date %}
+                                    <small class="text-success">✓ Paid on {{ procurement.payment_date.strftime('%Y-%m-%d') }}</small>
+                                {% else %}
+                                    <small class="text-muted">Pending</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Update Panel -->
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Update Procurement Status</h5>
+                </div>
+                <div class="card-body">
+                    {% if procurement.status != 'cancelled' and procurement.status != 'paid' %}
+                    <form method="POST">
+                        <input type="hidden" name="action" value="update_stage">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Next Stage</label>
+                            <select class="form-control" name="new_status" required>
+                                <option value="">-- Select Status --</option>
+                                {% if procurement.status == 'rfq_pending' %}
+                                    <option value="rfq_issued">RFQ Issued</option>
+                                {% elif procurement.status == 'rfq_issued' %}
+                                    <option value="vendor_selection">Vendor Selection</option>
+                                {% elif procurement.status == 'vendor_selection' %}
+                                    <option value="finance_approval">Finance Approval</option>
+                                {% elif procurement.status == 'finance_approval' %}
+                                    <option value="po_issued">PO Issued</option>
+                                {% elif procurement.status == 'po_issued' %}
+                                    <option value="in_delivery">In Delivery</option>
+                                {% elif procurement.status == 'in_delivery' %}
+                                    <option value="delivered">Delivered</option>
+                                {% elif procurement.status == 'delivered' %}
+                                    <option value="invoiced">Invoiced</option>
+                                {% elif procurement.status == 'invoiced' %}
+                                    <option value="paid">Paid</option>
+                                {% endif %}
+                                <option value="cancelled">Cancel PO</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Event Notes / Comments</label>
+                            <textarea class="form-control" name="event_notes" rows="3" 
+                                      placeholder="e.g., RFQ sent to 3 vendors, Finance approved, Delivery confirmed"></textarea>
+                            <small class="text-muted">Optional: Add details about this status change</small>
+                        </div>
+
+                        {% if procurement.status == 'in_delivery' %}
+                        <div class="mb-3">
+                            <label class="form-label">Delivery Note Number</label>
+                            <input type="text" class="form-control" name="delivery_note_number" 
+                                   placeholder="e.g., DN-2024-001">
+                            <small class="text-muted">Reference number from the delivery note</small>
+                        </div>
+                        {% endif %}
+
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-arrow-right-circle"></i> Update Status
+                        </button>
+                    </form>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            This procurement is {{ procurement.status }}.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Workflow History -->
+            <div class="card mt-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Status History</h5>
+                </div>
+                <div class="card-body">
+                    {% if workflow_history %}
+                        <div class="list-group list-group-flush">
+                            {% for event in workflow_history|reverse %}
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">{{ event.old_status|default('Start') }} → <strong>{{ event.new_status }}</strong></h6>
+                                    <small class="text-muted">{{ event.event_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                                <small class="text-muted">By: {{ event.changed_by.username if event.changed_by else 'N/A' }}</small>
+                                {% if event.event_notes %}
+                                    <p class="mb-0 mt-1"><small>{{ event.event_notes }}</small></p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No status updates yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.timeline {
+    position: relative;
+    padding: 20px 0;
+}
+
+.timeline-item {
+    display: flex;
+    margin-bottom: 30px;
+    position: relative;
+}
+
+.timeline-marker {
+    width: 50px;
+    height: 50px;
+    background-color: #f0f0f0;
+    border: 3px solid #dee2e6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+    color: #666;
+    position: relative;
+    z-index: 1;
+}
+
+.timeline-marker.completed {
+    background-color: #d4edda;
+    border-color: #28a745;
+    color: #28a745;
+}
+
+.timeline-marker.pending {
+    background-color: #fff3cd;
+    border-color: #ffc107;
+    color: #ff9800;
+}
+
+.timeline-marker::after {
+    content: '';
+    position: absolute;
+    width: 3px;
+    height: 60px;
+    background-color: #dee2e6;
+    left: 50%;
+    top: 100%;
+    transform: translateX(-50%);
+    z-index: 0;
+}
+
+.timeline-item:last-child .timeline-marker::after {
+    display: none;
+}
+
+.timeline-content {
+    margin-left: 30px;
+    padding-top: 5px;
+}
+
+.timeline-content h6 {
+    margin: 0;
+    font-weight: 600;
+    color: #333;
+}
+</style>
+{% endblock %}

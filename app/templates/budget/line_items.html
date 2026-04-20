@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+
+{% block title %}Budget Line Items - {{ allocation.category }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('budget.budget_allocations') }}">Budget Allocations</a></li>
+            <li class="breadcrumb-item active">{{ allocation.category }} (FY{{ allocation.fiscal_year }})</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{{ allocation.category }} - Budget Line Items</h1>
+            <p class="text-muted">Manage approved items for this budget allocation</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addLineItemModal">
+                <i class="bi bi-plus-circle"></i> Add Line Item
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Total Allocated</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(allocation.allocated_amount) }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Approved Line Items</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(total_line_items_approved) }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Remaining</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(allocation.allocated_amount - total_line_items_approved) }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Approval %</h6>
+                    <h4 class="mb-0">{{ "%.0f"|format((total_line_items_approved / allocation.allocated_amount * 100) if allocation.allocated_amount > 0 else 0) }}%</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Line Items Table -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Line Items</h5>
+        </div>
+        <div class="card-body">
+            {% if line_items %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Unit Cost</th>
+                                <th class="text-end">Approved Amount</th>
+                                <th>Status</th>
+                                <th>Requested By</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in line_items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.description }}</strong>
+                                    {% if item.justification %}
+                                    <br><small class="text-muted">{{ item.justification[:60] }}...</small>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">{{ item.quantity }}</td>
+                                <td class="text-end">UGX {{ "%.0f"|format(item.unit_cost) }}</td>
+                                <td class="text-end">
+                                    <strong>UGX {{ "%.0f"|format(item.approved_amount) }}</strong>
+                                </td>
+                                <td>
+                                    {% if item.status == 'pending_approval' %}
+                                        <span class="badge bg-warning text-dark">Pending Approval</span>
+                                    {% elif item.status == 'approved' %}
+                                        <span class="badge bg-success">Approved</span>
+                                    {% elif item.status == 'rfq_issued' %}
+                                        <span class="badge bg-info">RFQ Issued</span>
+                                    {% elif item.status == 'po_issued' %}
+                                        <span class="badge bg-primary">PO Issued</span>
+                                    {% elif item.status == 'in_delivery' %}
+                                        <span class="badge bg-secondary">In Delivery</span>
+                                    {% elif item.status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% elif item.status == 'cancelled' %}
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ item.requested_by.username if item.requested_by else 'N/A' }}</small></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('budget.procurements_by_line_item', line_item_id=item.id) }}" class="btn btn-outline-primary" title="View Procurements">
+                                            <i class="bi bi-list"></i> Procurements
+                                        </a>
+                                        {% if item.status == 'pending_approval' %}
+                                        <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approveModal{{ item.id }}" title="Approve">
+                                            <i class="bi bi-check-circle"></i>
+                                        </button>
+                                        <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="action" value="delete_line_item">
+                                            <input type="hidden" name="line_item_id" value="{{ item.id }}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Cancel" onclick="return confirm('Cancel this line item?');">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Approval Modal for each item -->
+                            {% if item.status == 'pending_approval' %}
+                            <div class="modal fade" id="approveModal{{ item.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Approve Line Item</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST">
+                                            <div class="modal-body">
+                                                <p><strong>{{ item.description }}</strong></p>
+                                                <p>Approved Amount: <strong>UGX {{ "%.0f"|format(item.approved_amount) }}</strong></p>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Approval Notes (Optional)</label>
+                                                    <textarea class="form-control" name="approval_notes" rows="3"></textarea>
+                                                </div>
+                                                <input type="hidden" name="action" value="approve_line_item">
+                                                <input type="hidden" name="line_item_id" value="{{ item.id }}">
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                <button type="submit" class="btn btn-success">
+                                                    <i class="bi bi-check-circle"></i> Approve
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted">No line items defined for this allocation yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Line Item Modal -->
+<div class="modal fade" id="addLineItemModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Budget Line Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="add_line_item">
+                    
+                    <div class="mb-3">
+                        <label class="form-label" for="description">Item Description *</label>
+                        <input type="text" class="form-control" id="description" name="description" 
+                               placeholder="e.g., Smart watches for field staff" required>
+                        <small class="text-muted">What item or service is being requested?</small>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="quantity">Quantity *</label>
+                                <input type="number" class="form-control" id="quantity" name="quantity" 
+                                       value="1" min="1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label" for="unit_cost">Unit Cost (UGX) *</label>
+                                <input type="number" class="form-control" id="unit_cost" name="unit_cost" 
+                                       placeholder="0" step="0.01" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Total Approved Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">UGX</span>
+                            <input type="text" class="form-control" id="totalApprovedAmount" disabled>
+                        </div>
+                        <small class="text-muted">Quantity × Unit Cost</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="justification">Justification / Notes</label>
+                        <textarea class="form-control" id="justification" name="justification" rows="3" 
+                                  placeholder="Why is this item needed?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Line Item
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const quantityInput = document.getElementById('quantity');
+    const unitCostInput = document.getElementById('unit_cost');
+    const totalField = document.getElementById('totalApprovedAmount');
+
+    function updateTotal() {
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const unitCost = parseFloat(unitCostInput.value) || 0;
+        const total = quantity * unitCost;
+        
+        totalField.value = new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(total || 0);
+    }
+
+    quantityInput.addEventListener('change', updateTotal);
+    quantityInput.addEventListener('keyup', updateTotal);
+    unitCostInput.addEventListener('change', updateTotal);
+    unitCostInput.addEventListener('keyup', updateTotal);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+
+{% block title %}Procurement Tracking - {{ line_item.description }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('budget.budget_allocations') }}">Budget Allocations</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('budget.allocation_line_items', allocation_id=line_item.allocation_id) }}">{{ line_item.allocation.category }} Line Items</a></li>
+            <li class="breadcrumb-item active">{{ line_item.description }}</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>{{ line_item.description }}</h1>
+            <p class="text-muted">{{ line_item.allocation.category }} - FY{{ line_item.allocation.fiscal_year }}</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            <a href="{{ url_for('budget.create_procurement_for_line_item', line_item_id=line_item.id) }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Purchase Order
+            </a>
+        </div>
+    </div>
+
+    <!-- Budget Tracking Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Approved Amount</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(line_item.approved_amount) }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Committed (POs)</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(total_committed) }}</h4>
+                    <small class="text-muted">{{ progress['pending'] }} pending, {{ progress['ordered'] }} ordered</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Received/Delivered</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(total_received) }}</h4>
+                    <small class="text-muted">{{ progress['delivered'] }} delivered</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Remaining Budget</h6>
+                    <h4 class="mb-0">UGX {{ "%.0f"|format(remaining) }}</h4>
+                    <small class="text-muted">{% if remaining > 0 %}Available{% else %}Exceeded!{% endif %}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bars -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Budget Utilization Progress</h5>
+        </div>
+        <div class="card-body">
+            <!-- Committed vs Approved -->
+            <div class="mb-4">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Committed (POs Issued)</span>
+                    <span>{{ "%.1f"|format((total_committed / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0) }}%</span>
+                </div>
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar bg-warning" role="progressbar" 
+                         style="width: {{ (total_committed / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 }}%;">
+                        UGX {{ "%.0f"|format(total_committed) }}
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-1">Out of UGX {{ "%.0f"|format(line_item.approved_amount) }} approved</small>
+            </div>
+
+            <!-- Received vs Approved -->
+            <div class="mb-4">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Received / Delivered</span>
+                    <span>{{ "%.1f"|format((total_received / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0) }}%</span>
+                </div>
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: {{ (total_received / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 }}%;">
+                        UGX {{ "%.0f"|format(total_received) }}
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-1">Out of UGX {{ "%.0f"|format(line_item.approved_amount) }} approved</small>
+            </div>
+
+            <!-- Combined -->
+            <div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Total Usage (Committed + Received)</span>
+                    <span>{{ "%.1f"|format(((total_committed + total_received) / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0) }}%</span>
+                </div>
+                <div class="progress" style="height: 25px;">
+                    {% set total_used = total_committed + total_received %}
+                    {% set usage_pct = (total_used / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 %}
+                    <div class="progress-bar {% if usage_pct <= 80 %}bg-success{% elif usage_pct <= 100 %}bg-warning{% else %}bg-danger{% endif %}" role="progressbar" 
+                         style="width: {{ min(usage_pct, 100) }}%;">
+                        UGX {{ "%.0f"|format(total_used) }}
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-1">
+                    {% if remaining > 0 %}
+                        <i class="bi bi-check-circle text-success"></i> UGX {{ "%.0f"|format(remaining) }} still available
+                    {% else %}
+                        <i class="bi bi-exclamation-circle text-danger"></i> Budget exceeded by UGX {{ "%.0f"|format(-remaining) }}!
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Procurement Orders Table -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Purchase Orders for This Line Item ({{ procurements|length }} total)</h5>
+        </div>
+        <div class="card-body">
+            {% if procurements %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>PO Number</th>
+                                <th>Vendor</th>
+                                <th class="text-end">Qty</th>
+                                <th class="text-end">Unit Price</th>
+                                <th class="text-end">Total Cost</th>
+                                <th>Current Status</th>
+                                <th>Delivery Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for po in procurements %}
+                            <tr>
+                                <td>
+                                    <strong>{{ po.po_number }}</strong>
+                                </td>
+                                <td>{{ po.vendor.vendor_name if po.vendor else 'N/A' }}</td>
+                                <td class="text-end">{{ po.quantity }}</td>
+                                <td class="text-end">UGX {{ "%.0f"|format(po.unit_price) }}</td>
+                                <td class="text-end">
+                                    <strong>UGX {{ "%.0f"|format(po.total_cost) }}</strong>
+                                </td>
+                                <td>
+                                    {% if po.status == 'rfq_pending' %}
+                                        <span class="badge bg-secondary">RFQ Pending</span>
+                                    {% elif po.status == 'rfq_issued' %}
+                                        <span class="badge bg-info">RFQ Issued</span>
+                                    {% elif po.status == 'vendor_selection' %}
+                                        <span class="badge bg-info">Vendor Selection</span>
+                                    {% elif po.status == 'finance_approval' %}
+                                        <span class="badge bg-warning text-dark">Finance Approval</span>
+                                    {% elif po.status == 'po_issued' %}
+                                        <span class="badge bg-primary">PO Issued</span>
+                                    {% elif po.status == 'in_delivery' %}
+                                        <span class="badge bg-secondary">In Delivery</span>
+                                    {% elif po.status == 'delivered' %}
+                                        <span class="badge bg-success">Delivered</span>
+                                    {% elif po.status == 'invoiced' %}
+                                        <span class="badge bg-primary">Invoiced</span>
+                                    {% elif po.status == 'paid' %}
+                                        <span class="badge bg-success">Paid</span>
+                                    {% elif po.status == 'cancelled' %}
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if po.actual_delivery_date %}
+                                        {{ po.actual_delivery_date.strftime('%Y-%m-%d') }}
+                                    {% elif po.expected_delivery_date %}
+                                        <small class="text-muted">Expected: {{ po.expected_delivery_date.strftime('%Y-%m-%d') }}</small>
+                                    {% else %}
+                                        <small class="text-muted">Not set</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('budget.procurement_workflow', procurement_id=po.id) }}" class="btn btn-outline-primary" title="View Workflow">
+                                            <i class="bi bi-diagram-3"></i> Workflow
+                                        </a>
+                                        <a href="{{ url_for('budget.edit_procurement', procurement_id=po.id) }}" class="btn btn-outline-secondary" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="4" class="text-end"><strong>Total:</strong></td>
+                                <td class="text-end"><strong>UGX {{ "%.0f"|format(procurements|sum(attribute='total_cost')) }}</strong></td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    No purchase orders created yet for this line item. 
+                    <a href="{{ url_for('budget.create_procurement_for_line_item', line_item_id=line_item.id) }}">Create the first PO</a>.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Line Item Details -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Line Item Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Description:</strong></div>
+                        <div class="col-sm-8">{{ line_item.description }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Quantity:</strong></div>
+                        <div class="col-sm-8">{{ line_item.quantity }} units</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Unit Cost:</strong></div>
+                        <div class="col-sm-8">UGX {{ "%.0f"|format(line_item.unit_cost) }}</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Approved Amount:</strong></div>
+                        <div class="col-sm-8"><strong>UGX {{ "%.0f"|format(line_item.approved_amount) }}</strong></div>
+                    </div>
+                    {% if line_item.justification %}
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Justification:</strong></div>
+                        <div class="col-sm-8">{{ line_item.justification }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Approval Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">
+                            {% if line_item.status == 'pending_approval' %}
+                                <span class="badge bg-warning text-dark">Pending Approval</span>
+                            {% elif line_item.status == 'approved' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif line_item.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                            {% elif line_item.status == 'cancelled' %}
+                                <span class="badge bg-danger">Cancelled</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Requested By:</strong></div>
+                        <div class="col-sm-8">{{ line_item.requested_by.username if line_item.requested_by else 'N/A' }}</div>
+                    </div>
+                    {% if line_item.approved_by %}
+                    <div class="row mb-3">
+                        <div class="col-sm-4"><strong>Approved By:</strong></div>
+                        <div class="col-sm-8">{{ line_item.approved_by.username }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-4"><strong>Approval Date:</strong></div>
+                        <div class="col-sm-8">{{ line_item.approval_date.strftime('%Y-%m-%d %H:%M') if line_item.approval_date else 'N/A' }}</div>
+                    </div>
+                    {% if line_item.approval_notes %}
+                    <div class="row mt-3">
+                        <div class="col-sm-4"><strong>Approval Notes:</strong></div>
+                        <div class="col-sm-8">{{ line_item.approval_notes }}</div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
