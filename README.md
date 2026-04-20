@@ -167,6 +167,16 @@ Key capabilities available in form templates:
 - Vehicle registration and permit metadata
 - Company management and reference data
 
+### 6.4 Budget Management
+
+- Annual budget allocation by category with revision tracking
+- Spending visualization with monthly trends and category breakdown
+- Multi-type budget reports (summary, variance, forecast, category breakdown)
+- Procurement management with vendor linking
+- Budget utilization tracking and status indicators
+- PDF/Excel export and print capabilities
+- Role-based access (admin and supervisor)
+
 ## 7. Security Controls
 
 Implemented controls:
@@ -346,38 +356,111 @@ Admin/Supervisor:
 - Write-back record tracks: status, retry count, error message, AODB response
 - Fully traceable: query by submission ID to see all outbound syncs
 
-## 12. Production Rollout Checklist
+## 12. Budget Management Module
+
+Integrated budget allocation, spending tracking, and procurement management system.
+
+**Features:**
+
+1. **Budget Allocations** (`/budget/allocations`)
+   - Create annual/periodic budget allocations by category (Equipment, Infrastructure, Maintenance, etc.)
+   - Revise budgets with reason tracking and audit trail
+   - Real-time utilization tracking with color-coded progress bars
+   - Summary cards showing total allocated, spent, and remaining amounts
+   - Fiscal year filtering
+
+2. **Spending Tracking** (`/budget/tracking`)
+   - Monthly spending trend visualization (Chart.js line chart)
+   - Category breakdown visualization (doughnut chart)
+   - Transaction history timeline with filtering
+   - Budget health status summary (On Track, At Risk, Over Budget)
+   - Category-wise breakdown with utilization indicators
+   - Responsive design for desktop and mobile
+
+3. **Budget Reports** (`/budget/reports`)
+   - 5 report types:
+     - **Summary:** Allocated, spent, remaining, and utilization by category
+     - **Detailed Expenditure:** Item-level breakdown
+     - **Variance Analysis:** Actual vs. projected spending comparison
+     - **Spending Forecast:** Year-end projections based on current trends
+     - **Category Breakdown:** Budget distribution pie chart and allocation table
+   - Export functionality (PDF, Excel, Print)
+   - Fiscal year and period selection filters
+   - Key metrics displayed in visual cards
+
+4. **Procurement Management** (existing)
+   - Purchase order creation and tracking
+   - Vendor master data management
+   - Status tracking (pending → approved → ordered → delivered → paid)
+   - Budget allocation linking for cost control
+
+**Data Model:**
+- `BudgetAllocation` — Fiscal year, category, allocated amount, status
+- `BudgetRevision` — Audit trail for all budget modifications
+- `Procurement` — PO number, vendor, item, quantity, cost, dates, status
+- `Vendor` — Supplier master data with contact info and tax ID
+
+**Navigation:**
+- Top-level sidebar menu: Budget, Spending, Reports (next to Dashboard)
+- Role-based access: admin and supervisor roles have full access
+
+**Key Business Rules:**
+- Budget utilization calculated as: (spent / allocated) × 100%
+- Status indicators: On Track (≤80%), At Risk (80-100%), Over Budget (>100%)
+- Write-protected allocations prevent direct amount edits; revisions required with reason
+- All modifications tracked with user, timestamp, and reason in audit trail
+- Monthly spending aggregated from procurement records
+- Year-end forecast extrapolates current monthly rate to 12 months
+
+**Usage Example:**
+```
+1. Admin creates FY2024 budget: Equipment $50,000, Infrastructure $75,000
+2. Finance creates POs totaling $35,000 in Equipment
+3. Tracking page shows Equipment at 70% utilization
+4. Reports show 30% remaining, suggests $15,000 available
+5. Budget revision requested: increase Equipment to $55,000 (reason: new vans)
+6. Revision approved → new allocation $55,000; audit entry logged
+```
+
+## 13. Production Rollout Checklist
+
+## 13. Production Rollout Checklist
 
 ### Immediate Priority (AODB Integration)
 1. **AODB Credentials & Testing:** Provide AODB hostname/port and service account credentials; run manual sync to verify connectivity.
 2. **Flight Sync Validation:** Verify arrivals/departures sync correctly and appear in cockpits.
 3. **Field User Training:** UAT with airside officers on tablet/phone interfaces; ensure glove-friendly touch targets and offline draft caching work.
 
-### Short Term (Workflow & Monitoring)
-4. **Workflow Customization:** Review escalation chain (operator→inspector→auditor→supervisor) — adjust roles/departments as needed.
-5. **Write-back Monitoring:** Set up alerts if `aodb_writebacks.failed > threshold` for operational awareness.
-6. **Historical Data:** After AODB integration confirmed, optionally backfill `IssueWorkflow` records for pre-existing `FormSubmission` items.
+### Short Term (Budget Module & Workflow)
+4. **Budget Configuration:** Set up initial fiscal year allocations and budget categories with stakeholders.
+5. **Budget Approval Workflow:** Define who has authority to create, revise, and approve budget allocations.
+6. **Workflow Customization:** Review escalation chain (operator→inspector→auditor→supervisor) — adjust roles/departments as needed.
+7. **Write-back Monitoring:** Set up alerts if `aodb_writebacks.failed > threshold` for operational awareness.
+8. **Historical Data:** After AODB integration confirmed, optionally backfill `IssueWorkflow` records for pre-existing `FormSubmission` items.
 
 ### Medium Term (Form Completeness)
-7. Complete exact field-level parity with manual pages for each form (conditional logic, validation, dependent fields).
-8. Expand schema-driven dynamic form renderer for all section-level conditional logic.
+9. Complete exact field-level parity with manual pages for each form (conditional logic, validation, dependent fields).
+10. Expand schema-driven dynamic form renderer for all section-level conditional logic.
 
 ### Production Hardening
-9. Integrate antivirus scanning and secure object storage for uploads.
-10. Implement full immutable audit policy enforcement at DB level (triggers/permissions).
-11. Add complete CI/CD, migration strategy, monitoring, and backup/disaster recovery policies.
-12. HTTPS termination + HSTS, reverse proxy (Nginx), strict CSP headers.
-13. MFA enforcement for privileged roles, centralized SIEM logging.
+11. Integrate antivirus scanning and secure object storage for uploads.
+12. Implement full immutable audit policy enforcement at DB level (triggers/permissions).
+13. Add complete CI/CD, migration strategy, monitoring, and backup/disaster recovery policies.
+14. HTTPS termination + HSTS, reverse proxy (Nginx), strict CSP headers.
+15. MFA enforcement for privileged roles, centralized SIEM logging.
 
-## 13. License and Usage
+## 14. License and Usage
 
 Internal operational system for Entebbe International Airport Airside Operations.
 
-## 14. Git Repository
+## 15. Git Repository
 
 Repository: `https://github.com/oomutooro/OPS_AIRSIDE`
 
 **Recent Commits:**
+- `6c80bc1` — Move Budget menu links to top navigation next to Dashboard
+- `159cf1c` — Fix syntax error in budget_tracking status count logic
+- `a779abe` — Add budget tracking, reporting, and allocation management features with dashboard visualizations
 - `66bc202` — Add AODB write-back system for mobile field data submission
 - `c4feb4f` — Add AODB REST API flight data integration (sync, dashboard widget, stand allocation)
 - `42ca8b1` — Implement hierarchical issue escalation workflow and dashboard visibility
@@ -385,4 +468,4 @@ Repository: `https://github.com/oomutooro/OPS_AIRSIDE`
 
 ---
 
-**Project Status:** MVP complete with core features (forms, RBAC, workflow escalation, AODB sync). Ready for field testing and production deployment planning.
+**Project Status:** MVP complete with core features (forms, RBAC, workflow escalation, AODB sync, budget management). Ready for field testing and production deployment planning.
