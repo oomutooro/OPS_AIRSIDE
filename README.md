@@ -356,20 +356,59 @@ Admin/Supervisor:
 - Write-back record tracks: status, retry count, error message, AODB response
 - Fully traceable: query by submission ID to see all outbound syncs
 
-## 12. Budget Management Module
+## 12. Budget Management & Procurement Workflow Module
 
-Integrated budget allocation, spending tracking, and procurement management system.
+Comprehensive budget allocation, approved line-item tracking, and multi-stage procurement workflow management system.
 
 **Features:**
 
-1. **Budget Allocations** (`/budget/allocations`)
+1. **Budget Allocations with Line Items** (`/budget/allocations`)
    - Create annual/periodic budget allocations by category (Equipment, Infrastructure, Maintenance, etc.)
+   - Define individual approved budget line items within each allocation
+   - Example: UGX 51M Equipment budget → Smart watches (30 units @ UGX 250k) line item (UGX 7.5M)
    - Revise budgets with reason tracking and audit trail
    - Real-time utilization tracking with color-coded progress bars
-   - Summary cards showing total allocated, spent, and remaining amounts
+   - Summary cards showing total allocated, committed (POs issued), received, and remaining amounts
    - Fiscal year filtering
 
-2. **Spending Tracking** (`/budget/tracking`)
+2. **Budget Line Items Management** (`/budget/allocations/<id>/line-items`)
+   - Create line items with description, quantity, unit cost, and justification
+   - Approval workflow for budget line items (pending → approved)
+   - Track approved amount vs. approved budget for each allocation
+   - Per-line-item procurement tracking and status overview
+   - Calculate committed vs. remaining budget per line item
+
+3. **Procurement Workflow Stages** (Integrated with line items)
+   - **Workflow Stages:**
+     - **RFQ Pending** → RFQ Issued → Vendor Selection → Finance Approval
+     - → PO Issued → In Delivery → Delivered → Invoiced → Paid
+   - **Detailed Timeline Tracking:**
+     - RFQ date (request for quotation issued)
+     - Vendor selection date (negotiation complete)
+     - Finance approval date (with notes/conditions)
+     - PO issued date
+     - Actual delivery date (with delivery note number)
+     - Invoice number and date
+     - Payment date
+   - **Status Transition Audit:** Every stage change logged with user, timestamp, and notes
+   - **Per-Item Progress:** View all procurements (POs) for a specific budget line item
+
+4. **Line Item Procurement Tracking** (`/budget/procurements/by-line-item/<id>`)
+   - View all purchase orders for a budget line item
+   - Budget burn-down tracking: approved amount vs. committed + received
+   - Progress visualization: % approved, % committed, % received
+   - Over-budget detection: prevents POs exceeding line item remaining budget
+   - Procurement breakdown by status
+
+5. **Procurement Workflow Management** (`/budget/procurements/<id>/workflow`)
+   - Interactive workflow timeline showing all 9 stages
+   - Visual markers for completed vs. pending stages
+   - Manual stage advancement with event notes
+   - Delivery note and invoice tracking
+   - Payment confirmation workflow
+   - Complete workflow history with user attribution
+
+6. **Spending Tracking** (`/budget/tracking`)
    - Monthly spending trend visualization (Chart.js line chart)
    - Category breakdown visualization (doughnut chart)
    - Transaction history timeline with filtering
@@ -377,7 +416,7 @@ Integrated budget allocation, spending tracking, and procurement management syst
    - Category-wise breakdown with utilization indicators
    - Responsive design for desktop and mobile
 
-3. **Budget Reports** (`/budget/reports`)
+7. **Budget Reports** (`/budget/reports`)
    - 5 report types:
      - **Summary:** Allocated, spent, remaining, and utilization by category
      - **Detailed Expenditure:** Item-level breakdown
@@ -388,38 +427,105 @@ Integrated budget allocation, spending tracking, and procurement management syst
    - Fiscal year and period selection filters
    - Key metrics displayed in visual cards
 
-4. **Procurement Management** (existing)
-   - Purchase order creation and tracking
-   - Vendor master data management
-   - Status tracking (pending → approved → ordered → delivered → paid)
+8. **Procurement Management** 
+   - Purchase order creation linked to budget line items
+   - Vendor master data management with contact and tax info
+   - Multi-stage status tracking with timeline
    - Budget allocation linking for cost control
+   - Overdue PO detection and alerts
 
 **Data Model:**
-- `BudgetAllocation` — Fiscal year, category, allocated amount, status
-- `BudgetRevision` — Audit trail for all budget modifications
-- `Procurement` — PO number, vendor, item, quantity, cost, dates, status
+- `BudgetAllocation` — Fiscal year, category, allocated amount, status, line items
+- `BudgetLineItem` — Description, approved amount, quantity, unit cost, approval workflow, status
+- `Procurement` — PO number, linked to budget line item, vendor, workflow stages, timeline dates
+- `ProcurementWorkflowAudit` — Audit trail for all status transitions with user and notes
+- `BudgetRevision` — Audit trail for allocation modifications
 - `Vendor` — Supplier master data with contact info and tax ID
 
 **Navigation:**
 - Top-level sidebar menu: Budget, Spending, Reports (next to Dashboard)
 - Role-based access: admin and supervisor roles have full access
+- Breadcrumb navigation for drilling down: Allocations → Line Items → Procurements → Workflow
 
 **Key Business Rules:**
-- Budget utilization calculated as: (spent / allocated) × 100%
+- Budget utilization calculated as: (committed + received) / allocated × 100%
 - Status indicators: On Track (≤80%), At Risk (80-100%), Over Budget (>100%)
+- Line item approval required before procurements can be created against it
+- Procurement creation validates that total PO amount does not exceed line item remaining budget
+- Procurement workflow transitions automatically update relevant date fields
+- All status changes logged with audit trail (user, timestamp, notes, old/new status)
 - Write-protected allocations prevent direct amount edits; revisions required with reason
-- All modifications tracked with user, timestamp, and reason in audit trail
-- Monthly spending aggregated from procurement records
-- Year-end forecast extrapolates current monthly rate to 12 months
+- Finance approval stage can include conditions/notes for procurement officer
+- Delivery stage requires delivery note number and receiving user confirmation
 
-**Usage Example:**
+**Workflow Example:**
 ```
-1. Admin creates FY2024 budget: Equipment $50,000, Infrastructure $75,000
-2. Finance creates POs totaling $35,000 in Equipment
-3. Tracking page shows Equipment at 70% utilization
-4. Reports show 30% remaining, suggests $15,000 available
-5. Budget revision requested: increase Equipment to $55,000 (reason: new vans)
-6. Revision approved → new allocation $55,000; audit entry logged
+Scenario: Procure 30 Smart Watches for Field Staff
+
+Step 1: Budget Allocation Created
+- Category: Equipment
+- Total Approved: UGX 51M
+
+Step 2: Line Item Added
+- Description: Smart watches for field staff
+- Quantity: 30, Unit Cost: UGX 250k
+- Approved Amount: UGX 7.5M
+- Status: Pending Approval
+
+Step 3: Line Item Approved
+- Supervisor approves with notes: "Field staff identification initiative"
+- Line Item Status: Approved
+
+Step 4: Create Procurement (PO1)
+- Vendor: TechSupply Ltd
+- Qty: 15 units, Unit Price: UGX 250k
+- Total: UGX 3.75M
+- Initial Status: RFQ Pending
+- Budget: UGX 7.5M, Committed: UGX 3.75M, Remaining: UGX 3.75M
+
+Step 5: RFQ Issued
+- Status updated to: RFQ Issued
+- Note: "RFQ sent to TechSupply and 2 other vendors"
+
+Step 6: Vendor Selected
+- Status updated to: Vendor Selection
+- Note: "TechSupply selected (best price + delivery timeline)"
+
+Step 7: Finance Approval
+- Finance reviews PO amount and budget line
+- Status updated to: Finance Approval
+- Finance Note: "Approved - allocated correctly, complete pre-delivery docs"
+
+Step 8: PO Issued
+- Status updated to: PO Issued
+- Vendor receives official purchase order
+
+Step 9: Delivery Tracking
+- Status updated to: In Delivery
+- Vendor confirms shipment tracking
+
+Step 10: Delivery Received
+- Status updated to: Delivered
+- Delivery Note: DN-2024-001
+- Received By: John Operator
+- 15 watches received and inspected
+
+Step 11: Invoice Processing
+- Vendor submits Invoice INV-2024-1234
+- Status updated to: Invoiced
+
+Step 12: Payment Made
+- Finance authorizes payment
+- Status updated to: Paid
+- Payment date: 2024-04-20
+
+Step 13: Line Item Status
+- Line Item Progress: 50% (15/30 units received)
+- Remaining Budget: UGX 3.75M (sufficient for remaining 15 units)
+
+Step 14: Create Procurement (PO2)
+- Create second PO for remaining 15 units
+- Same workflow stages applied
 ```
 
 ## 13. Production Rollout Checklist
