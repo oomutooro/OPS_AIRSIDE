@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% block title %}Budget Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .budget-card {
+        border-left: 4px solid #1a56db;
+        background: linear-gradient(135deg, #f5f7fa 0%, #e9eef5 100%);
+    }
+    .budget-card.warning { border-left-color: #ff9800; }
+    .budget-card.danger { border-left-color: #d32f2f; }
+    .budget-card.success { border-left-color: #388e3c; }
+    
+    .progress-bar-animated { animation: progress-bar-stripes 1s linear infinite; }
+    .utilization-low { background-color: #388e3c; }
+    .utilization-medium { background-color: #ff9800; }
+    .utilization-high { background-color: #d32f2f; }
+    
+    .category-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; }
+    .budget-table th, .budget-table td { vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Budget Dashboard</h2>
+    <div class="d-flex gap-2 align-items-center">
+        <label class="small text-muted mb-0">Fiscal Year</label>
+        <select id="fiscalYear" class="form-select form-select-sm" style="max-width: 120px;">
+            {% for year in range(fiscal_year - 2, fiscal_year + 3) %}
+            <option value="{{ year }}" {% if year == fiscal_year %}selected{% endif %}>FY{{ year }}</option>
+            {% endfor %}
+        </select>
+        <a href="{{ url_for('budget.budget_allocations') }}" class="btn btn-sm btn-outline-info">Manage Budgets</a>
+    </div>
+</div>
+
+<!-- Overall Budget Summary -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card budget-card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Total Allocated</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(total_allocated) }}</h3>
+                <small class="text-muted">FY{{ fiscal_year }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card budget-card success">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Total Spent</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(total_spent) }}</h3>
+                <small class="text-muted">{{ "%.1f"|format(overall_utilization) }}% utilized</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card budget-card {% if total_remaining < total_allocated * 0.1 %}danger{% elif total_remaining < total_allocated * 0.3 %}warning{% endif %}">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Remaining</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(total_remaining) }}</h3>
+                <small class="text-muted">Available to spend</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card budget-card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Pending Orders</h6>
+                <h3 class="mb-0">{{ status_summary.get('pending', {}).get('count', 0) }}</h3>
+                <small class="text-muted">${{ "%.2f"|format(status_summary.get('pending', {}).get('total', 0)) }}</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overall Budget Progress -->
+<div class="card panel-card mb-4">
+    <div class="card-header">Overall Budget Utilization</div>
+    <div class="card-body">
+        <div class="mb-2 d-flex justify-content-between">
+            <span>{{ "%.1f"|format(overall_utilization) }}% Utilized</span>
+            <span class="text-muted">${{ "%.2f"|format(total_spent) }} / ${{ "%.2f"|format(total_allocated) }}</span>
+        </div>
+        <div class="progress" style="height: 24px;">
+            <div class="progress-bar {% if overall_utilization < 50 %}utilization-low{% elif overall_utilization < 80 %}utilization-medium{% else %}utilization-high{% endif %}" 
+                 role="progressbar" 
+                 style="width: {{ overall_utilization }}%"
+                 aria-valuenow="{{ overall_utilization }}" 
+                 aria-valuemin="0" 
+                 aria-valuemax="100">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Budget by Category -->
+    <div class="col-lg-6">
+        <div class="card panel-card">
+            <div class="card-header">Budget by Category</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 budget-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Category</th>
+                                <th>Allocated</th>
+                                <th>Spent</th>
+                                <th>Remaining</th>
+                                <th>Utilization</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for alloc in allocations %}
+                            <tr>
+                                <td><span class="category-badge">{{ alloc.category }}</span></td>
+                                <td>${{ "%.2f"|format(alloc.allocated_amount) }}</td>
+                                <td><strong>${{ "%.2f"|format(alloc.spent_amount()) }}</strong></td>
+                                <td>${{ "%.2f"|format(alloc.remaining_amount()) }}</td>
+                                <td>
+                                    <small class="{% if alloc.utilization_percent() > 80 %}text-danger{% elif alloc.utilization_percent() > 50 %}text-warning{% else %}text-success{% endif %}">
+                                        {{ "%.1f"|format(alloc.utilization_percent()) }}%
+                                    </small>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="5" class="text-center text-muted py-3">No budget allocations for this fiscal year.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Procurement Status Summary -->
+    <div class="col-lg-6">
+        <div class="card panel-card">
+            <div class="card-header">Procurement Status</div>
+            <div class="card-body">
+                {% for status, data in status_summary %}
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="badge bg-secondary text-uppercase" style="font-size: 0.75rem;">{{ status }}</span>
+                        <strong class="ms-2">{{ data.count }} PO(s)</strong>
+                    </div>
+                    <span>${{ "%.2f"|format(data.total) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Vendors & Overdue Orders -->
+<div class="row">
+    <!-- Top Vendors -->
+    <div class="col-lg-6">
+        <div class="card panel-card">
+            <div class="card-header">Top Vendors (by spend)</div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 budget-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Vendor</th>
+                                <th>PO Count</th>
+                                <th>Total Spend</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for vendor_name, po_count, total_spend in top_vendors %}
+                            <tr>
+                                <td><strong>{{ vendor_name }}</strong></td>
+                                <td>{{ po_count }}</td>
+                                <td>${{ "%.2f"|format(total_spend) }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="3" class="text-center text-muted py-3">No vendor data available.</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overdue Procurements -->
+    <div class="col-lg-6">
+        <div class="card panel-card">
+            <div class="card-header">
+                <span>Overdue Procurements</span>
+                {% if overdue_count > 0 %}
+                <span class="badge bg-danger ms-2">{{ overdue_count }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if overdue_procurements %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 budget-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>PO Number</th>
+                                <th>Vendor</th>
+                                <th>Due Date</th>
+                                <th>Days Overdue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for proc in overdue_procurements %}
+                            <tr class="table-warning">
+                                <td><strong>{{ proc.po_number }}</strong></td>
+                                <td>{{ proc.vendor.vendor_name if proc.vendor else '—' }}</td>
+                                <td>{{ proc.expected_delivery_date.strftime('%d %b %Y') if proc.expected_delivery_date else '—' }}</td>
+                                <td><span class="badge bg-danger">{{ (now.date() - proc.expected_delivery_date).days if proc.expected_delivery_date else 0 }} days</span></td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="p-3 text-center text-muted">No overdue procurements.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('fiscalYear').addEventListener('change', function() {
+    window.location.href = `{{ url_for('budget.dashboard') }}?fiscal_year=${this.value}`;
+});
+
+const now = new Date();
+window.now = { date: () => now };
+</script>
+{% endblock %}

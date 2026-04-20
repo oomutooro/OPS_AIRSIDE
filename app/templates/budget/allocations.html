@@ -61,7 +61,7 @@
         <div class="card alloc-card">
             <div class="card-body">
                 <h6 class="card-title text-muted">Total Allocated</h6>
-                <h3 class="mb-0">${{ "%.2f"|format(total_allocated) }}</h3>
+                <h3 class="mb-0">UGX {{ "%.0f"|format(total_allocated) }}</h3>
             </div>
         </div>
     </div>
@@ -69,7 +69,7 @@
         <div class="card alloc-card">
             <div class="card-body">
                 <h6 class="card-title text-muted">Total Spent</h6>
-                <h3 class="mb-0">${{ "%.2f"|format(total_spent) }}</h3>
+                <h3 class="mb-0">UGX {{ "%.0f"|format(total_spent) }}</h3>
             </div>
         </div>
     </div>
@@ -77,7 +77,7 @@
         <div class="card alloc-card">
             <div class="card-body">
                 <h6 class="card-title text-muted">Remaining</h6>
-                <h3 class="mb-0">${{ "%.2f"|format(total_remaining) }}</h3>
+                <h3 class="mb-0">UGX {{ "%.0f"|format(total_remaining) }}</h3>
             </div>
         </div>
     </div>
@@ -116,9 +116,9 @@
                             <br><small class="text-muted">{{ alloc.description }}</small>
                             {% endif %}
                         </td>
-                        <td>${{ "%.2f"|format(alloc.allocated_amount) }}</td>
-                        <td>${{ "%.2f"|format(alloc.spent_amount()) }}</td>
-                        <td>${{ "%.2f"|format(alloc.remaining_amount()) }}</td>
+                        <td>UGX {{ "%.0f"|format(alloc.allocated_amount) }}</td>
+                        <td>UGX {{ "%.0f"|format(alloc.spent_amount()) }}</td>
+                        <td>UGX {{ "%.0f"|format(alloc.remaining_amount()) }}</td>
                         <td>
                             <div class="progress" style="height: 20px; min-width: 120px;">
                                 <div class="progress-bar {% if alloc.utilization_percent() > 80 %}bg-danger{% elif alloc.utilization_percent() > 50 %}bg-warning{% else %}bg-success{% endif %}"
@@ -149,7 +149,7 @@
                                         
                                         <div class="mb-3">
                                             <label class="form-label">Current Amount</label>
-                                            <input type="text" class="form-control" value="${{ "%.2f"|format(alloc.allocated_amount) }}" disabled>
+                                            <input type="text" class="form-control" value="UGX {{ "%.0f"|format(alloc.allocated_amount) }}" disabled>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">New Amount</label>
