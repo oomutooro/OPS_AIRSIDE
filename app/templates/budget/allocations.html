@@ -128,9 +128,14 @@
                             </div>
                         </td>
                         <td>
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reviseModal{{ alloc.id }}">
-                                Revise
-                            </button>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('budget.allocation_line_items', allocation_id=alloc.id) }}" class="btn btn-outline-primary" title="Manage line items">
+                                    <i class="bi bi-list-check"></i> Items
+                                </a>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reviseModal{{ alloc.id }}" title="Revise allocation">
+                                    <i class="bi bi-pencil"></i> Revise
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     
