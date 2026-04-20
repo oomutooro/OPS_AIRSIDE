@@ -134,15 +134,40 @@ class AodbSyncService:
     # Read helpers (for routes/templates)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _window_start(hours: int = 2) -> datetime:
+        """Rolling list window start (now minus N hours)."""
+        return datetime.now() - timedelta(hours=max(0, int(hours or 0)))
+
+    @staticmethod
+    def _effective_time_expr():
+        """Best available movement time for list filtering and ordering."""
+        return db.func.coalesce(
+            FlightMovement.actual_datetime,
+            FlightMovement.estimated_datetime,
+            FlightMovement.scheduled_datetime,
+        )
+
     @classmethod
-    def flights_for_date(cls, for_date: date, arr_or_dep: Optional[str] = None) -> list[FlightMovement]:
-        """Return cached flight movements for a given date, sorted chronologically by scheduled time."""
+    def flights_for_date(
+        cls,
+        for_date: date,
+        arr_or_dep: Optional[str] = None,
+        apply_recent_window: bool = True,
+        recent_window_hours: int = 2,
+    ) -> list[FlightMovement]:
+        """Return cached flight movements for a date, optionally filtered to now-minus-window for today's lists."""
         from sqlalchemy import asc, nullslast
         date_str = for_date.strftime('%Y%m%d')
         q = FlightMovement.query.filter(FlightMovement.scheduled_date == date_str)
         if arr_or_dep:
             q = q.filter(FlightMovement.arr_or_dep == arr_or_dep.upper())
-        return q.order_by(nullslast(asc(FlightMovement.scheduled_datetime))).all()
+
+        # Global list behavior: only show flights from current time minus 2h onward.
+        if apply_recent_window:
+            q = q.filter(cls._effective_time_expr() >= cls._window_start(recent_window_hours))
+
+        return q.order_by(nullslast(asc(cls._effective_time_expr()))).all()
 
     @classmethod
     def last_sync_time(cls) -> Optional[datetime]:
@@ -154,14 +179,16 @@ class AodbSyncService:
     def flight_numbers_for_date(cls, for_date: date) -> list[str]:
         """Distinct flight numbers for dropdown population."""
         date_str = for_date.strftime('%Y%m%d')
+        effective_time = cls._effective_time_expr()
         rows = (
             db.session.query(FlightMovement.flight_number, FlightMovement.arr_or_dep,
                              FlightMovement.airline_name)
             .filter(FlightMovement.scheduled_date == date_str)
             .filter(FlightMovement.flight_number.isnot(None))
-            .order_by(FlightMovement.scheduled_datetime)
-            .all()
+            .order_by(effective_time)
         )
+        rows = rows.filter(effective_time >= cls._window_start(2))
+        rows = rows.all()
         seen = set()
         result = []
         for fn, ad, al in rows:

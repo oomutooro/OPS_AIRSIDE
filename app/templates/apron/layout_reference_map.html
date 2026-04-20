@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block title %}EIA Layout Reference Map{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ref-shell {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .ref-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        background: #0f1a2b;
+        border: 1px solid #2f4b67;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    .ref-toolbar .btn {
+        min-width: 106px;
+    }
+
+    .ref-view {
+        position: relative;
+        background: #0b1321;
+        border: 1px solid #2a445f;
+        border-radius: 10px;
+        min-height: 72vh;
+        overflow: auto;
+    }
+
+    .ref-stage {
+        position: relative;
+        transform-origin: top left;
+        margin: 14px;
+    }
+
+    #pdfCanvas {
+        display: block;
+        border-radius: 8px;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+        background: #fff;
+    }
+
+    .north-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(6, 20, 36, 0.92);
+        border: 1px solid #4b7ba2;
+        color: #d2ebff;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 5px 10px;
+        letter-spacing: 0.3px;
+    }
+
+    .north-arrow {
+        color: #86d5ff;
+        margin-left: 6px;
+    }
+
+    .ref-hint {
+        color: #9db6cf;
+        margin-left: auto;
+        font-size: 0.84rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h4 class="mb-0">EIA Taxiway Layout Reference (North Right)</h4>
+    <a class="btn btn-sm btn-outline-info" href="{{ url_for('apron.stand_map') }}">Back to Interactive Stand Map</a>
+</div>
+
+<div class="ref-shell">
+    <div class="ref-toolbar">
+        <button id="zoomOutBtn" class="btn btn-sm btn-outline-light" type="button">Zoom Out</button>
+        <button id="zoomInBtn" class="btn btn-sm btn-outline-light" type="button">Zoom In</button>
+        <button id="fitBtn" class="btn btn-sm btn-outline-info" type="button">Fit Width</button>
+        <button id="rotateBtn" class="btn btn-sm btn-outline-warning" type="button">Rotate 90°</button>
+        <button id="resetBtn" class="btn btn-sm btn-primary" type="button">Reset View</button>
+        <span id="viewInfo" class="ref-hint">Loading PDF...</span>
+    </div>
+
+    <div class="ref-view" id="pdfViewport">
+        <div class="north-badge">NORTH <span class="north-arrow">→</span></div>
+        <div class="ref-stage" id="pdfStage">
+            <canvas id="pdfCanvas" aria-label="EIA taxiway layout reference"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+
+const pdfUrl = "{{ url_for('apron.layout_reference_map_pdf') }}";
+const canvas = document.getElementById('pdfCanvas');
+const ctx = canvas.getContext('2d');
+const viewportEl = document.getElementById('pdfViewport');
+const infoEl = document.getElementById('viewInfo');
+
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const fitBtn = document.getElementById('fitBtn');
+const rotateBtn = document.getElementById('rotateBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+let pdfDoc = null;
+let page = null;
+let scale = 1.35;
+let rotation = 90; // North to the right
+let renderTask = null;
+
+function setInfo() {
+    infoEl.textContent = `Scale ${Math.round(scale * 100)}% | Rotation ${rotation}° (North right)`;
+}
+
+async function renderPage() {
+    if (!page) return;
+    if (renderTask) {
+        try { renderTask.cancel(); } catch (_) {}
+    }
+    const viewport = page.getViewport({ scale, rotation });
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    renderTask = page.render({ canvasContext: ctx, viewport });
+    await renderTask.promise;
+    renderTask = null;
+    setInfo();
+}
+
+function fitWidth() {
+    if (!page) return;
+    const pad = 40;
+    const available = Math.max(320, viewportEl.clientWidth - pad);
+    const base = page.getViewport({ scale: 1, rotation });
+    scale = available / base.width;
+    renderPage();
+}
+
+zoomInBtn.addEventListener('click', () => {
+    scale = Math.min(4, scale + 0.15);
+    renderPage();
+});
+
+zoomOutBtn.addEventListener('click', () => {
+    scale = Math.max(0.4, scale - 0.15);
+    renderPage();
+});
+
+fitBtn.addEventListener('click', () => {
+    fitWidth();
+});
+
+rotateBtn.addEventListener('click', () => {
+    rotation = (rotation + 90) % 360;
+    fitWidth();
+});
+
+resetBtn.addEventListener('click', () => {
+    rotation = 90;
+    fitWidth();
+});
+
+window.addEventListener('resize', () => {
+    if (!page) return;
+    fitWidth();
+});
+
+(async () => {
+    try {
+        const loadingTask = pdfjsLib.getDocument(pdfUrl);
+        pdfDoc = await loadingTask.promise;
+        page = await pdfDoc.getPage(1);
+        fitWidth();
+    } catch (err) {
+        console.error(err);
+        infoEl.textContent = 'Failed to load PDF reference map.';
+    }
+})();
+</script>
+{% endblock %}

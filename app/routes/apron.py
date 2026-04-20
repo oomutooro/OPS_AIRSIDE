@@ -2,7 +2,8 @@
 Apron management routes: stand allocation, shift handover, staff deployment, TPBB ops.
 """
 from datetime import date, datetime, timedelta
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from pathlib import Path
+from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user, login_required
 from app import db
 from app.models.apron import StandAllocation, Shift, ShiftRoster, HandoverReport
@@ -42,6 +43,53 @@ def _normalize_stand_code(raw: str) -> str:
 
 def _valid_map_stands():
     return {'02', '03', '04', '05', '06', '07', '08', '09', '10', '20', '21', '22', '23', '24', '25'}
+
+
+def _resolve_pbb_stand(stand_raw: str):
+    """Resolve stand code to known TPBB bridge tuple (bridge_no, canonical_stand)."""
+    stand = (stand_raw or '').strip().upper().replace(' ', '')
+    if stand in _PBB_STANDS:
+        return _PBB_STANDS[stand], stand
+
+    normalized = _normalize_stand_code(stand)
+    if normalized == '05':
+        return 'PBB 01', 'A1S05'
+    if normalized == '06':
+        return 'PBB 02', 'A1S06'
+    return None, None
+
+
+def _build_tpbb_allocations(for_date: date):
+    """Return all AODB flights for the date allocated to TPBB stands (A1S05/A1S06)."""
+    rows = []
+    for f in AodbSyncService.flights_for_date(for_date):
+        bridge_no, canonical_stand = _resolve_pbb_stand(f.stand)
+        if not bridge_no:
+            continue
+
+        icao_num = f"{(f.flight_icao_code or '').strip()}{(f.flight_number or '').strip()}".strip()
+        flight_label = icao_num or (f.flight_number or '').strip()
+        if not flight_label:
+            continue
+
+        raw = f.raw_payload or {}
+        aircraft_type = (raw.get('acType') or raw.get('aircraftType') or '').strip()
+        rows.append({
+            'aodb_flight_id': f.aodb_flight_id,
+            'flight_number': flight_label,
+            'base_flight_number': (f.flight_number or '').strip(),
+            'arr_or_dep': (f.arr_or_dep or '').upper(),
+            'bridge_no': bridge_no,
+            'stand': canonical_stand,
+            'scheduled': f.scheduled_datetime,
+            'estimated': f.estimated_datetime,
+            'actual': f.actual_datetime,
+            'status': f.operation_status,
+            'aircraft_type': aircraft_type,
+        })
+
+    rows.sort(key=lambda r: r['scheduled'] or datetime.max)
+    return rows
 
 
 def _user_is_on_shift(user_id: int, duty_date: date, shift_type: str) -> bool:
@@ -230,6 +278,23 @@ def api_flights():
 def stand_map():
     map_date = _parse_iso_date(request.args.get('date'))
     return render_template('apron/stand_map.html', map_date=map_date)
+
+
+@apron_bp.route('/layout-reference-map')
+@role_required('admin', 'supervisor', 'inspector', 'operator')
+def layout_reference_map():
+    return render_template('apron/layout_reference_map.html')
+
+
+@apron_bp.route('/layout-reference-map/pdf')
+@role_required('admin', 'supervisor', 'inspector', 'operator')
+def layout_reference_map_pdf():
+    project_root = Path(current_app.root_path).parent
+    pdf_name = '010819 Taxiway renaming of EIA layout.pdf'
+    pdf_path = project_root / pdf_name
+    if not pdf_path.exists():
+        abort(404)
+    return send_from_directory(project_root, pdf_name, mimetype='application/pdf', as_attachment=False)
 
 
 @apron_bp.route('/api/stand-map-data')
@@ -680,6 +745,9 @@ def _is_bridge_capable_type(actype: str) -> bool:
 @apron_bp.route('/tpbb-operations', methods=['GET', 'POST'])
 @login_required
 def tpbb_operations():
+    selected_date = _parse_iso_date(request.values.get('tpbb_date') or request.args.get('date'))
+    tpbb_allocations = _build_tpbb_allocations(selected_date)
+
     if request.method == 'POST':
         from app.services.aodb_writeback import AodbWritebackService
 
@@ -705,9 +773,26 @@ def tpbb_operations():
             flight_actype = None
             flight = None
             if flight_number:
-                flight = FlightMovement.query.filter_by(flight_number=flight_number).first()
+                search_key = flight_number.replace(' ', '').upper()
+                for row in tpbb_allocations:
+                    candidate_labels = {
+                        (row.get('flight_number') or '').replace(' ', '').upper(),
+                        (row.get('base_flight_number') or '').replace(' ', '').upper(),
+                    }
+                    if search_key in candidate_labels:
+                        flight = FlightMovement.query.filter_by(aodb_flight_id=row.get('aodb_flight_id')).first()
+                        break
+
+                if not flight:
+                    date_str = selected_date.strftime('%Y%m%d')
+                    flight = FlightMovement.query.filter_by(
+                        flight_number=flight_number,
+                        scheduled_date=date_str,
+                    ).first()
+
                 if flight:
-                    flight_stand = (flight.stand or '').strip().upper() or None
+                    _, canonical = _resolve_pbb_stand(flight.stand)
+                    flight_stand = canonical or ((flight.stand or '').strip().upper() or None)
                     raw = flight.raw_payload or {}
                     flight_actype = (raw.get('acType') or raw.get('aircraftType') or '').strip() or None
 
@@ -742,11 +827,11 @@ def tpbb_operations():
                     f'or neither if the bridge was not used.',
                     'danger',
                 )
-            elif bridge_flag == 'no_dock' and flight_stand in _PBB_STANDS:
+            elif bridge_flag == 'no_dock' and _resolve_pbb_stand(flight_stand)[0]:
                 bridge_capable = _is_bridge_capable_type(flight_actype)
                 if bridge_capable:
                     flash(
-                        f'Note: {flight_number} is allocated to {flight_stand} ({_PBB_STANDS[flight_stand]}) '
+                        f'Note: {flight_number} is allocated to {flight_stand} ({_resolve_pbb_stand(flight_stand)[0]}) '
                         f'but no bridge times were recorded. Confirm the bridge was not used.',
                         'warning',
                     )
@@ -827,9 +912,15 @@ def tpbb_operations():
 
             db.session.commit()
             flash('TPBB operation recorded.', 'success')
-        return redirect(url_for('apron.tpbb_operations'))
+        return redirect(url_for('apron.tpbb_operations', date=selected_date.isoformat()))
 
     logs = FormSubmission.query.join(FormTemplate).filter(
         FormTemplate.form_number == 5
     ).order_by(FormSubmission.created_at.desc()).limit(30).all()
-    return render_template('apron/tpbb_operations.html', logs=logs, pbb_stands=_PBB_STANDS)
+    return render_template(
+        'apron/tpbb_operations.html',
+        logs=logs,
+        pbb_stands=_PBB_STANDS,
+        tpbb_date=selected_date,
+        tpbb_allocations=tpbb_allocations,
+    )

@@ -7,10 +7,20 @@
 .flag-incomplete { color: #dc3545; font-weight: 600; }
 .flag-no-dock { color: #6c757d; }
 .tpbb-log-table th, .tpbb-log-table td { vertical-align: middle; white-space: nowrap; }
+.tpbb-alloc-table th, .tpbb-alloc-table td { vertical-align: middle; white-space: nowrap; }
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0">TPBB AODB Allocation Feed</h5>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <label class="small text-muted mb-0" for="tpbbDate">Date</label>
+        <input id="tpbbDate" name="date" type="date" class="form-control form-control-sm" value="{{ tpbb_date.isoformat() }}" style="max-width: 170px;">
+        <button class="btn btn-sm btn-outline-info" type="submit">Load</button>
+    </form>
+</div>
+
 <!-- ── Form ─────────────────────────────────────────────────────────── -->
 <div class="card panel-card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
@@ -19,6 +29,7 @@
     </div>
     <div class="card-body">
         <form method="post" class="row g-3">
+            <input type="hidden" name="tpbb_date" value="{{ tpbb_date.isoformat() }}">
 
             <div class="col-md-3">
                 <label class="form-label">Bridge No</label>
@@ -33,7 +44,11 @@
                 <label class="form-label">Flight Number</label>
                 <input name="flight_number" class="form-control form-control-lg"
                        list="flight_numbers_tpbb" required autocomplete="off">
-                <datalist id="flight_numbers_tpbb" data-aodb-datalist data-aodb-type="arr"></datalist>
+                <datalist id="flight_numbers_tpbb">
+                    {% for row in tpbb_allocations %}
+                    <option value="{{ row.flight_number }}" label="{{ row.flight_number }} | {{ row.arr_or_dep }} | {{ row.stand }} | {{ row.scheduled.strftime('%H:%M') if row.scheduled else '--:--' }}"></option>
+                    {% endfor %}
+                </datalist>
             </div>
 
             <div class="col-md-3">
@@ -76,6 +91,66 @@
                 <button class="btn btn-primary btn-touch">Save TPBB Record</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- ── AODB PBB allocations table ───────────────────────────────────── -->
+<div class="card panel-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>AODB PBB Allocations for {{ tpbb_date.strftime('%d %b %Y') }}</span>
+        <small class="text-muted">Stands A1S05 / A1S06 — full day schedule</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tpbb-alloc-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Scheduled</th>
+                        <th>Estimated</th>
+                        <th>Type</th>
+                        <th>Flight</th>
+                        <th>Bridge</th>
+                        <th>Stand</th>
+                        <th>A/C Type</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in tpbb_allocations %}
+                <tr>
+                    <td>{{ row.scheduled.strftime('%H:%M') if row.scheduled else '—' }}</td>
+                    <td>{{ row.estimated.strftime('%H:%M') if row.estimated else '—' }}</td>
+                    <td>
+                        {% if row.arr_or_dep == 'ARR' %}
+                        <span class="badge bg-primary">ARR</span>
+                        {% elif row.arr_or_dep == 'DEP' %}
+                        <span class="badge bg-secondary">DEP</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">{{ row.arr_or_dep or '—' }}</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ row.flight_number }}</strong></td>
+                    <td>{{ row.bridge_no }}</td>
+                    <td>{{ row.stand }}</td>
+                    <td>{{ row.aircraft_type or '—' }}</td>
+                    <td>{{ row.status or '—' }}</td>
+                    <td>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-primary use-tpbb-flight-btn"
+                                data-flight="{{ row.flight_number }}"
+                                data-bridge="{{ row.bridge_no }}"
+                                data-stand="{{ row.stand }}">
+                            Use
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9" class="text-center text-muted py-3">No AODB allocations found on PBB stands for this date.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -149,6 +224,9 @@
 {% block extra_js %}
 <script>
 (function () {
+    const form = document.querySelector('form[method="post"]');
+    const flightInput = form ? form.querySelector('input[name="flight_number"]') : null;
+    const bridgeSelect = form ? form.querySelector('select[name="bridge_no"]') : null;
     const dock = document.getElementById('docking_time');
     const back = document.getElementById('backoff_time');
     const hint = document.getElementById('bridge-hint');
@@ -169,6 +247,20 @@
 
     dock.addEventListener('change', updateHint);
     back.addEventListener('change', updateHint);
+
+    document.querySelectorAll('.use-tpbb-flight-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (flightInput) {
+                flightInput.value = btn.dataset.flight || '';
+                flightInput.focus();
+            }
+            if (bridgeSelect && btn.dataset.bridge) {
+                bridgeSelect.value = btn.dataset.bridge;
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+
     updateHint();
 })();
 </script>

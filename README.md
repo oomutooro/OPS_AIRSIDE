@@ -15,9 +15,12 @@ This project provides:
 - Export/PDF service layer for CSV, Excel, and form PDF generation.
 - **Hierarchical issue escalation workflow** — Reports flow up the chain (operator → inspector → auditor → supervisor) with role-based visibility and closure tracking.
 - **AODB REST API integration** — Live flight schedule sync from AODB, flight dropdown autocomplete in forms, stand allocation with live schedule view.
+- **Rolling AODB list window** — All AODB-backed flight lists (dropdowns/tables/API feeds) start from current system time minus 2 hours.
 - **Mobile-first field data write-back** — Staff submit times/data from field via forms; automatic async sync back to AODB with retry logic and queue monitoring.
 - **TPBB bridge operations (Form 5)** — Docking/back-off time recording with completeness validation (both times required or none), time-order validation against flight ATA/ATD, and red-flag alerting for incomplete records on functional bridge stands (A1S05, A1S06).
+- **TPBB daily AODB allocation feed** — Form 5 includes a date-based table of flights allocated to PBB stands (A1S05/A1S06), quick-fill actions to load flight/bridge into the form, and uses the same rolling AODB list window.
 - **Interactive Apron Stand Map (ATC panel)** — Integrated apron map page with stand state machine (Planned → On Chocks → Off Chocks), simulation controls, split-stand Code C half-occupancy logic (05/06/07), and merged preload data from both AODB stand assignments and local stand allocations.
+- **Layout reference map viewer** — In-browser PDF layout viewer (PDF.js) for taxiway/apron reference with default orientation where north points to the right.
 
 ## 2. Technology Stack
 
@@ -147,6 +150,9 @@ Key capabilities available in form templates:
 - TPBB (Terminal Passenger Building) operation logging with automatic write-back to AODB
 - AODB flight data sync (manual and scheduled background sync every 15 minutes)
 - Flight number autocomplete from cached AODB data
+- AODB list filtering uses a rolling window of now minus 2 hours across forms and map feeds
+- TPBB page includes all-day PBB stand allocations from AODB (A1S05/A1S06) with one-click form prefill
+- Layout reference page for airport geometry verification against official taxiway-renaming PDF
 
 ### 6.2 Apron Safety
 
