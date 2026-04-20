@@ -407,10 +407,15 @@ def budget_tracking():
     categories = [c[0] for c in categories]
     
     # Status counts
+    def get_utilization(alloc):
+        if alloc.allocated_amount > 0:
+            return (alloc.spent_amount() / alloc.allocated_amount * 100)
+        return 0
+    
     status_count = {
-        'on_track': sum(1 for a in allocations if (a.spent_amount() / a.allocated_amount * 100) <= 80 if a.allocated_amount > 0 else True),
-        'at_risk': sum(1 for a in allocations if 80 < (a.spent_amount() / a.allocated_amount * 100) <= 100 if a.allocated_amount > 0 else False),
-        'over_budget': sum(1 for a in allocations if (a.spent_amount() / a.allocated_amount * 100) > 100 if a.allocated_amount > 0 else False)
+        'on_track': sum(1 for a in allocations if get_utilization(a) <= 80),
+        'at_risk': sum(1 for a in allocations if 80 < get_utilization(a) <= 100),
+        'over_budget': sum(1 for a in allocations if get_utilization(a) > 100)
     }
     
     # Monthly spending data (last 12 months)
