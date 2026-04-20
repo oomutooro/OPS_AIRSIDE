@@ -7,7 +7,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from flask_login import current_user, login_required
 from sqlalchemy import func, desc
 from app import db
-from app.models.budget import BudgetAllocation, Vendor, Procurement, BudgetRevision
+from app.models.budget import BudgetAllocation, Vendor, Procurement, BudgetRevision, BudgetLineItem, ProcurementWorkflowAudit
 from app.utils.decorators import role_required
 
 budget_bp = Blueprint('budget', __name__, url_prefix='/budget')
@@ -558,3 +558,267 @@ def budget_reports():
                          forecast_data=forecast_data,
                          projected_year_end=projected_year_end,
                          projected_overage=projected_overage)
+
+
+# ---------------------------------------------------------------------------
+# Budget Line Items (Approved Items within Allocations)
+# ---------------------------------------------------------------------------
+
+@budget_bp.route('/allocations/<int:allocation_id>/line-items', methods=['GET', 'POST'])
+@role_required('admin', 'supervisor')
+def allocation_line_items(allocation_id):
+    """Manage budget line items for a specific allocation."""
+    allocation = BudgetAllocation.query.get_or_404(allocation_id)
+    
+    if request.method == 'POST':
+        action = request.form.get('action', '').strip().lower()
+        
+        if action == 'add_line_item':
+            try:
+                description = request.form.get('description', '').strip()
+                quantity = int(request.form.get('quantity', 1))
+                unit_cost = Decimal(request.form.get('unit_cost', '0'))
+                justification = request.form.get('justification', '').strip()
+                
+                if not description or quantity <= 0 or unit_cost <= 0:
+                    flash('Description, quantity, and unit cost are required.', 'danger')
+                    return redirect(url_for('budget.allocation_line_items', allocation_id=allocation_id))
+                
+                approved_amount = quantity * unit_cost
+                
+                line_item = BudgetLineItem(
+                    allocation_id=allocation_id,
+                    description=description,
+                    quantity=quantity,
+                    unit_cost=unit_cost,
+                    approved_amount=approved_amount,
+                    justification=justification or None,
+                    requested_by_user_id=current_user.id,
+                    status='pending_approval',
+                )
+                db.session.add(line_item)
+                db.session.commit()
+                flash(f'Line item "{description}" added for UGX {approved_amount}.', 'success')
+                
+            except (ValueError, TypeError) as e:
+                flash(f'Error adding line item: {e}', 'danger')
+        
+        elif action == 'approve_line_item':
+            line_item_id = int(request.form.get('line_item_id') or 0)
+            approval_notes = request.form.get('approval_notes', '').strip()
+            
+            line_item = BudgetLineItem.query.get(line_item_id)
+            if not line_item:
+                flash('Line item not found.', 'danger')
+                return redirect(url_for('budget.allocation_line_items', allocation_id=allocation_id))
+            
+            line_item.status = 'approved'
+            line_item.approved_by_user_id = current_user.id
+            line_item.approval_date = datetime.utcnow()
+            line_item.approval_notes = approval_notes or None
+            db.session.commit()
+            flash(f'Line item "{line_item.description}" approved.', 'success')
+        
+        return redirect(url_for('budget.allocation_line_items', allocation_id=allocation_id))
+    
+    # GET — display line items for this allocation
+    line_items = BudgetLineItem.query.filter_by(allocation_id=allocation_id).all()
+    total_line_items_approved = sum(
+        li.approved_amount for li in line_items if li.status != 'cancelled'
+    )
+    
+    return render_template(
+        'budget/line_items.html',
+        allocation=allocation,
+        line_items=line_items,
+        total_line_items_approved=total_line_items_approved,
+    )
+
+
+@budget_bp.route('/line-items/<int:line_item_id>/delete', methods=['POST'])
+@role_required('admin', 'supervisor')
+def delete_line_item(line_item_id):
+    """Cancel a budget line item."""
+    line_item = BudgetLineItem.query.get_or_404(line_item_id)
+    allocation_id = line_item.allocation_id
+    
+    line_item.status = 'cancelled'
+    db.session.commit()
+    flash(f'Line item "{line_item.description}" cancelled.', 'success')
+    
+    return redirect(url_for('budget.allocation_line_items', allocation_id=allocation_id))
+
+
+# ---------------------------------------------------------------------------
+# Procurement Workflow & Stage Tracking
+# ---------------------------------------------------------------------------
+
+@budget_bp.route('/procurements/<int:procurement_id>/workflow', methods=['GET', 'POST'])
+@role_required('admin', 'supervisor')
+def procurement_workflow(procurement_id):
+    """Track and manage procurement workflow stages."""
+    procurement = Procurement.query.get_or_404(procurement_id)
+    
+    if request.method == 'POST':
+        action = request.form.get('action', '').strip().lower()
+        
+        if action == 'update_stage':
+            new_status = request.form.get('new_status', '').strip()
+            event_notes = request.form.get('event_notes', '').strip()
+            
+            valid_statuses = [
+                'rfq_pending', 'rfq_issued', 'vendor_selection', 'finance_approval',
+                'po_issued', 'in_delivery', 'delivered', 'invoiced', 'paid', 'cancelled'
+            ]
+            
+            if new_status not in valid_statuses:
+                flash('Invalid status.', 'danger')
+                return redirect(url_for('budget.procurement_workflow', procurement_id=procurement_id))
+            
+            old_status = procurement.status
+            
+            # Update stage-specific timestamps
+            if new_status == 'rfq_issued':
+                procurement.rfq_date = datetime.utcnow()
+            elif new_status == 'vendor_selection':
+                procurement.vendor_selected_date = datetime.utcnow()
+            elif new_status == 'finance_approval':
+                procurement.finance_approval_date = datetime.utcnow()
+                procurement.finance_approval_notes = event_notes or None
+            elif new_status == 'po_issued':
+                procurement.po_date = date.today()
+            elif new_status == 'in_delivery':
+                pass  # delivery tracking separate
+            elif new_status == 'delivered':
+                if not procurement.actual_delivery_date:
+                    procurement.actual_delivery_date = date.today()
+                    delivery_note = request.form.get('delivery_note_number', '').strip()
+                    if delivery_note:
+                        procurement.delivery_note_number = delivery_note
+                        procurement.received_by_user_id = current_user.id
+            elif new_status == 'invoiced':
+                if not procurement.invoice_date:
+                    procurement.invoice_date = date.today()
+            elif new_status == 'paid':
+                if not procurement.payment_date:
+                    procurement.payment_date = date.today()
+            
+            procurement.status = new_status
+            
+            # Record workflow transition in audit trail
+            audit = ProcurementWorkflowAudit(
+                procurement_id=procurement_id,
+                old_status=old_status,
+                new_status=new_status,
+                event_notes=event_notes or None,
+                changed_by_user_id=current_user.id,
+            )
+            
+            db.session.add(audit)
+            db.session.commit()
+            
+            flash(f'PO {procurement.po_number} status updated to {new_status}.', 'success')
+            return redirect(url_for('budget.procurement_workflow', procurement_id=procurement_id))
+    
+    # GET — display workflow timeline
+    workflow_history = procurement.workflow_history
+    
+    return render_template(
+        'budget/procurement_workflow.html',
+        procurement=procurement,
+        workflow_history=workflow_history,
+    )
+
+
+@budget_bp.route('/procurements/by-line-item/<int:line_item_id>', methods=['GET'])
+@role_required('admin', 'supervisor', 'operator')
+def procurements_by_line_item(line_item_id):
+    """View all procurements for a specific budget line item."""
+    line_item = BudgetLineItem.query.get_or_404(line_item_id)
+    
+    procurements = Procurement.query.filter_by(budget_line_item_id=line_item_id).all()
+    
+    total_committed = line_item.committed_amount()
+    total_received = line_item.received_amount()
+    remaining = line_item.remaining_amount()
+    progress = line_item.procurement_progress()
+    
+    return render_template(
+        'budget/line_item_procurement_tracking.html',
+        line_item=line_item,
+        procurements=procurements,
+        total_committed=total_committed,
+        total_received=total_received,
+        remaining=remaining,
+        progress=progress,
+    )
+
+
+@budget_bp.route('/line-items/<int:line_item_id>/create-procurement', methods=['GET', 'POST'])
+@role_required('admin', 'supervisor')
+def create_procurement_for_line_item(line_item_id):
+    """Create a procurement record for a specific budget line item."""
+    line_item = BudgetLineItem.query.get_or_404(line_item_id)
+    
+    if request.method == 'POST':
+        try:
+            po_number = request.form.get('po_number', '').strip()
+            vendor_id = int(request.form.get('vendor_id') or 0)
+            quantity = int(request.form.get('quantity', line_item.quantity))
+            unit_price = Decimal(request.form.get('unit_price', line_item.unit_cost))
+            po_date = datetime.strptime(request.form.get('po_date', date.today().isoformat()), '%Y-%m-%d').date()
+            expected_delivery_date = request.form.get('expected_delivery_date')
+            notes = request.form.get('notes', '').strip()
+            
+            if not all([po_number, vendor_id, quantity, unit_price]):
+                flash('All required fields must be filled.', 'danger')
+                return redirect(url_for('budget.create_procurement_for_line_item', line_item_id=line_item_id))
+            
+            # Check PO uniqueness
+            if Procurement.query.filter_by(po_number=po_number).first():
+                flash(f'PO {po_number} already exists.', 'warning')
+                return redirect(url_for('budget.create_procurement_for_line_item', line_item_id=line_item_id))
+            
+            vendor = Vendor.query.get(vendor_id)
+            if not vendor:
+                flash('Invalid vendor.', 'danger')
+                return redirect(url_for('budget.create_procurement_for_line_item', line_item_id=line_item_id))
+            
+            # Check if adding this PO would exceed approved amount
+            total_cost = quantity * unit_price
+            if total_cost > line_item.remaining_amount():
+                flash(f'PO amount (UGX {total_cost}) exceeds remaining approved budget (UGX {line_item.remaining_amount()}).', 'warning')
+                return redirect(url_for('budget.create_procurement_for_line_item', line_item_id=line_item_id))
+            
+            procurement = Procurement(
+                po_number=po_number,
+                budget_allocation_id=line_item.allocation_id,
+                budget_line_item_id=line_item_id,
+                vendor_id=vendor_id,
+                item_description=line_item.description,
+                quantity=quantity,
+                unit_price=unit_price,
+                total_cost=total_cost,
+                po_date=po_date,
+                expected_delivery_date=datetime.strptime(expected_delivery_date, '%Y-%m-%d').date() if expected_delivery_date else None,
+                notes=notes or None,
+                created_by_user_id=current_user.id,
+                status='rfq_pending',  # Start in RFQ stage
+            )
+            db.session.add(procurement)
+            db.session.commit()
+            flash(f'PO {po_number} created for "{line_item.description}" (UGX {total_cost}).', 'success')
+            return redirect(url_for('budget.procurements_by_line_item', line_item_id=line_item_id))
+            
+        except (ValueError, TypeError) as e:
+            flash(f'Error creating procurement: {e}', 'danger')
+            return redirect(url_for('budget.create_procurement_for_line_item', line_item_id=line_item_id))
+    
+    vendors = Vendor.query.filter_by(is_active=True).order_by(Vendor.vendor_name).all()
+    
+    return render_template(
+        'budget/procurement_form.html',
+        line_item=line_item,
+        vendors=vendors,
+        action='create_for_line_item',
+    )
