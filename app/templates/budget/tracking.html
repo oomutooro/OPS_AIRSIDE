@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% block title %}Budget Tracking{% endblock %}
+
+{% block extra_css %}
+<style>
+    .tracking-timeline {
+        position: relative;
+        padding: 20px 0;
+    }
+    
+    .tracking-item {
+        display: flex;
+        margin-bottom: 30px;
+        position: relative;
+    }
+    
+    .tracking-marker {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #1a56db;
+        border: 3px solid white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        flex-shrink: 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .tracking-content {
+        margin-left: 20px;
+        padding-top: 5px;
+    }
+    
+    .tracking-amount {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #1a56db;
+    }
+    
+    .progress-box { background: #f3f4f6; border-radius: 8px; padding: 15px; }
+    .chart-container { position: relative; height: 300px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>Budget Tracking</h2>
+    </div>
+    <div class="col-auto">
+        <label class="small text-muted">Category</label>
+        <select id="categoryFilter" class="form-select form-select-sm">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}">{{ cat }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Overall Budget Health -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Overall Budget Health</div>
+            <div class="card-body progress-box">
+                <div class="mb-3">
+                    <h6 class="text-muted mb-2">Overall Utilization</h6>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar"
+                             style="width: {{ overall_utilization }}%; background-color: {% if overall_utilization > 80 %}#dc3545{% elif overall_utilization > 50 %}#ffc107{% else %}#198754{% endif %}">
+                            <span class="text-white fw-bold">{{ "%.1f"|format(overall_utilization) }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="row text-center">
+                    <div class="col">
+                        <small class="text-muted">Allocated</small>
+                        <p class="mb-0 fw-bold">${{ "%.2f"|format(total_allocated) }}</p>
+                    </div>
+                    <div class="col">
+                        <small class="text-muted">Spent</small>
+                        <p class="mb-0 fw-bold">${{ "%.2f"|format(total_spent) }}</p>
+                    </div>
+                    <div class="col">
+                        <small class="text-muted">Remaining</small>
+                        <p class="mb-0 fw-bold">${{ "%.2f"|format(total_remaining) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Budget Status Summary</div>
+            <div class="card-body">
+                <div class="list-group list-group-sm">
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-check-circle text-success"></i> On Track</span>
+                        <span class="badge bg-success">{{ status_count.on_track }}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-exclamation-circle text-warning"></i> At Risk</span>
+                        <span class="badge bg-warning">{{ status_count.at_risk }}</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-x-circle text-danger"></i> Over Budget</span>
+                        <span class="badge bg-danger">{{ status_count.over_budget }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Spending Timeline -->
+<div class="card mb-4">
+    <div class="card-header">Monthly Spending Trend</div>
+    <div class="card-body">
+        <div class="chart-container">
+            <canvas id="spendingChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Category Breakdown -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Spending by Category</div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">Budget Allocation Distribution</div>
+            <div class="card-body">
+                <div class="list-group list-group-sm">
+                {% for cat, amount in category_breakdown.items() %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>{{ cat }}</span>
+                            <span class="fw-bold">${{ "%.2f"|format(amount) }}</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar" style="width: {{ (amount / total_allocated * 100)|round|int }}%"></div>
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Transactions Timeline -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Transaction History</span>
+        <select id="transactionFilter" class="form-select form-select-sm" style="max-width: 200px;">
+            <option value="">All Types</option>
+            <option value="expense">Expenses Only</option>
+            <option value="allocation">Allocations Only</option>
+        </select>
+    </div>
+    <div class="card-body">
+        <div class="tracking-timeline">
+        {% for txn in transactions %}
+            <div class="tracking-item">
+                <div class="tracking-marker" style="background-color: {% if txn.type == 'allocation' %}#1a56db{% else %}#ef4444{% endif %}">
+                    {% if txn.type == 'allocation' %}
+                        <i class="bi bi-plus"></i>
+                    {% else %}
+                        <i class="bi bi-dash"></i>
+                    {% endif %}
+                </div>
+                <div class="tracking-content w-100">
+                    <h6 class="mb-1">
+                        {{ txn.category }}
+                        <span class="badge {% if txn.type == 'allocation' %}bg-info{% else %}bg-danger{% endif %} ms-2">
+                            {{ txn.type|upper }}
+                        </span>
+                    </h6>
+                    <div class="tracking-amount">
+                        {% if txn.type == 'allocation' %}+{% else %}-{% endif %}${{ "%.2f"|format(txn.amount) }}
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        {{ txn.description }}
+                    </small>
+                    <small class="text-muted d-block mt-1">
+                        <i class="bi bi-calendar"></i> {{ txn.date.strftime('%Y-%m-%d %H:%M') }}
+                        {% if txn.created_by %}
+                        | <i class="bi bi-person"></i> {{ txn.created_by }}
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-muted text-center">No transactions recorded yet.</p>
+        {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Spending Trend Chart
+const spendingCtx = document.getElementById('spendingChart').getContext('2d');
+new Chart(spendingCtx, {
+    type: 'line',
+    data: {
+        labels: {{ monthly_labels|tojson }},
+        datasets: [{
+            label: 'Monthly Spending',
+            data: {{ monthly_spending|tojson }},
+            borderColor: '#1a56db',
+            backgroundColor: 'rgba(26, 86, 219, 0.1)',
+            tension: 0.4,
+            fill: true
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } }
+    }
+});
+
+// Category Chart
+const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+new Chart(categoryCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {{ category_list|tojson }},
+        datasets: [{
+            data: {{ category_amounts|tojson }},
+            backgroundColor: ['#1a56db', '#ef4444', '#fbbf24', '#10b981', '#8b5cf6']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
+    }
+});
+
+// Filter by category
+document.getElementById('categoryFilter').addEventListener('change', function() {
+    // Filter logic would go here
+});
+
+document.getElementById('transactionFilter').addEventListener('change', function() {
+    // Filter logic would go here
+});
+</script>
+{% endblock %}

@@ -100,6 +100,12 @@
                 <a href="{{ url_for('essat.inventory_list') }}">ESSAT Equipment Inventory</a>
                 <a href="{{ url_for('report.custom_report_builder') }}">Custom Reports</a>
 
+                <div class="menu-group">Budget</div>
+                <a href="{{ url_for('budget.budget_allocations') }}">Budget Allocations</a>
+                <a href="{{ url_for('budget.budget_tracking') }}">Budget Tracking</a>
+                <a href="{{ url_for('budget.budget_reports') }}">Budget Reports</a>
+                <a href="{{ url_for('budget.procurements') }}">Procurements</a>
+
                 {% if current_user.is_authenticated and current_user.role in ['admin', 'supervisor', 'auditor', 'inspector'] %}
                 <div class="menu-group">Admin</div>
                 <a href="{{ url_for('admin.user_management') }}">User Management</a>

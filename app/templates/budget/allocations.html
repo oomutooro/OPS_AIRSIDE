@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% block title %}Budget Allocations{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alloc-table th, .alloc-table td { vertical-align: middle; }
+    .alloc-card { border-left: 4px solid #1a56db; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Budget Allocations</h2>
+    <div class="d-flex gap-2 align-items-center">
+        <label class="small text-muted mb-0">Fiscal Year</label>
+        <select id="fiscalYear" class="form-select form-select-sm" style="max-width: 120px;">
+            {% for year in range(fiscal_year - 2, fiscal_year + 3) %}
+            <option value="{{ year }}" {% if year == fiscal_year %}selected{% endif %}>FY{{ year }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Create New Budget Allocation -->
+<div class="card panel-card mb-4">
+    <div class="card-header">Create New Budget Allocation</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <input type="hidden" name="action" value="create">
+            
+            <div class="col-md-3">
+                <label class="form-label">Fiscal Year</label>
+                <input type="number" name="fiscal_year" class="form-control" value="{{ fiscal_year }}" required>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Category</label>
+                <input type="text" name="category" class="form-control" placeholder="e.g., Equipment" required>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Allocated Amount</label>
+                <input type="number" name="allocated_amount" class="form-control" placeholder="0.00" step="0.01" required>
+            </div>
+            
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Add Budget</button>
+            </div>
+            
+            <div class="col-12">
+                <label class="form-label">Description</label>
+                <input type="text" name="description" class="form-control" placeholder="Optional notes...">
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card alloc-card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Total Allocated</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(total_allocated) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card alloc-card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Total Spent</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(total_spent) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card alloc-card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Remaining</h6>
+                <h3 class="mb-0">${{ "%.2f"|format(total_remaining) }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card alloc-card">
+            <div class="card-body">
+                <h6 class="card-title text-muted">Categories</h6>
+                <h3 class="mb-0">{{ allocations|length }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Allocations Table -->
+<div class="card panel-card">
+    <div class="card-header">Budget Allocations - FY{{ fiscal_year }}</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 alloc-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Category</th>
+                        <th>Allocated Amount</th>
+                        <th>Spent</th>
+                        <th>Remaining</th>
+                        <th>Utilization</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for alloc in allocations %}
+                    <tr>
+                        <td>
+                            <strong>{{ alloc.category }}</strong>
+                            {% if alloc.description %}
+                            <br><small class="text-muted">{{ alloc.description }}</small>
+                            {% endif %}
+                        </td>
+                        <td>${{ "%.2f"|format(alloc.allocated_amount) }}</td>
+                        <td>${{ "%.2f"|format(alloc.spent_amount()) }}</td>
+                        <td>${{ "%.2f"|format(alloc.remaining_amount()) }}</td>
+                        <td>
+                            <div class="progress" style="height: 20px; min-width: 120px;">
+                                <div class="progress-bar {% if alloc.utilization_percent() > 80 %}bg-danger{% elif alloc.utilization_percent() > 50 %}bg-warning{% else %}bg-success{% endif %}"
+                                     style="width: {{ [alloc.utilization_percent(), 100]|min }}%">
+                                    <small>{{ "%.1f"|format(alloc.utilization_percent()) }}%</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reviseModal{{ alloc.id }}">
+                                Revise
+                            </button>
+                        </td>
+                    </tr>
+                    
+                    <!-- Revise Budget Modal -->
+                    <div class="modal fade" id="reviseModal{{ alloc.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Revise Budget: {{ alloc.category }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="post">
+                                    <div class="modal-body">
+                                        <input type="hidden" name="action" value="revise">
+                                        <input type="hidden" name="allocation_id" value="{{ alloc.id }}">
+                                        
+                                        <div class="mb-3">
+                                            <label class="form-label">Current Amount</label>
+                                            <input type="text" class="form-control" value="${{ "%.2f"|format(alloc.allocated_amount) }}" disabled>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">New Amount</label>
+                                            <input type="number" name="new_amount" class="form-control" value="{{ alloc.allocated_amount }}" step="0.01" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Reason</label>
+                                            <textarea name="reason" class="form-control" rows="3" placeholder="Why is the budget being revised?"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Update Budget</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-3">No budget allocations for FY{{ fiscal_year }}. Create one above.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Budget Revision History -->
+{% set revisions = allocations|map(attribute='id')|list %}
+{% if revisions %}
+<div class="card panel-card mt-4">
+    <div class="card-header">Recent Budget Revisions</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Category</th>
+                        <th>Old Amount</th>
+                        <th>New Amount</th>
+                        <th>Reason</th>
+                        <th>Date</th>
+                        <th>Revised By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <!-- Revision rows would go here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.getElementById('fiscalYear').addEventListener('change', function() {
+    window.location.href = `{{ url_for('budget.budget_allocations') }}?fiscal_year=${this.value}`;
+});
+</script>
+{% endblock %}

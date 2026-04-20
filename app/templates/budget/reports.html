@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% block title %}Budget Reports{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card { border-top: 4px solid #1a56db; }
+    .report-header { background: #f3f4f6; padding: 15px; border-bottom: 1px solid #e5e7eb; }
+    .metric-box { text-align: center; padding: 20px; background: #f9fafb; border-radius: 8px; }
+    .metric-value { font-size: 2em; font-weight: bold; color: #1a56db; }
+    .metric-label { color: #6b7280; font-size: 0.9em; margin-top: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Budget Reports</h2>
+    <div class="btn-group">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="exportPdf">
+            <i class="bi bi-file-pdf"></i> Export PDF
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="exportExcel">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export Excel
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="printReport">
+            <i class="bi bi-printer"></i> Print
+        </button>
+    </div>
+</div>
+
+<!-- Report Selection -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <label class="form-label">Report Type</label>
+        <select id="reportType" class="form-select">
+            <option value="summary">Budget Summary</option>
+            <option value="detailed">Detailed Expenditure</option>
+            <option value="variance">Variance Analysis</option>
+            <option value="forecast">Spending Forecast</option>
+            <option value="category">Category Breakdown</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Fiscal Year</label>
+        <select id="fiscalYear" class="form-select">
+            {% for year in fiscal_years %}
+            <option value="{{ year }}" {% if year == current_fiscal_year %}selected{% endif %}>FY{{ year }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Period</label>
+        <select id="period" class="form-select">
+            <option value="full">Full Year</option>
+            <option value="h1">First Half</option>
+            <option value="h2">Second Half</option>
+            <option value="q1">Q1</option>
+            <option value="q2">Q2</option>
+            <option value="q3">Q3</option>
+            <option value="q4">Q4</option>
+        </select>
+    </div>
+</div>
+
+<!-- Budget Summary Report -->
+<div id="summaryReport" class="report-section mb-4">
+    <div class="card report-card">
+        <div class="report-header">
+            <h5 class="mb-0">Budget Summary Report</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-value">${{ "%.2f"|format(total_allocated) }}</div>
+                        <div class="metric-label">Total Allocated</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-value">${{ "%.2f"|format(total_spent) }}</div>
+                        <div class="metric-label">Total Spent</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-value">${{ "%.2f"|format(total_remaining) }}</div>
+                        <div class="metric-label">Total Remaining</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-box">
+                        <div class="metric-value">{{ "%.1f"|format(utilization_percent) }}%</div>
+                        <div class="metric-label">Budget Utilized</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Category</th>
+                            <th>Allocated</th>
+                            <th>Spent</th>
+                            <th>Remaining</th>
+                            <th>Utilization</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in summary_data %}
+                        <tr>
+                            <td>{{ item.category }}</td>
+                            <td>${{ "%.2f"|format(item.allocated) }}</td>
+                            <td>${{ "%.2f"|format(item.spent) }}</td>
+                            <td>${{ "%.2f"|format(item.remaining) }}</td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar" style="width: {{ item.utilization }}%">{{ "%.1f"|format(item.utilization) }}%</div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if item.status == 'on_track' %}success{% elif item.status == 'at_risk' %}warning{% else %}danger{% endif %}">
+                                    {{ item.status|replace('_', ' ')|title }}
+                                </span>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Variance Analysis Report -->
+<div id="varianceReport" class="report-section mb-4" style="display: none;">
+    <div class="card report-card">
+        <div class="report-header">
+            <h5 class="mb-0">Budget Variance Analysis</h5>
+            <small class="text-muted">Comparing actual vs. projected spending</small>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Category</th>
+                            <th>Projected</th>
+                            <th>Actual</th>
+                            <th>Variance</th>
+                            <th>Variance %</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in variance_data %}
+                        <tr>
+                            <td>{{ item.category }}</td>
+                            <td>${{ "%.2f"|format(item.projected) }}</td>
+                            <td>${{ "%.2f"|format(item.actual) }}</td>
+                            <td class="{% if item.variance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                {% if item.variance > 0 %}+{% endif %}${{ "%.2f"|format(item.variance) }}
+                            </td>
+                            <td class="{% if item.variance_percent > 0 %}text-danger{% else %}text-success{% endif %}">
+                                {% if item.variance_percent > 0 %}+{% endif %}{{ "%.1f"|format(item.variance_percent) }}%
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if item.variance_percent > 10 %}danger{% elif item.variance_percent > 5 %}warning{% else %}success{% endif %}">
+                                    {% if item.variance_percent|abs < 5 %}On Track{% elif item.variance_percent > 0 %}Over{% else %}Under{% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Spending Forecast -->
+<div id="forecastReport" class="report-section mb-4" style="display: none;">
+    <div class="card report-card">
+        <div class="report-header">
+            <h5 class="mb-0">Spending Forecast</h5>
+            <small class="text-muted">Projected end-of-year spending based on current trends</small>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">Projected Year-End Spending</h6>
+                        <p class="mb-0"><strong>${{ "%.2f"|format(projected_year_end) }}</strong> (vs. allocated ${{ "%.2f"|format(total_allocated) }})</p>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="alert alert-warning">
+                        <h6 class="alert-heading">Projected Overage</h6>
+                        <p class="mb-0"><strong>${{ "%.2f"|format(projected_overage) }}</strong></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Category</th>
+                            <th>Current Rate</th>
+                            <th>Projected Year-End</th>
+                            <th>Allocated</th>
+                            <th>Projected Overage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for item in forecast_data %}
+                        <tr>
+                            <td>{{ item.category }}</td>
+                            <td>${{ "%.2f"|format(item.monthly_rate) }}/mo</td>
+                            <td>${{ "%.2f"|format(item.projected_total) }}</td>
+                            <td>${{ "%.2f"|format(item.allocated) }}</td>
+                            <td class="{% if item.projected_overage > 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
+                                {% if item.projected_overage > 0 %}+{% endif %}${{ "%.2f"|format(item.projected_overage) }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('reportType').addEventListener('change', function() {
+    document.querySelectorAll('.report-section').forEach(el => el.style.display = 'none');
+    document.getElementById(this.value + 'Report').style.display = 'block';
+});
+
+document.getElementById('exportPdf').addEventListener('click', function() {
+    window.location.href = `{{ url_for('budget.export_report') }}?format=pdf&report_type=${document.getElementById('reportType').value}`;
+});
+
+document.getElementById('exportExcel').addEventListener('click', function() {
+    window.location.href = `{{ url_for('budget.export_report') }}?format=excel&report_type=${document.getElementById('reportType').value}`;
+});
+
+document.getElementById('printReport').addEventListener('click', function() {
+    window.print();
+});
+</script>
+{% endblock %}
