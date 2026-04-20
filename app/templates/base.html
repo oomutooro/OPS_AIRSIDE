@@ -65,6 +65,9 @@
             <div class="sidebar-header">Operations Menu</div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('dashboard.index') }}"><i class="fa fa-gauge me-2"></i>Dashboard</a>
+                <a href="{{ url_for('budget.budget_allocations') }}"><i class="fa fa-wallet me-2"></i>Budget</a>
+                <a href="{{ url_for('budget.budget_tracking') }}"><i class="fa fa-chart-bar me-2"></i>Spending</a>
+                <a href="{{ url_for('budget.budget_reports') }}"><i class="fa fa-file-chart me-2"></i>Reports</a>
 
                 <div class="menu-group">Apron Management</div>
                 <a href="{{ url_for('apron.stand_allocation') }}">Stand Allocation</a>
@@ -99,12 +102,6 @@
                 <a href="{{ url_for('essat.analytics') }}">ESSAT Analytics</a>
                 <a href="{{ url_for('essat.inventory_list') }}">ESSAT Equipment Inventory</a>
                 <a href="{{ url_for('report.custom_report_builder') }}">Custom Reports</a>
-
-                <div class="menu-group">Budget</div>
-                <a href="{{ url_for('budget.budget_allocations') }}">Budget Allocations</a>
-                <a href="{{ url_for('budget.budget_tracking') }}">Budget Tracking</a>
-                <a href="{{ url_for('budget.budget_reports') }}">Budget Reports</a>
-                <a href="{{ url_for('budget.procurements') }}">Procurements</a>
 
                 {% if current_user.is_authenticated and current_user.role in ['admin', 'supervisor', 'auditor', 'inspector'] %}
                 <div class="menu-group">Admin</div>
