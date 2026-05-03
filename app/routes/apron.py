@@ -708,16 +708,29 @@ def shift_roster():
     ).order_by(User.full_name).all()
     roster_entries = ShiftRoster.query.filter_by(duty_date=target_date).order_by(ShiftRoster.duty_type, ShiftRoster.user_id).all()
     availability_entries = ShiftRoster.query.filter(
-        ShiftRoster.duty_date >= target_date,
-        ShiftRoster.duty_date <= (target_date + timedelta(days=30)),
         ShiftRoster.duty_type.in_(['leave', 'study_leave', 'office'])
-    ).order_by(ShiftRoster.duty_date, ShiftRoster.user_id).all()
+    ).order_by(ShiftRoster.user_id, ShiftRoster.duty_type, ShiftRoster.duty_date).all()
+
+    # Group into per-person summaries: consecutive runs of the same type per user
+    _avail_map = {}
+    for entry in availability_entries:
+        key = (entry.user_id, entry.duty_type)
+        if key not in _avail_map:
+            _avail_map[key] = {'user': entry.user, 'duty_type': entry.duty_type,
+                                'start_date': entry.duty_date, 'end_date': entry.duty_date,
+                                'notes': entry.notes}
+        else:
+            if entry.duty_date > _avail_map[key]['end_date']:
+                _avail_map[key]['end_date'] = entry.duty_date
+    availability_summary = sorted(_avail_map.values(), key=lambda x: x['start_date'])
+
     return render_template(
         'apron/shift_roster.html',
         users=users,
         target_date=target_date,
         roster_entries=roster_entries,
         availability_entries=availability_entries,
+        availability_summary=availability_summary,
     )
 
 
