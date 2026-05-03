@@ -3,6 +3,7 @@ Inspection routes for forms 1,4,5,6,7,8,9,13,14,18,19,20,21,22,24,25.
 """
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.orm import joinedload
 from app import db
 from app.models.form import FormSubmission, FormTemplate
 from app.models.inspection import ESSTATMotorisedInspection, ESSTATNonMotorisedInspection
@@ -12,6 +13,81 @@ from app.utils.decorators import role_required
 from app.utils.form_schemas import FORM_SCHEMAS
 
 inspection_bp = Blueprint('inspection', __name__)
+
+WORKFLOW_LEVEL_LABELS = {
+    'operator': ('Operator Level', 'primary'),
+    'inspector': ('Senior Level', 'info'),
+    'auditor': ('Manager Review', 'warning'),
+    'supervisor': ('Senior Manager Review', 'danger'),
+}
+
+
+def _status_tone(status):
+    return {
+        'draft': 'secondary',
+        'submitted': 'primary',
+        'approved': 'success',
+        'rejected': 'danger',
+        'closed': 'success',
+    }.get((status or '').lower(), 'secondary')
+
+
+def _workflow_summary(submission):
+    workflow_item = submission.workflow_item
+    if not workflow_item:
+        return 'Not Routed', 'secondary'
+    if workflow_item.status == 'closed' or submission.status in ('approved', 'closed'):
+        return 'Cleared Completely', 'success'
+    return WORKFLOW_LEVEL_LABELS.get(
+        workflow_item.current_owner_role,
+        ((workflow_item.current_owner_role or 'Pending').replace('_', ' ').title(), 'secondary'),
+    )
+
+
+def _build_form_page_overview(template, recent):
+    total_reports = FormSubmission.query.filter_by(form_template_id=template.id).count()
+    pending_reports = FormSubmission.query.filter(
+        FormSubmission.form_template_id == template.id,
+        FormSubmission.status.in_(['draft', 'submitted'])
+    ).count()
+    cleared_reports = FormSubmission.query.filter(
+        FormSubmission.form_template_id == template.id,
+        FormSubmission.status.in_(['approved', 'closed'])
+    ).count()
+    latest_report = recent[0] if recent else None
+
+    related_reports = []
+    for submission in recent[:6]:
+        workflow_label, workflow_tone = _workflow_summary(submission)
+        related_reports.append({
+            'reference': submission.reference_number or f'SUB-{submission.id}',
+            'title': template.title,
+            'meta': submission.location_ref or 'Airside Ops',
+            'status_label': (submission.status or 'draft').replace('_', ' ').title(),
+            'status_tone': _status_tone(submission.status),
+            'workflow_label': workflow_label,
+            'workflow_tone': workflow_tone,
+            'updated_at': submission.created_at.strftime('%d %b %Y %H:%M') if submission.created_at else '-',
+        })
+
+    return {
+        'title': f'Form {template.form_number} - {template.title}',
+        'subtitle': 'Review the summary first, then add a new report using the form below.',
+        'add_label': 'Insert New Report',
+        'add_href': '#new-report-form',
+        'list_caption': 'Latest reports already inserted for this form',
+        'summary_cards': [
+            {'label': 'Total Reports', 'value': total_reports, 'help_text': 'All submissions captured for this form'},
+            {'label': 'Pending Action', 'value': pending_reports, 'help_text': 'Draft or submitted reports awaiting action'},
+            {'label': 'Cleared', 'value': cleared_reports, 'help_text': 'Reports fully approved or closed'},
+            {
+                'label': 'Latest Report',
+                'value': latest_report.reference_number if latest_report and latest_report.reference_number else (f'SUB-{latest_report.id}' if latest_report else 'None'),
+                'help_text': latest_report.created_at.strftime('%d %b %Y %H:%M') if latest_report and latest_report.created_at else 'No submissions yet',
+            },
+        ],
+        'related_reports': related_reports,
+    }
 
 
 def _save_generic_form(form_number: int, location='Airside'):
@@ -35,6 +111,14 @@ def _save_generic_form(form_number: int, location='Airside'):
     )
     db.session.add(submission)
     WorkflowService.ensure_issue_for_submission(submission, current_user)
+    from app.models.form import AuditLog
+    AuditLog.log(
+        'SUBMIT_FORM',
+        user_id=current_user.id,
+        entity_type='FormSubmission',
+        form_template_id=template.id,
+        description=f'{current_user.full_name} submitted Form {form_number} ({template.title})',
+    )
     db.session.commit()
     return True, 'Submitted successfully.'
 
@@ -69,17 +153,28 @@ def generic_form(form_number):
         flash(message, 'success' if ok else 'danger')
         return redirect(url_for('inspection.generic_form', form_number=form_number))
 
-    recent = FormSubmission.query.join(FormTemplate).filter(
+    recent = FormSubmission.query.options(
+        joinedload(FormSubmission.workflow_item)
+    ).join(FormTemplate).filter(
         FormTemplate.form_number == form_number
     ).order_by(FormSubmission.created_at.desc()).limit(10).all()
 
+    template = FormTemplate.query.filter_by(form_number=form_number).first()
     schema = FORM_SCHEMAS.get(form_number, {'title': f'Form {form_number}', 'sections': []})
+    page_overview = _build_form_page_overview(template, recent) if template else None
+    if page_overview and form_number in (18, 19):
+        page_overview['quick_links'] = [
+            {'label': 'ESSAT Sticker Report', 'url': url_for('report.essat_sticker_report'), 'icon': 'fa-tag'},
+            {'label': 'ESSAT Analytics', 'url': url_for('essat.analytics'), 'icon': 'fa-chart-line'},
+            {'label': 'ESSAT Equipment Inventory', 'url': url_for('essat.inventory_list'), 'icon': 'fa-boxes'},
+        ]
     companies = Company.query.filter_by(is_active=True).order_by(Company.name).all() if form_number == 18 else []
     return render_template(
         template_name_map[form_number],
         recent=recent,
         form_number=form_number,
         schema=schema,
+        page_overview=page_overview,
         companies=companies,
     )
 
@@ -90,4 +185,63 @@ def form_list():
     templates = FormTemplate.query.filter(
         FormTemplate.form_number.in_([1, 4, 5, 6, 7, 8, 9, 13, 14, 18, 19, 20, 21, 22, 24, 25])
     ).order_by(FormTemplate.form_number).all()
-    return render_template('inspections/forms_index.html', templates=templates)
+
+    template_ids = [template.id for template in templates]
+    submitted_count = FormSubmission.query.filter(FormSubmission.form_template_id.in_(template_ids)).count() if template_ids else 0
+    pending_count = FormSubmission.query.filter(
+        FormSubmission.form_template_id.in_(template_ids),
+        FormSubmission.status.in_(['draft', 'submitted'])
+    ).count() if template_ids else 0
+    cleared_count = FormSubmission.query.filter(
+        FormSubmission.form_template_id.in_(template_ids),
+        FormSubmission.status.in_(['approved', 'closed'])
+    ).count() if template_ids else 0
+
+    def grouped_links(form_numbers):
+        group_templates = [template for template in templates if template.form_number in form_numbers]
+        return [
+            {
+                'label': f'Form {template.form_number} - {template.title}',
+                'url': url_for('inspection.generic_form', form_number=template.form_number),
+                'meta': 'Open report workspace',
+            }
+            for template in group_templates
+        ]
+
+    sections = [
+        {
+            'title': 'Airfield Checks',
+            'description': 'Daily apron, stand, runway, manoeuvring area, and spill inspection reports.',
+            'badge': 'Core inspections',
+            'links': grouped_links([1, 4, 6, 7, 8, 9]),
+            'action': {'label': 'Add New Inspection', 'url': url_for('inspection.generic_form', form_number=1)},
+        },
+        {
+            'title': 'Audit and Equipment Reports',
+            'description': 'Turnaround audits, equipment surveys, and operational assurance forms.',
+            'badge': 'Audit',
+            'links': grouped_links([13, 14]),
+            'action': {'label': 'Start Audit Report', 'url': url_for('inspection.generic_form', form_number=13)},
+        },
+        {
+            'title': 'ESSAT and Safety Checks',
+            'description': 'ESSAT, FOD, fueling safety, tank farm, and low visibility reports.',
+            'badge': 'Specialized',
+            'links': grouped_links([18, 19, 20, 21, 22, 24, 25]),
+            'action': {'label': 'Add ESSAT Report', 'url': url_for('inspection.generic_form', form_number=18)},
+        },
+    ]
+
+    return render_template(
+        'shared/section_overview.html',
+        overview_title='Inspection Dashboard',
+        overview_subtitle='Open a report family, review its current workload, and start a new form from the relevant section.',
+        summary_cards=[
+            {'label': 'Active Forms', 'value': len(templates), 'help_text': 'Inspection forms available to this workspace'},
+            {'label': 'Submitted Reports', 'value': submitted_count, 'help_text': 'All inspection reports captured so far'},
+            {'label': 'Pending Review', 'value': pending_count, 'help_text': 'Draft or submitted inspections still in progress'},
+            {'label': 'Cleared Reports', 'value': cleared_count, 'help_text': 'Inspection reports fully approved or closed'},
+        ],
+        sections=sections,
+        primary_action={'label': 'Start New Inspection', 'url': url_for('inspection.generic_form', form_number=1)},
+    )

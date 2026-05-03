@@ -6,6 +6,26 @@ from decimal import Decimal
 from app import db
 
 
+COMMITTED_PROCUREMENT_STATUSES = (
+    'pending',
+    'approved',
+    'ordered',
+    'in_transit',
+    'rfq_pending',
+    'rfq_issued',
+    'vendor_selection',
+    'finance_approval',
+    'po_issued',
+    'in_delivery',
+)
+
+RECEIVED_PROCUREMENT_STATUSES = (
+    'delivered',
+    'invoiced',
+    'paid',
+)
+
+
 class BudgetAllocation(db.Model):
     """Annual/periodic budget allocation by category."""
     __tablename__ = 'budget_allocations'
@@ -38,7 +58,7 @@ class BudgetAllocation(db.Model):
         result = db.session.query(db.func.coalesce(db.func.sum(Procurement.total_cost), 0)).filter(
             Procurement.budget_line_item_id.isnot(None),
             db.and_(
-                Procurement.status.in_(['pending', 'approved', 'ordered', 'in_transit']),
+                Procurement.status.in_(COMMITTED_PROCUREMENT_STATUSES),
                 BudgetLineItem.id == Procurement.budget_line_item_id
             ),
             BudgetLineItem.allocation_id == self.id
@@ -49,7 +69,7 @@ class BudgetAllocation(db.Model):
         """Total actually spent (delivered/paid)."""
         result = db.session.query(db.func.coalesce(db.func.sum(Procurement.total_cost), 0)).filter(
             Procurement.budget_allocation_id == self.id,
-            Procurement.status.in_(['delivered', 'invoiced', 'paid']),
+            Procurement.status.in_(RECEIVED_PROCUREMENT_STATUSES),
             Procurement.status != 'cancelled'
         ).scalar()
         return Decimal(str(result or 0))
@@ -104,7 +124,7 @@ class BudgetLineItem(db.Model):
         """Amount committed via POs (ordered but not yet received)."""
         result = db.session.query(db.func.coalesce(db.func.sum(Procurement.total_cost), 0)).filter(
             Procurement.budget_line_item_id == self.id,
-            Procurement.status.in_(['pending', 'approved', 'ordered', 'in_transit']),
+            Procurement.status.in_(COMMITTED_PROCUREMENT_STATUSES),
             Procurement.status != 'cancelled'
         ).scalar()
         return Decimal(str(result or 0))
@@ -113,7 +133,7 @@ class BudgetLineItem(db.Model):
         """Amount actually received (delivery notes processed)."""
         result = db.session.query(db.func.coalesce(db.func.sum(Procurement.total_cost), 0)).filter(
             Procurement.budget_line_item_id == self.id,
-            Procurement.status.in_(['delivered', 'invoiced', 'paid']),
+            Procurement.status.in_(RECEIVED_PROCUREMENT_STATUSES),
             Procurement.status != 'cancelled'
         ).scalar()
         return Decimal(str(result or 0))
@@ -129,9 +149,9 @@ class BudgetLineItem(db.Model):
         procurements = self.procurements.filter(Procurement.status != 'cancelled').all()
         return {
             'total_pos': len(procurements),
-            'pending': len([p for p in procurements if p.status in ['pending', 'approved']]),
-            'ordered': len([p for p in procurements if p.status in ['ordered', 'in_transit']]),
-            'delivered': len([p for p in procurements if p.status in ['delivered', 'invoiced', 'paid']])
+            'pending': len([p for p in procurements if p.status in ['pending', 'approved', 'rfq_pending', 'rfq_issued', 'vendor_selection', 'finance_approval']]),
+            'ordered': len([p for p in procurements if p.status in ['ordered', 'in_transit', 'po_issued', 'in_delivery']]),
+            'delivered': len([p for p in procurements if p.status in RECEIVED_PROCUREMENT_STATUSES])
         }
 
     def __repr__(self):

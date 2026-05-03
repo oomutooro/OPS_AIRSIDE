@@ -18,6 +18,63 @@ from app.utils.decorators import role_required
 apron_bp = Blueprint('apron', __name__)
 
 
+def _page_overview(title, subtitle, summary_cards, related_reports, add_href='#new-report-form', add_label='Insert New Report'):
+    return {
+        'title': title,
+        'subtitle': subtitle,
+        'summary_cards': summary_cards,
+        'related_reports': related_reports,
+        'add_href': add_href,
+        'add_label': add_label,
+        'list_caption': 'Latest apron reports already captured for this workflow',
+    }
+
+
+@apron_bp.route('/overview')
+@role_required('admin', 'supervisor', 'inspector', 'operator')
+def overview():
+    staff_deployment_count = FormSubmission.query.join(FormTemplate).filter(FormTemplate.form_number == 23).count()
+    tpbb_report_count = FormSubmission.query.join(FormTemplate).filter(FormTemplate.form_number == 5).count()
+    sections = [
+        {
+            'title': 'Shift Operations',
+            'description': 'Shift handovers, staffing, and roster management for day and night operations.',
+            'badge': f'{HandoverReport.query.count()} handovers',
+            'links': [
+                {'label': 'Shift Handover', 'url': url_for('apron.shift_handover'), 'meta': 'Form 2 workspace'},
+                {'label': 'Staff Deployment', 'url': url_for('apron.staff_deployment'), 'meta': 'Form 23 workspace'},
+                {'label': 'Shift Roster', 'url': url_for('apron.shift_roster'), 'meta': 'Planning dashboard'},
+            ],
+            'action': {'label': 'Add Handover Report', 'url': url_for('apron.shift_handover')},
+        },
+        {
+            'title': 'Apron Traffic and Equipment',
+            'description': 'Stand allocation, TPBB operations, and map-driven apron controls.',
+            'badge': f'{StandAllocation.query.count()} allocations',
+            'links': [
+                {'label': 'Stand Allocation', 'url': url_for('apron.stand_allocation'), 'meta': 'Allocation workspace'},
+                {'label': 'TPBB Operations', 'url': url_for('apron.tpbb_operations'), 'meta': 'Form 5 workspace'},
+                {'label': 'Apron Stand Map', 'url': url_for('apron.stand_map'), 'meta': 'Visual stand view'},
+            ],
+            'action': {'label': 'Open Stand Allocation', 'url': url_for('apron.stand_allocation')},
+        },
+    ]
+
+    return render_template(
+        'shared/section_overview.html',
+        overview_title='Apron Dashboard',
+        overview_subtitle='Open each apron report family from here, see the dashboard cues for that area, and jump straight into new form entry.',
+        summary_cards=[
+            {'label': 'Handover Reports', 'value': HandoverReport.query.count(), 'help_text': 'Submitted shift handovers'},
+            {'label': 'Staff Deployment', 'value': staff_deployment_count, 'help_text': 'Captured Form 23 deployment reports'},
+            {'label': 'TPBB Reports', 'value': tpbb_report_count, 'help_text': 'Captured Form 5 bridge operation reports'},
+            {'label': 'Stand Allocations', 'value': StandAllocation.query.count(), 'help_text': 'Saved stand allocation records'},
+        ],
+        sections=sections,
+        primary_action={'label': 'Add Handover Report', 'url': url_for('apron.shift_handover')},
+    )
+
+
 def _parse_iso_date(value: str, default_value: date = None) -> date:
     if not value:
         return default_value or date.today()
@@ -465,6 +522,29 @@ def shift_handover():
         handover_date=handover_date,
         day_users=day_users,
         night_users=night_users,
+        page_overview=_page_overview(
+            'Shift Handover Workspace',
+            'Review recent handovers and their status before submitting the next handover record.',
+            [
+                {'label': 'Total Handovers', 'value': HandoverReport.query.count(), 'help_text': 'All recorded handover reports'},
+                {'label': 'Complete', 'value': HandoverReport.query.filter_by(status='complete').count(), 'help_text': 'Handovers fully signed off'},
+                {'label': 'Pending', 'value': HandoverReport.query.filter_by(status='pending').count(), 'help_text': 'Handovers waiting for signatures'},
+                {'label': 'Rostered Day Team', 'value': len(day_users), 'help_text': f'Operators rostered for {handover_date.strftime("%d %b %Y")}'},
+            ],
+            [
+                {
+                    'reference': f'HAND-{report.id}',
+                    'title': f'{report.outgoing_name} to {report.incoming_name}',
+                    'meta': report.handover_date.strftime('%d %b %Y') if report.handover_date else 'No date',
+                    'status_label': (report.status or 'pending').replace('_', ' ').title(),
+                    'status_tone': 'success' if report.status == 'complete' else 'warning',
+                    'workflow_label': 'Apron Shift',
+                    'workflow_tone': 'info',
+                    'updated_at': report.created_at.strftime('%d %b %Y %H:%M') if report.created_at else '-',
+                }
+                for report in reports[:6]
+            ],
+        ),
         signature_capture_enabled=bool(current_app.config.get('SIGNATURE_CAPTURE_ENABLED', False)),
     )
 

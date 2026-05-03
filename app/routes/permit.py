@@ -13,6 +13,72 @@ from app.services.workflow_service import WorkflowService
 permit_bp = Blueprint('permit', __name__)
 
 
+def _page_overview(title, subtitle, summary_cards, related_reports, add_href='#new-report-form', add_label='Insert New Report'):
+    return {
+        'title': title,
+        'subtitle': subtitle,
+        'summary_cards': summary_cards,
+        'related_reports': related_reports,
+        'add_href': add_href,
+        'add_label': add_label,
+        'list_caption': 'Latest permit-related reports and their current status',
+    }
+
+
+def _status_tone(status):
+    return {
+        'submitted': 'primary',
+        'approved': 'success',
+        'issued': 'success',
+        'draft': 'secondary',
+        'expired': 'danger',
+        'rejected': 'danger',
+    }.get((status or '').lower(), 'secondary')
+
+
+@permit_bp.route('/overview')
+@login_required
+def overview():
+    today = date.today()
+    expiring_soon = ADPPermit.query.filter(ADPPermit.expiry_date.isnot(None), ADPPermit.expiry_date <= today + timedelta(days=30)).count()
+    sections = [
+        {
+            'title': 'ADP Applications',
+            'description': 'New applications and applicant intake reports.',
+            'badge': f'{ADPApplication.query.count()} total',
+            'links': [
+                {'label': 'ADP Applications', 'url': url_for('permit.adp_application'), 'meta': 'Form 17 workspace'},
+                {'label': 'ADP Renewals', 'url': url_for('permit.adp_renewal'), 'meta': 'Permit renewal workspace'},
+            ],
+            'action': {'label': 'Add ADP Application', 'url': url_for('permit.adp_application')},
+        },
+        {
+            'title': 'Permit Registry',
+            'description': 'Vehicles, companies, and permit support records that sit around the permit workflow.',
+            'badge': f'{AirsideVehicle.query.count()} vehicles',
+            'links': [
+                {'label': 'Vehicle Registration', 'url': url_for('permit.vehicle_registration'), 'meta': 'Asset registry'},
+                {'label': 'Company Management', 'url': url_for('permit.company_management'), 'meta': 'Operator registry'},
+            ],
+            'action': {'label': 'Register Vehicle', 'url': url_for('permit.vehicle_registration')},
+        },
+    ]
+
+    return render_template(
+        'shared/section_overview.html',
+        overview_title='Permit Dashboard',
+        overview_subtitle='Each permit area acts like a heading with its own report list, dashboard cues, and entry point for new forms.',
+        summary_cards=[
+            {'label': 'Applications', 'value': ADPApplication.query.count(), 'help_text': 'ADP applications submitted'},
+            {'label': 'Expiring Soon', 'value': expiring_soon, 'help_text': 'Permits expiring within 30 days'},
+            {'label': 'Vehicles', 'value': AirsideVehicle.query.count(), 'help_text': 'Registered airside vehicles'},
+            {'label': 'Companies', 'value': Company.query.count(), 'help_text': 'Managed companies and operators'},
+        ],
+        sections=sections,
+        primary_action={'label': 'Add ADP Application', 'url': url_for('permit.adp_application')},
+    )
+
+
 @permit_bp.route('/adp-application', methods=['GET', 'POST'])
 @login_required
 def adp_application():
@@ -58,6 +124,29 @@ def adp_application():
         'permits/adp_application.html',
         companies=companies,
         applications=apps,
+        page_overview=_page_overview(
+            'ADP Applications Workspace',
+            'Review recent applications and their status before entering a new ADP application below.',
+            [
+                {'label': 'Applications', 'value': ADPApplication.query.count(), 'help_text': 'Total ADP applications captured'},
+                {'label': 'Submitted', 'value': ADPApplication.query.filter_by(status='submitted').count(), 'help_text': 'Applications awaiting approval'},
+                {'label': 'Approved', 'value': ADPApplication.query.filter_by(status='approved').count(), 'help_text': 'Applications already approved'},
+                {'label': 'Latest Applicant', 'value': apps[0].applicant_name if apps else 'None', 'help_text': apps[0].created_at.strftime('%d %b %Y %H:%M') if apps else 'No applications yet'},
+            ],
+            [
+                {
+                    'reference': application.application_no or f'ADP-{application.id}',
+                    'title': application.applicant_name or 'ADP application',
+                    'meta': application.status.replace('_', ' ').title() if application.status else 'Submitted',
+                    'status_label': (application.status or 'submitted').replace('_', ' ').title(),
+                    'status_tone': _status_tone(application.status),
+                    'workflow_label': 'Permit Intake',
+                    'workflow_tone': 'info',
+                    'updated_at': application.created_at.strftime('%d %b %Y %H:%M') if application.created_at else '-',
+                }
+                for application in apps[:6]
+            ],
+        ),
         signature_capture_enabled=bool(current_app.config.get('SIGNATURE_CAPTURE_ENABLED', False)),
     )
 
@@ -81,7 +170,34 @@ def adp_renewal():
         return redirect(url_for('permit.adp_renewal'))
 
     permits = ADPPermit.query.order_by(ADPPermit.expiry_date.asc()).limit(50).all()
-    return render_template('permits/adp_renewal.html', permits=permits)
+    return render_template(
+        'permits/adp_renewal.html',
+        permits=permits,
+        page_overview=_page_overview(
+            'ADP Renewals Workspace',
+            'Check the renewal queue and permit expiry status before processing the next renewal.',
+            [
+                {'label': 'Total Permits', 'value': ADPPermit.query.count(), 'help_text': 'Issued ADP permits in the registry'},
+                {'label': 'Active', 'value': ADPPermit.query.filter_by(is_active=True).count(), 'help_text': 'Permits currently active'},
+                {'label': 'Suspended', 'value': ADPPermit.query.filter_by(is_suspended=True).count(), 'help_text': 'Permits temporarily suspended'},
+                {'label': 'Next Expiry', 'value': permits[0].expiry_date.strftime('%d %b %Y') if permits and permits[0].expiry_date else 'None', 'help_text': permits[0].holder_name if permits else 'No permits yet'},
+            ],
+            [
+                {
+                    'reference': permit.adp_number or f'PERMIT-{permit.id}',
+                    'title': permit.holder_name or 'ADP permit',
+                    'meta': permit.expiry_date.strftime('%d %b %Y') if permit.expiry_date else 'No expiry',
+                    'status_label': 'Active' if permit.is_active else 'Inactive',
+                    'status_tone': 'success' if permit.is_active else 'secondary',
+                    'workflow_label': 'Renewal Queue',
+                    'workflow_tone': 'warning',
+                    'updated_at': permit.updated_at.strftime('%d %b %Y %H:%M') if permit.updated_at else '-',
+                }
+                for permit in permits[:6]
+            ],
+            add_label='Process Renewal',
+        ),
+    )
 
 
 @permit_bp.route('/vehicle-registration', methods=['GET', 'POST'])

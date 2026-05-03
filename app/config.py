@@ -99,6 +99,9 @@ class DevelopmentConfig(Config):
         'DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "..", "airside_ops.db")}'
     )
     CACHE_TYPE = 'SimpleCache'
+    # Keep local development unblocked unless explicitly enabled via environment.
+    RATELIMIT_ENABLED = os.environ.get('RATELIMIT_ENABLED', 'False').lower() == 'true'
+    RATELIMIT_DEFAULT = os.environ.get('RATELIMIT_DEFAULT', '10000 per day;2000 per hour')
     # Default to live mode when credentials are provided; set True explicitly for local simulation.
     AODB_MOCK_MODE = os.environ.get('AODB_MOCK_MODE', 'False').lower() == 'true'
 

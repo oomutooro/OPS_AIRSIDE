@@ -116,9 +116,9 @@
                         {% for alloc in allocations %}
                             <tr>
                                 <td><span class="category-badge">{{ alloc.category }}</span></td>
-                                <td>${{ "%.2f"|format(alloc.allocated_amount) }}</td>
-                                <td><strong>${{ "%.2f"|format(alloc.spent_amount()) }}</strong></td>
-                                <td>${{ "%.2f"|format(alloc.remaining_amount()) }}</td>
+                                <td>{{ alloc.allocated_amount|currency_ugx }}</td>
+                                <td><strong>{{ alloc.spent_amount()|currency_ugx }}</strong></td>
+                                <td>{{ alloc.remaining_amount()|currency_ugx }}</td>
                                 <td>
                                     <small class="{% if alloc.utilization_percent() > 80 %}text-danger{% elif alloc.utilization_percent() > 50 %}text-warning{% else %}text-success{% endif %}">
                                         {{ "%.1f"|format(alloc.utilization_percent()) }}%

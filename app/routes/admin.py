@@ -579,3 +579,72 @@ def api_aodb_writeback_detail(item_id):
     if not item:
         return jsonify({'error': 'Not found'}), 404
     return jsonify(item.to_dict())
+
+
+# ──────────────────────────────────────────────────────────────────
+# Audit Trail
+# ──────────────────────────────────────────────────────────────────
+
+@admin_bp.route('/audit-trail')
+@role_required('admin', 'supervisor', 'auditor')
+def audit_trail():
+    """Full audit trail — who did what and when."""
+    from app.models.form import AuditLog
+    from app.models.user import User
+
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
+
+    # Filter params
+    filter_user_id = request.args.get('user_id', type=int)
+    filter_action = request.args.get('action', '').strip()
+    filter_entity = request.args.get('entity', '').strip()
+    filter_date_from = request.args.get('date_from', '').strip()
+    filter_date_to = request.args.get('date_to', '').strip()
+
+    q = AuditLog.query.order_by(AuditLog.timestamp.desc())
+
+    if filter_user_id:
+        q = q.filter(AuditLog.user_id == filter_user_id)
+    if filter_action:
+        q = q.filter(AuditLog.action.ilike(f'%{filter_action}%'))
+    if filter_entity:
+        q = q.filter(AuditLog.entity_type.ilike(f'%{filter_entity}%'))
+    if filter_date_from:
+        try:
+            from datetime import datetime
+            q = q.filter(AuditLog.timestamp >= datetime.strptime(filter_date_from, '%Y-%m-%d'))
+        except ValueError:
+            pass
+    if filter_date_to:
+        try:
+            from datetime import datetime, timedelta
+            q = q.filter(AuditLog.timestamp < datetime.strptime(filter_date_to, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError:
+            pass
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    logs = pagination.items
+
+    # Build user list for filter dropdown
+    users = User.query.order_by(User.full_name).all()
+
+    # Distinct action types
+    distinct_actions = [
+        r[0] for r in db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all()
+        if r[0]
+    ]
+
+    return render_template(
+        'admin/audit_trail.html',
+        logs=logs,
+        pagination=pagination,
+        users=users,
+        distinct_actions=distinct_actions,
+        filter_user_id=filter_user_id,
+        filter_action=filter_action,
+        filter_entity=filter_entity,
+        filter_date_from=filter_date_from,
+        filter_date_to=filter_date_to,
+    )
+

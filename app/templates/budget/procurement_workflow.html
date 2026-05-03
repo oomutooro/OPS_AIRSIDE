@@ -66,7 +66,7 @@
             <div class="card">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Unit Price</h6>
-                    <h5 class="mb-0">UGX {{ "%.0f"|format(procurement.unit_price) }}</h5>
+                    <h5 class="mb-0">{{ procurement.unit_price|currency_ugx }}</h5>
                 </div>
             </div>
         </div>
@@ -74,7 +74,7 @@
             <div class="card border-primary">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Total Cost</h6>
-                    <h5 class="mb-0 text-primary">UGX {{ "%.0f"|format(procurement.total_cost) }}</h5>
+                    <h5 class="mb-0 text-primary">{{ procurement.total_cost|currency_ugx }}</h5>
                 </div>
             </div>
         </div>

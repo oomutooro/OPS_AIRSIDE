@@ -1,7 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}Incident Investigation (Form 11){% endblock %}
 {% block content %}
+{% include 'partials/report_page_overview.html' %}
 <div class="card panel-card">
+    <div id="new-report-form"></div>
     <div class="card-header">Form 11 - Preliminary Investigation</div>
     <div class="card-body">
         <form method="post" class="row g-3">

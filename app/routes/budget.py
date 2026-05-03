@@ -88,6 +88,47 @@ def budget_allocations():
                 
             except (ValueError, TypeError) as e:
                 flash(f'Invalid amount: {e}', 'danger')
+
+        elif action == 'delete':
+            allocation_id = int(request.form.get('allocation_id') or 0)
+            allocation = BudgetAllocation.query.get(allocation_id)
+
+            if not allocation:
+                flash('Budget allocation not found.', 'danger')
+                return redirect(url_for('budget.budget_allocations'))
+
+            try:
+                # Remove dependent records first to avoid FK violations in legacy schemas.
+                procurement_ids = [
+                    row[0] for row in db.session.query(Procurement.id).filter(
+                        Procurement.budget_allocation_id == allocation.id
+                    ).all()
+                ]
+
+                if procurement_ids:
+                    ProcurementWorkflowAudit.query.filter(
+                        ProcurementWorkflowAudit.procurement_id.in_(procurement_ids)
+                    ).delete(synchronize_session=False)
+
+                Procurement.query.filter_by(
+                    budget_allocation_id=allocation.id
+                ).delete(synchronize_session=False)
+                BudgetLineItem.query.filter_by(
+                    allocation_id=allocation.id
+                ).delete(synchronize_session=False)
+                BudgetRevision.query.filter_by(
+                    budget_allocation_id=allocation.id
+                ).delete(synchronize_session=False)
+
+                category = allocation.category
+                fiscal_year = allocation.fiscal_year
+                db.session.delete(allocation)
+                db.session.commit()
+
+                flash(f'Budget allocation {category} (FY{fiscal_year}) deleted.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Unable to delete budget allocation: {e}', 'danger')
         
         return redirect(url_for('budget.budget_allocations'))
     
@@ -824,52 +865,51 @@ def create_procurement_for_line_item(line_item_id):
     )
 
 
-    # ---------------------------------------------------------------------------
-    # Report Export
-    # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Report Export
+# ---------------------------------------------------------------------------
 
-    @budget_bp.route('/reports/export', methods=['GET'])
-    @role_required('admin', 'supervisor')
-    def export_report():
-        """Export budget reports in various formats."""
-        report_format = request.args.get('format', 'pdf').lower()
-        report_type = request.args.get('report_type', 'summary').lower()
-        fiscal_year = int(request.args.get('fiscal_year', date.today().year))
-    
-        # Get allocations for the selected fiscal year
-        allocations = BudgetAllocation.query.filter_by(fiscal_year=fiscal_year, status='active').all()
-    
-        total_allocated = sum(Decimal(str(a.allocated_amount)) for a in allocations)
-        total_spent = sum(a.spent_amount() for a in allocations)
-        total_remaining = total_allocated - total_spent
-        utilization_percent = float((total_spent / total_allocated * 100)) if total_allocated > 0 else 0
-    
-        # Build summary data
-        summary_data = []
-        for alloc in allocations:
-            spent = alloc.spent_amount()
-            utilization = float((spent / alloc.allocated_amount * 100)) if alloc.allocated_amount > 0 else 0
-            status = 'on_track' if utilization <= 80 else ('at_risk' if utilization <= 100 else 'over_budget')
-        
-            summary_data.append({
-                'category': alloc.category,
-                'allocated': float(alloc.allocated_amount),
-                'spent': float(spent),
-                'remaining': float(alloc.allocated_amount - spent),
-                'utilization': utilization,
-                'status': status
-            })
-    
-        if report_format == 'pdf':
-            # Simple text response for now (full PDF generation would require ReportLab)
-            flash('PDF export coming soon. Use browser print-to-PDF feature.', 'info')
-            return redirect(url_for('budget.budget_reports', fiscal_year=fiscal_year))
-    
-        elif report_format == 'excel':
-            # Simple text response for now (full Excel export would require openpyxl)
-            flash('Excel export coming soon. Use browser export as CSV feature.', 'info')
-            return redirect(url_for('budget.budget_reports', fiscal_year=fiscal_year))
-    
-        else:
-            flash('Invalid export format.', 'danger')
-            return redirect(url_for('budget.budget_reports', fiscal_year=fiscal_year))
+@budget_bp.route('/reports/export', methods=['GET'])
+@role_required('admin', 'supervisor')
+def export_report():
+    """Export budget reports in various formats."""
+    report_format = request.args.get('format', 'pdf').lower()
+    report_type = request.args.get('report_type', 'summary').lower()
+    fiscal_year = int(request.args.get('fiscal_year', date.today().year))
+
+    # Get allocations for the selected fiscal year
+    allocations = BudgetAllocation.query.filter_by(fiscal_year=fiscal_year, status='active').all()
+
+    total_allocated = sum(Decimal(str(a.allocated_amount)) for a in allocations)
+    total_spent = sum(a.spent_amount() for a in allocations)
+    total_remaining = total_allocated - total_spent
+    utilization_percent = float((total_spent / total_allocated * 100)) if total_allocated > 0 else 0
+
+    # Build summary data
+    summary_data = []
+    for alloc in allocations:
+        spent = alloc.spent_amount()
+        utilization = float((spent / alloc.allocated_amount * 100)) if alloc.allocated_amount > 0 else 0
+        status = 'on_track' if utilization <= 80 else ('at_risk' if utilization <= 100 else 'over_budget')
+
+        summary_data.append({
+            'category': alloc.category,
+            'allocated': float(alloc.allocated_amount),
+            'spent': float(spent),
+            'remaining': float(alloc.allocated_amount - spent),
+            'utilization': utilization,
+            'status': status
+        })
+
+    if report_format == 'pdf':
+        # Simple text response for now (full PDF generation would require ReportLab)
+        flash('PDF export coming soon. Use browser print-to-PDF feature.', 'info')
+        return redirect(url_for('budget.budget_reports', fiscal_year=fiscal_year))
+
+    if report_format == 'excel':
+        # Simple text response for now (full Excel export would require openpyxl)
+        flash('Excel export coming soon. Use browser export as CSV feature.', 'info')
+        return redirect(url_for('budget.budget_reports', fiscal_year=fiscal_year))
+
+    flash('Invalid export format.', 'danger')
+    return redirect(url_for('budget.budget_reports', fiscal_year=fiscal_year))

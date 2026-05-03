@@ -1,0 +1,145 @@
+{#
+  _submission_history.html
+  Reusable panel: shows previous form submissions with workflow hierarchy level.
+  Expects: recent (list of FormSubmission), and optionally form_number.
+#}
+
+{% macro hierarchy_badge(wf) %}
+  {% if wf is none %}
+    <span class="badge bg-secondary">No Workflow</span>
+  {% elif wf.status == 'closed' %}
+    <span class="badge bg-success"><i class="fa fa-check-circle me-1"></i>Cleared / Closed</span>
+  {% elif wf.current_owner_role == 'supervisor' %}
+    <span class="badge bg-danger"><i class="fa fa-user-tie me-1"></i>Manager / Supervisor Level</span>
+  {% elif wf.current_owner_role == 'auditor' %}
+    <span class="badge bg-warning text-dark"><i class="fa fa-user-shield me-1"></i>Auditor / Principal Level</span>
+  {% elif wf.current_owner_role == 'inspector' %}
+    <span class="badge bg-info text-dark"><i class="fa fa-user-check me-1"></i>Senior Inspector (SOO)</span>
+  {% elif wf.current_owner_role == 'operator' %}
+    <span class="badge bg-primary"><i class="fa fa-user me-1"></i>Operator Level</span>
+  {% else %}
+    <span class="badge bg-secondary">{{ wf.current_owner_role }}</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro status_badge(s) %}
+  {% if s.status == 'submitted' %}
+    <span class="badge bg-primary">Submitted</span>
+  {% elif s.status == 'approved' %}
+    <span class="badge bg-success">Approved</span>
+  {% elif s.status == 'rejected' %}
+    <span class="badge bg-danger">Rejected</span>
+  {% elif s.status == 'closed' %}
+    <span class="badge bg-success">Closed</span>
+  {% elif s.status == 'draft' %}
+    <span class="badge bg-secondary">Draft</span>
+  {% else %}
+    <span class="badge bg-light text-dark">{{ s.status }}</span>
+  {% endif %}
+{% endmacro %}
+
+<div class="card panel-card mt-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fa fa-history me-2"></i>Previous Submissions — This Form</span>
+    {% if current_user.role in ['admin', 'supervisor', 'auditor'] %}
+    <a href="{{ url_for('admin.audit_trail') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="fa fa-shield-halved me-1"></i>Full Audit Trail
+    </a>
+    {% endif %}
+  </div>
+  <div class="card-body p-0">
+    {% if recent %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Reference</th>
+            <th>Date / Time</th>
+            <th>Submitted By</th>
+            <th>Form Status</th>
+            <th>Workflow Level</th>
+            <th>Answered?</th>
+            <th>History</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in recent %}
+          {% set wf = s.workflow_item %}
+          <tr>
+            <td>
+              <code class="small">{{ s.reference_number or ('SUB-' ~ s.id) }}</code>
+            </td>
+            <td>
+              <span class="small">{{ s.created_at|datetime_fmt }}</span>
+            </td>
+            <td>
+              {% if s.submitted_by %}
+                <span class="small fw-semibold">{{ s.submitted_by.full_name }}</span>
+                <br><span class="text-muted small">{{ s.submitted_by.role|title }}</span>
+              {% else %}
+                <span class="text-muted small">Unknown</span>
+              {% endif %}
+            </td>
+            <td>{{ status_badge(s) }}</td>
+            <td>{{ hierarchy_badge(wf) }}</td>
+            <td>
+              {% if wf is none %}
+                <span class="text-muted small">—</span>
+              {% elif wf.status == 'closed' %}
+                <span class="text-success small"><i class="fa fa-check me-1"></i>Yes — Cleared</span>
+              {% else %}
+                <span class="text-warning small"><i class="fa fa-clock me-1"></i>Awaiting action</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if wf and wf.history %}
+              <button class="btn btn-xs btn-outline-secondary btn-sm"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#hist-{{ s.id }}">
+                <i class="fa fa-timeline me-1"></i>{{ wf.history|length }} event{{ 's' if wf.history|length != 1 else '' }}
+              </button>
+              <div class="collapse mt-2" id="hist-{{ s.id }}">
+                <ol class="list-group list-group-flush list-group-numbered small">
+                  {% for event in wf.history %}
+                  <li class="list-group-item px-0 py-1">
+                    <span class="text-muted">{{ event.at[:16] if event.at else '—' }}</span>
+                    —
+                    {% if event.action == 'created' %}
+                      <strong>Submitted</strong> by
+                      <span class="badge bg-light text-dark border">{{ event.from_role|title }}</span>
+                      → sent to
+                      <span class="badge bg-info text-dark">{{ event.to_role|title }}</span>
+                    {% elif event.action == 'escalated' %}
+                      <strong>Escalated</strong> by
+                      <span class="text-primary fw-semibold">{{ event.actor }}</span>
+                      ({{ event.from_role|title }})
+                      → <span class="badge bg-warning text-dark">{{ event.to_role|title }}</span>
+                      {% if event.note %}<br><span class="text-muted fst-italic">"{{ event.note }}"</span>{% endif %}
+                    {% elif event.action == 'closed' %}
+                      <strong>Cleared / Closed</strong> by
+                      <span class="text-success fw-semibold">{{ event.actor }}</span>
+                      ({{ event.role|title }})
+                      {% if event.note %}<br><span class="text-muted fst-italic">"{{ event.note }}"</span>{% endif %}
+                    {% else %}
+                      {{ event.action|title }}
+                      {% if event.actor %} by {{ event.actor }}{% endif %}
+                    {% endif %}
+                  </li>
+                  {% endfor %}
+                </ol>
+              </div>
+              {% else %}
+                <span class="text-muted small">No history</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted p-3 mb-0">No previous submissions for this form.</p>
+    {% endif %}
+  </div>
+</div>

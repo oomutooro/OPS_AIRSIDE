@@ -71,19 +71,19 @@
             <div class="row mb-4">
                 <div class="col-md-3">
                     <div class="metric-box">
-                        <div class="metric-value">UGX {{ "%.0f"|format(total_allocated) }}</div>
+                        <div class="metric-value">{{ total_allocated|currency_ugx }}</div>
                         <div class="metric-label">Total Allocated</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-box">
-                        <div class="metric-value">UGX {{ "%.0f"|format(total_spent) }}</div>
+                        <div class="metric-value">{{ total_spent|currency_ugx }}</div>
                         <div class="metric-label">Total Spent</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-box">
-                        <div class="metric-value">UGX {{ "%.0f"|format(total_remaining) }}</div>
+                        <div class="metric-value">{{ total_remaining|currency_ugx }}</div>
                         <div class="metric-label">Total Remaining</div>
                     </div>
                 </div>
@@ -111,9 +111,9 @@
                     {% for item in summary_data %}
                         <tr>
                             <td>{{ item.category }}</td>
-                            <td>UGX {{ "%.0f"|format(item.allocated) }}</td>
-                            <td>UGX {{ "%.0f"|format(item.spent) }}</td>
-                            <td>UGX {{ "%.0f"|format(item.remaining) }}</td>
+                            <td>{{ item.allocated|currency_ugx }}</td>
+                            <td>{{ item.spent|currency_ugx }}</td>
+                            <td>{{ item.remaining|currency_ugx }}</td>
                             <td>
                                 <div class="progress" style="height: 20px;">
                                     <div class="progress-bar" style="width: {{ item.utilization }}%">{{ "%.1f"|format(item.utilization) }}%</div>
@@ -157,10 +157,10 @@
                     {% for item in variance_data %}
                         <tr>
                             <td>{{ item.category }}</td>
-                            <td>UGX {{ "%.0f"|format(item.projected) }}</td>
-                            <td>UGX {{ "%.0f"|format(item.actual) }}</td>
+                            <td>{{ item.projected|currency_ugx }}</td>
+                            <td>{{ item.actual|currency_ugx }}</td>
                             <td class="{% if item.variance > 0 %}text-danger{% else %}text-success{% endif %}">
-                                {% if item.variance > 0 %}+{% endif %}UGX {{ "%.0f"|format(item.variance) }}
+                                {% if item.variance > 0 %}+{% endif %}{{ item.variance|currency_ugx }}
                             </td>
                             <td class="{% if item.variance_percent > 0 %}text-danger{% else %}text-success{% endif %}">
                                 {% if item.variance_percent > 0 %}+{% endif %}{{ "%.1f"|format(item.variance_percent) }}%
@@ -191,13 +191,13 @@
                 <div class="col-md-6">
                     <div class="alert alert-info">
                         <h6 class="alert-heading">Projected Year-End Spending</h6>
-                        <p class="mb-0"><strong>UGX {{ "%.0f"|format(projected_year_end) }}</strong> (vs. allocated UGX {{ "%.0f"|format(total_allocated) }})</p>
+                        <p class="mb-0"><strong>{{ projected_year_end|currency_ugx }}</strong> (vs. allocated {{ total_allocated|currency_ugx }})</p>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="alert alert-warning">
                         <h6 class="alert-heading">Projected Overage</h6>
-                        <p class="mb-0"><strong>UGX {{ "%.0f"|format(projected_overage) }}</strong></p>
+                        <p class="mb-0"><strong>{{ projected_overage|currency_ugx }}</strong></p>
                     </div>
                 </div>
             </div>
@@ -217,11 +217,11 @@
                     {% for item in forecast_data %}
                         <tr>
                             <td>{{ item.category }}</td>
-                            <td>UGX {{ "%.0f"|format(item.monthly_rate) }}/mo</td>
-                            <td>UGX {{ "%.0f"|format(item.projected_total) }}</td>
-                            <td>UGX {{ "%.0f"|format(item.allocated) }}</td>
+                            <td>{{ item.monthly_rate|currency_ugx }}/mo</td>
+                            <td>{{ item.projected_total|currency_ugx }}</td>
+                            <td>{{ item.allocated|currency_ugx }}</td>
                             <td class="{% if item.projected_overage > 0 %}text-danger fw-bold{% else %}text-success{% endif %}">
-                                {% if item.projected_overage > 0 %}+{% endif %}UGX {{ "%.0f"|format(item.projected_overage) }}
+                                {% if item.projected_overage > 0 %}+{% endif %}{{ item.projected_overage|currency_ugx }}
                             </td>
                         </tr>
                     {% endfor %}

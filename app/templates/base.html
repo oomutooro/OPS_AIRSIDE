@@ -69,28 +69,31 @@
                 <a href="{{ url_for('budget.budget_tracking') }}"><i class="fa fa-chart-bar me-2"></i>Spending</a>
                 <a href="{{ url_for('budget.budget_reports') }}"><i class="fa fa-file-chart me-2"></i>Reports</a>
 
-                <div class="menu-group">Apron Management</div>
+                <div class="menu-group">Apron Operations</div>
+                <a href="{{ url_for('apron.overview') }}"><i class="fa fa-layer-group me-2"></i>Apron Dashboard</a>
                 <a href="{{ url_for('apron.stand_allocation') }}">Stand Allocation</a>
                 <a href="{{ url_for('apron.stand_map') }}">Apron Stand Map (ATC)</a>
-                <a href="{{ url_for('apron.shift_handover') }}">Shift Handover (Form 2)</a>
+                <a href="{{ url_for('apron.shift_handover') }}">Shift Handover</a>
                 {% if current_user.role in ['admin', 'supervisor'] %}<a href="{{ url_for('apron.shift_roster') }}"><i class="fa fa-calendar-alt me-2"></i>Shift Roster</a>{% endif %}
-                <a href="{{ url_for('apron.staff_deployment') }}">Staff Deployment (Form 23)</a>
-                <a href="{{ url_for('apron.tpbb_operations') }}">TPBB Ops (Form 5)</a>
+                <a href="{{ url_for('apron.staff_deployment') }}">Staff Deployment</a>
+                <a href="{{ url_for('apron.tpbb_operations') }}">TPBB Operations</a>
 
-                <div class="menu-group">Inspections</div>
-                <a href="{{ url_for('inspection.form_list') }}">All Inspection Forms</a>
-                <a href="{{ url_for('inspection.generic_form', form_number=18) }}">ESSAT Motorised (Form 18)</a>
-                <a href="{{ url_for('inspection.generic_form', form_number=22) }}">Fueling Safety (Form 22)</a>
+                <div class="menu-group">Inspection Reports</div>
+                <a href="{{ url_for('inspection.form_list') }}"><i class="fa fa-layer-group me-2"></i>Inspection Dashboard</a>
+                <a href="{{ url_for('inspection.generic_form', form_number=18) }}">ESSAT Motorised</a>
+                <a href="{{ url_for('inspection.generic_form', form_number=22) }}">Fueling Safety</a>
 
-                <div class="menu-group">Safety</div>
-                <a href="{{ url_for('safety.incident_report') }}">Incident Report (Form 10)</a>
-                <a href="{{ url_for('safety.incident_investigation') }}">Investigation (Form 11)</a>
-                <a href="{{ url_for('safety.violation_form') }}">Violation Form (Form 15)</a>
+                <div class="menu-group">Safety Reports</div>
+                <a href="{{ url_for('safety.overview') }}"><i class="fa fa-layer-group me-2"></i>Safety Dashboard</a>
+                <a href="{{ url_for('safety.incident_report') }}">Incidents</a>
+                <a href="{{ url_for('safety.incident_investigation') }}">Investigations</a>
+                <a href="{{ url_for('safety.violation_form') }}">Violations</a>
                 <a href="{{ url_for('safety.spot_check') }}">Spot Check (Form 16)</a>
 
-                <div class="menu-group">Permits</div>
-                <a href="{{ url_for('permit.adp_application') }}">ADP Application (Form 17)</a>
-                <a href="{{ url_for('permit.adp_renewal') }}">ADP Renewal</a>
+                <div class="menu-group">Permit Reports</div>
+                <a href="{{ url_for('permit.overview') }}"><i class="fa fa-layer-group me-2"></i>Permit Dashboard</a>
+                <a href="{{ url_for('permit.adp_application') }}">ADP Applications</a>
+                <a href="{{ url_for('permit.adp_renewal') }}">ADP Renewals</a>
                 <a href="{{ url_for('permit.vehicle_registration') }}">Vehicle Registration</a>
                 <a href="{{ url_for('permit.company_management') }}">Company Management</a>
 
@@ -98,14 +101,12 @@
                 <a href="{{ url_for('report.daily_ops_report') }}">Daily Ops Report (Form 12)</a>
                 <a href="{{ url_for('report.analytics_dashboard') }}">Analytics Dashboard</a>
                 <a href="{{ url_for('report.incident_analytics_report') }}">Incident Analytics (Quarterly)</a>
-                <a href="{{ url_for('report.essat_sticker_report') }}">ESSAT Sticker Report</a>
-                <a href="{{ url_for('essat.analytics') }}">ESSAT Analytics</a>
-                <a href="{{ url_for('essat.inventory_list') }}">ESSAT Equipment Inventory</a>
                 <a href="{{ url_for('report.custom_report_builder') }}">Custom Reports</a>
 
                 {% if current_user.is_authenticated and current_user.role in ['admin', 'supervisor', 'auditor', 'inspector'] %}
                 <div class="menu-group">Admin</div>
                 <a href="{{ url_for('admin.user_management') }}">User Management</a>
+                <a href="{{ url_for('admin.audit_trail') }}"><i class="fa fa-shield-halved me-2"></i>Audit Trail</a>
                 {% endif %}
 
                 {% if current_user.is_authenticated and current_user.role in ['admin', 'supervisor'] %}

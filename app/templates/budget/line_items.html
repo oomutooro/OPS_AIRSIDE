@@ -30,7 +30,7 @@
             <div class="card border-primary">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Total Allocated</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(allocation.allocated_amount) }}</h4>
+                    <h4 class="mb-0">{{ allocation.allocated_amount|currency_ugx }}</h4>
                 </div>
             </div>
         </div>
@@ -38,7 +38,7 @@
             <div class="card border-success">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Approved Line Items</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(total_line_items_approved) }}</h4>
+                    <h4 class="mb-0">{{ total_line_items_approved|currency_ugx }}</h4>
                 </div>
             </div>
         </div>
@@ -46,7 +46,7 @@
             <div class="card border-info">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Remaining</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(allocation.allocated_amount - total_line_items_approved) }}</h4>
+                    <h4 class="mb-0">{{ allocation.allocated_amount - total_line_items_approved|currency_ugx }}</h4>
                 </div>
             </div>
         </div>
@@ -90,9 +90,9 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">{{ item.quantity }}</td>
-                                <td class="text-end">UGX {{ "%.0f"|format(item.unit_cost) }}</td>
+                                <td class="text-end">{{ item.unit_cost|currency_ugx }}</td>
                                 <td class="text-end">
-                                    <strong>UGX {{ "%.0f"|format(item.approved_amount) }}</strong>
+                                    <strong>{{ item.approved_amount|currency_ugx }}</strong>
                                 </td>
                                 <td>
                                     {% if item.status == 'pending_approval' %}
@@ -119,13 +119,13 @@
                                         </a>
                                         {% if item.status == 'pending_approval' %}
                                         <button class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#approveModal{{ item.id }}" title="Approve">
-                                            <i class="bi bi-check-circle"></i>
+                                            <i class="bi bi-check-circle"></i> Approve
                                         </button>
-                                        <form method="POST" style="display:inline;">
-                                            <input type="hidden" name="action" value="delete_line_item">
-                                            <input type="hidden" name="line_item_id" value="{{ item.id }}">
+                                        {% endif %}
+                                        {% if item.status != 'cancelled' %}
+                                        <form method="POST" action="{{ url_for('budget.delete_line_item', line_item_id=item.id) }}" style="display:inline;">
                                             <button type="submit" class="btn btn-outline-danger btn-sm" title="Cancel" onclick="return confirm('Cancel this line item?');">
-                                                <i class="bi bi-x-circle"></i>
+                                                <i class="bi bi-x-circle"></i> Cancel
                                             </button>
                                         </form>
                                         {% endif %}
@@ -145,7 +145,7 @@
                                         <form method="POST">
                                             <div class="modal-body">
                                                 <p><strong>{{ item.description }}</strong></p>
-                                                <p>Approved Amount: <strong>UGX {{ "%.0f"|format(item.approved_amount) }}</strong></p>
+                                                <p>Approved Amount: <strong>{{ item.approved_amount|currency_ugx }}</strong></p>
                                                 <div class="mb-3">
                                                     <label class="form-label">Approval Notes (Optional)</label>
                                                     <textarea class="form-control" name="approval_notes" rows="3"></textarea>

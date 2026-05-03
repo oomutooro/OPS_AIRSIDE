@@ -14,6 +14,7 @@ from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_socketio import SocketIO
+from sqlalchemy import text
 
 # Extension instances
 db = SQLAlchemy()
@@ -71,6 +72,7 @@ def create_app(config_name='default'):
     # Create tables if needed
     with app.app_context():
         db.create_all()
+        _upgrade_legacy_sqlite_schema(app)
 
     # Start background scheduler (skip in test mode and reloader parent process)
     if not app.config.get('TESTING'):
@@ -162,6 +164,59 @@ def _create_upload_dirs(app):
         os.makedirs(path, exist_ok=True)
 
 
+def _upgrade_legacy_sqlite_schema(app):
+    """Backfill missing columns for legacy SQLite databases.
+
+    db.create_all() creates new tables but does not alter existing ones. This
+    keeps older local SQLite files usable after model changes without requiring
+    a manual migration step.
+    """
+    database_uri = app.config.get('SQLALCHEMY_DATABASE_URI', '') or ''
+    if not database_uri.startswith('sqlite'):
+        return
+
+    with db.engine.begin() as connection:
+        table_names = {
+            row[0]
+            for row in connection.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table'")
+            )
+        }
+
+        if 'procurements' in table_names:
+            procurement_columns = {
+                row[1] for row in connection.execute(text('PRAGMA table_info(procurements)'))
+            }
+            missing_procurement_columns = {
+                'budget_line_item_id': 'INTEGER',
+                'rfq_date': 'DATETIME',
+                'vendor_selected_date': 'DATETIME',
+                'finance_approval_date': 'DATETIME',
+                'finance_approval_notes': 'TEXT',
+                'delivery_note_number': 'VARCHAR(32)',
+                'received_by_user_id': 'INTEGER',
+            }
+
+            for column_name, column_type in missing_procurement_columns.items():
+                if column_name not in procurement_columns:
+                    connection.execute(
+                        text(f'ALTER TABLE procurements ADD COLUMN {column_name} {column_type}')
+                    )
+
+            connection.execute(
+                text(
+                    'CREATE INDEX IF NOT EXISTS ix_procurements_budget_line_item_id '
+                    'ON procurements (budget_line_item_id)'
+                )
+            )
+            connection.execute(
+                text(
+                    'CREATE INDEX IF NOT EXISTS ix_procurements_received_by_user_id '
+                    'ON procurements (received_by_user_id)'
+                )
+            )
+
+
 def _register_blueprints(app):
     """Register all application blueprints."""
     from app.routes.auth import auth_bp
@@ -173,6 +228,7 @@ def _register_blueprints(app):
     from app.routes.report import report_bp
     from app.routes.admin import admin_bp
     from app.routes.essat import essat_bp
+    from app.routes.budget import budget_bp
 
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
@@ -183,6 +239,7 @@ def _register_blueprints(app):
     app.register_blueprint(report_bp, url_prefix='/report')
     app.register_blueprint(admin_bp, url_prefix='/admin')
     app.register_blueprint(essat_bp, url_prefix='/essat')
+    app.register_blueprint(budget_bp)
 
 
 def _register_error_handlers(app):

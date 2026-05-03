@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block title %}Audit Trail — Airside Ops{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div>
+    <h4 class="fw-bold mb-0"><i class="fa fa-shield-halved me-2 text-secondary"></i>System Audit Trail</h4>
+    <p class="text-muted small mb-0">Immutable record of every action performed in the system — who did what and when.</p>
+  </div>
+  <a href="{{ url_for('admin.user_management') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="fa fa-arrow-left me-1"></i>Back to Admin
+  </a>
+</div>
+
+<!-- Filters -->
+<div class="card panel-card mb-3">
+  <div class="card-header"><i class="fa fa-filter me-2"></i>Filter Audit Logs</div>
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small mb-1">User</label>
+        <select name="user_id" class="form-select form-select-sm">
+          <option value="">All users</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if filter_user_id == u.id %}selected{% endif %}>
+            {{ u.full_name }} ({{ u.role }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Action</label>
+        <select name="action" class="form-select form-select-sm">
+          <option value="">All actions</option>
+          {% for a in distinct_actions %}
+          <option value="{{ a }}" {% if filter_action == a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Entity Type</label>
+        <input type="text" name="entity" class="form-control form-control-sm"
+               placeholder="e.g. FormSubmission" value="{{ filter_entity }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">From Date</label>
+        <input type="date" name="date_from" class="form-control form-control-sm" value="{{ filter_date_from }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">To Date</label>
+        <input type="date" name="date_to" class="form-control form-control-sm" value="{{ filter_date_to }}">
+      </div>
+      <div class="col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm w-100">Filter</button>
+      </div>
+      {% if filter_user_id or filter_action or filter_entity or filter_date_from or filter_date_to %}
+      <div class="col-12">
+        <a href="{{ url_for('admin.audit_trail') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="fa fa-times me-1"></i>Clear Filters
+        </a>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="card panel-card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>
+      <i class="fa fa-list-alt me-2"></i>Audit Log Entries
+      <span class="badge bg-secondary ms-1">{{ pagination.total }} total</span>
+    </span>
+    <span class="small text-muted">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if logs %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:130px">Timestamp</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Entity Type</th>
+            <th>Entity ID</th>
+            <th>Description</th>
+            <th>IP Address</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="text-nowrap small text-muted">{{ log.timestamp|datetime_fmt }}</td>
+            <td>
+              {% if log.user %}
+              <span class="fw-semibold small">{{ log.user.full_name }}</span>
+              <br><span class="text-muted small">{{ log.user.role|title }}</span>
+              {% else %}
+              <span class="text-muted small">System / Unknown</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set action_class = {
+                'LOGIN': 'bg-success',
+                'LOGOUT': 'bg-secondary',
+                'SUBMIT_FORM': 'bg-primary',
+                'APPROVE': 'bg-success',
+                'REJECT': 'bg-danger',
+                'DELETE': 'bg-danger',
+                'UPDATE': 'bg-warning text-dark',
+                'CREATE': 'bg-info text-dark',
+              } %}
+              <span class="badge {{ action_class.get(log.action, 'bg-light text-dark border') }} small">
+                {{ log.action }}
+              </span>
+            </td>
+            <td><span class="text-muted small">{{ log.entity_type or '—' }}</span></td>
+            <td>
+              {% if log.entity_id %}
+              <code class="small">#{{ log.entity_id }}</code>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <span class="small">{{ log.description or '—' }}</span>
+              {% if log.new_data or log.old_data %}
+              <button class="btn btn-xs btn-link p-0 ms-2 small"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#log-detail-{{ log.id }}">
+                <i class="fa fa-chevron-down"></i>details
+              </button>
+              <div class="collapse" id="log-detail-{{ log.id }}">
+                {% if log.old_data %}
+                <div class="mt-1"><span class="text-danger small fw-semibold">Before:</span>
+                  <pre class="small mb-0 p-1 bg-light rounded">{{ log.old_data | tojson(indent=2) }}</pre>
+                </div>
+                {% endif %}
+                {% if log.new_data %}
+                <div class="mt-1"><span class="text-success small fw-semibold">After:</span>
+                  <pre class="small mb-0 p-1 bg-light rounded">{{ log.new_data | tojson(indent=2) }}</pre>
+                </div>
+                {% endif %}
+              </div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="text-muted small font-monospace">{{ log.ip_address or '—' }}</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if pagination.pages > 1 %}
+    <div class="d-flex justify-content-center py-3">
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% if pagination.has_prev %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('admin.audit_trail',
+                page=pagination.prev_num,
+                user_id=filter_user_id or '',
+                action=filter_action,
+                entity=filter_entity,
+                date_from=filter_date_from,
+                date_to=filter_date_to) }}">
+              &laquo; Prev
+            </a>
+          </li>
+          {% endif %}
+          <li class="page-item disabled">
+            <span class="page-link">Page {{ pagination.page }} / {{ pagination.pages }}</span>
+          </li>
+          {% if pagination.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('admin.audit_trail',
+                page=pagination.next_num,
+                user_id=filter_user_id or '',
+                action=filter_action,
+                entity=filter_entity,
+                date_from=filter_date_from,
+                date_to=filter_date_to) }}">
+              Next &raquo;
+            </a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <p class="text-muted p-4 mb-0 text-center">
+      <i class="fa fa-inbox fa-2x d-block mb-2 opacity-50"></i>
+      No audit log entries found{% if filter_user_id or filter_action or filter_entity or filter_date_from or filter_date_to %} matching these filters{% endif %}.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

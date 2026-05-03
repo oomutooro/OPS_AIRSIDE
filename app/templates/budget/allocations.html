@@ -61,7 +61,7 @@
         <div class="card alloc-card">
             <div class="card-body">
                 <h6 class="card-title text-muted">Total Allocated</h6>
-                <h3 class="mb-0">UGX {{ "%.0f"|format(total_allocated) }}</h3>
+                <h3 class="mb-0">{{ total_allocated|currency_ugx }}</h3>
             </div>
         </div>
     </div>
@@ -69,7 +69,7 @@
         <div class="card alloc-card">
             <div class="card-body">
                 <h6 class="card-title text-muted">Total Spent</h6>
-                <h3 class="mb-0">UGX {{ "%.0f"|format(total_spent) }}</h3>
+                <h3 class="mb-0">{{ total_spent|currency_ugx }}</h3>
             </div>
         </div>
     </div>
@@ -77,7 +77,7 @@
         <div class="card alloc-card">
             <div class="card-body">
                 <h6 class="card-title text-muted">Remaining</h6>
-                <h3 class="mb-0">UGX {{ "%.0f"|format(total_remaining) }}</h3>
+                <h3 class="mb-0">{{ total_remaining|currency_ugx }}</h3>
             </div>
         </div>
     </div>
@@ -116,9 +116,9 @@
                             <br><small class="text-muted">{{ alloc.description }}</small>
                             {% endif %}
                         </td>
-                        <td>UGX {{ "%.0f"|format(alloc.allocated_amount) }}</td>
-                        <td>UGX {{ "%.0f"|format(alloc.spent_amount()) }}</td>
-                        <td>UGX {{ "%.0f"|format(alloc.remaining_amount()) }}</td>
+                        <td>{{ alloc.allocated_amount|currency_ugx }}</td>
+                        <td>{{ alloc.spent_amount()|currency_ugx }}</td>
+                        <td>{{ alloc.remaining_amount()|currency_ugx }}</td>
                         <td>
                             <div class="progress" style="height: 20px; min-width: 120px;">
                                 <div class="progress-bar {% if alloc.utilization_percent() > 80 %}bg-danger{% elif alloc.utilization_percent() > 50 %}bg-warning{% else %}bg-success{% endif %}"
@@ -135,6 +135,18 @@
                                 <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reviseModal{{ alloc.id }}" title="Revise allocation">
                                     <i class="bi bi-pencil"></i> Revise
                                 </button>
+                                <form method="post" class="d-inline">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="allocation_id" value="{{ alloc.id }}">
+                                    <button
+                                        type="submit"
+                                        class="btn btn-outline-danger"
+                                        title="Delete allocation"
+                                        onclick="return confirm('Delete this allocation and all its line items/procurements? This cannot be undone.');"
+                                    >
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -154,7 +166,7 @@
                                         
                                         <div class="mb-3">
                                             <label class="form-label">Current Amount</label>
-                                            <input type="text" class="form-control" value="UGX {{ "%.0f"|format(alloc.allocated_amount) }}" disabled>
+                                            <input type="text" class="form-control" value="{{ alloc.allocated_amount|currency_ugx }}" disabled>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">New Amount</label>

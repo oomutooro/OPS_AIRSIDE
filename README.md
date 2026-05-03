@@ -530,8 +530,6 @@ Step 14: Create Procurement (PO2)
 
 ## 13. Production Rollout Checklist
 
-## 13. Production Rollout Checklist
-
 ### Immediate Priority (AODB Integration)
 1. **AODB Credentials & Testing:** Provide AODB hostname/port and service account credentials; run manual sync to verify connectivity.
 2. **Flight Sync Validation:** Verify arrivals/departures sync correctly and appear in cockpits.
@@ -574,4 +572,162 @@ Repository: `https://github.com/oomutooro/OPS_AIRSIDE`
 
 ---
 
-**Project Status:** MVP complete with core features (forms, RBAC, workflow escalation, AODB sync, budget management). Ready for field testing and production deployment planning.
+**Project Status:** Phase 2 complete. Core features (forms, RBAC, workflow escalation, AODB sync, budget management, section dashboards, audit trail, report overview panels) are fully implemented. Ready for field testing and production deployment planning.
+
+---
+
+## 16. UI Architecture & Dashboard System (Phase 2)
+
+Implemented across all operational modules as part of the Phase 2 restructure.
+
+### 16.1 Section Overview Dashboards
+
+Each major module now has a dedicated dashboard landing page that provides a high-level summary before drilling into individual forms.
+
+| Dashboard | URL | Description |
+|-----------|-----|-------------|
+| Inspection Dashboard | `/inspection/forms` | Grouped Airfield Checks, Audit & Equipment, and ESSAT & Safety Checks sections |
+| Safety Dashboard | `/safety/overview` | Sections for Incidents, Investigations, Violations, and Spot Checks |
+| Permit Dashboard | `/permit/overview` | Sections for ADP Applications, Renewals, Vehicle Registration, Company Management |
+| Apron Dashboard | `/apron/overview` | Sections for Shift Operations and Apron Traffic & Equipment |
+
+Each dashboard shows:
+- Summary stat cards (total, pending, cleared, latest)
+- Section tiles with descriptions, badges, and quick-link lists
+- Primary action button for starting the most common new report
+
+### 16.2 Report Page Overview Panel
+
+Every form page now opens with a **Report Overview** panel at the top — before the form itself — showing:
+- Form title and a subtitle prompt
+- Four summary cards: Total Reports, Pending Action, Cleared, Latest Report
+- A **Related Reports** table with the 6 most recent submissions, their status badge, and their current workflow level in the escalation chain
+- An **Insert New Report** button that scrolls to the form below
+
+The panel is rendered via a shared Jinja partial (`partials/report_page_overview.html`) and is driven by a `page_overview` dict built in the route. The panel is safe to omit — if `page_overview` is not passed, the partial renders nothing.
+
+### 16.3 Form Submission History Panel
+
+Below every form, a **Submission History** panel shows the last 10 submissions for that form with full workflow state:
+
+- Reference number, submission date, submitter name
+- Hierarchy level badge: Operator Level → Senior Level → Manager Review → Senior Manager Review → Cleared Completely
+- Expandable event history showing every escalation, note, and closure step
+- Link to the full system audit trail (visible to admin/supervisor/auditor)
+
+### 16.4 System-Wide Audit Trail
+
+A fully filterable, paginated audit log is available at `/admin/audit-trail` (admin, supervisor, auditor roles).
+
+**Features:**
+- Every form submission, workflow escalation, and status transition is recorded to the `AuditLog` table (immutable — INSERT only, no updates or deletes)
+- Filter by: user, action type (ilike search), entity type, date range
+- Displays: timestamp, user name and role, action badge (color-coded), entity type, entity ID, description, expandable before/after data, IP address
+- Accessible from the Admin section of the sidebar
+
+**`AuditLog` classmethod:**
+```python
+AuditLog.log('SUBMIT_FORM', user_id=current_user.id,
+             entity_type='FormSubmission', form_template_id=template.id,
+             description=f'{current_user.full_name} submitted Form {n} ({title})')
+# Caller must commit after calling
+db.session.commit()
+```
+
+### 16.5 ESSAT Contextual Report Links
+
+When a user opens Form 18 (ESSAT Motorised) or Form 19 (ESSAT Non-Motorised), the overview panel includes a **Related ESSAT Reports** row of quick-access buttons:
+
+- ESSAT Sticker Report
+- ESSAT Analytics
+- ESSAT Equipment Inventory
+
+These links were moved from the global sidebar into the ESSAT form pages where they are most contextually relevant.
+
+### 16.6 Sidebar Navigation Restructure
+
+The left sidebar is now organized into labeled groups with dashboard landing pages as entry points:
+
+```
+Dashboard
+Budget / Spending / Reports
+
+[Apron Operations]
+  Apron Dashboard
+  Stand Allocation
+  Apron Stand Map (ATC)
+  Shift Handover
+  Shift Roster (admin/supervisor)
+  Staff Deployment
+  TPBB Operations
+
+[Inspection Reports]
+  Inspection Dashboard
+  ESSAT Motorised
+  Fueling Safety
+
+[Safety Reports]
+  Safety Dashboard
+  Incidents
+  Investigations
+  Violations
+  Spot Check (Form 16)
+
+[Permit Reports]
+  Permit Dashboard
+  ADP Applications
+  ADP Renewals
+  Vehicle Registration
+  Company Management
+
+[Reports]
+  Daily Ops Report (Form 12)
+  Analytics Dashboard
+  Incident Analytics (Quarterly)
+  Custom Reports
+
+[Admin] (admin/supervisor/auditor/inspector)
+  User Management
+  Audit Trail
+
+[Admin] (admin/supervisor only)
+  Reference Data
+  Form Builder
+  System Settings
+```
+
+### 16.7 Budget Module Enhancements
+
+- **Delete functionality** — Budget allocations and individual line items can be deleted (with confirmation guard) by admin and supervisor roles
+- **UGX currency formatting** — All monetary amounts in budget templates use a `currency_ugx` Jinja filter that outputs comma-separated thousands (e.g. `UGX 7,500,000`) for readability
+
+---
+
+## 17. Workflow & Hierarchy Reference
+
+The escalation chain used across all form submission workflows:
+
+```
+Operator (AOO/OO)       — submits form, creates draft
+    ↓
+Inspector (SOO)         — Senior Level review
+    ↓
+Auditor / Principal     — Manager Review
+    ↓
+Supervisor / Manager    — Senior Manager sign-off
+    ↓
+Closed                  — Cleared Completely
+```
+
+**Role labels used in UI:**
+
+| Role key     | Badge label             | Badge colour  |
+|-------------|------------------------|---------------|
+| `operator`   | Operator Level          | Blue (primary) |
+| `inspector`  | Senior Level            | Cyan (info)    |
+| `auditor`    | Manager Review          | Yellow (warning) |
+| `supervisor` | Senior Manager Review   | Red (danger)   |
+| closed       | Cleared Completely      | Green (success) |
+
+---
+

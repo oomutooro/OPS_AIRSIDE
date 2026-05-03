@@ -13,6 +13,77 @@ from app.services.workflow_service import WorkflowService
 safety_bp = Blueprint('safety', __name__)
 
 
+def _page_overview(title, subtitle, summary_cards, related_reports, add_href='#new-report-form', add_label='Insert New Report'):
+    return {
+        'title': title,
+        'subtitle': subtitle,
+        'summary_cards': summary_cards,
+        'related_reports': related_reports,
+        'add_href': add_href,
+        'add_label': add_label,
+        'list_caption': 'Latest related reports and their current status',
+    }
+
+
+def _status_tone(status):
+    return {
+        'open': 'warning',
+        'draft': 'secondary',
+        'submitted': 'primary',
+        'under_review': 'info',
+        'under_investigation': 'info',
+        'closed': 'success',
+        'complete': 'success',
+    }.get((status or '').lower(), 'secondary')
+
+
+@safety_bp.route('/overview')
+@login_required
+def overview():
+    incident_total = Incident.query.count()
+    open_incidents = Incident.query.filter(Incident.status.in_(['open', 'under_investigation', 'under_review'])).count()
+    violation_total = Violation.query.filter_by(form_type='form_15').count()
+    spot_check_total = Violation.query.filter_by(form_type='form_16').count()
+
+    sections = [
+        {
+            'title': 'Incidents',
+            'description': 'Capture, review, and monitor incident reports from initial submission through close-out.',
+            'badge': f'{incident_total} total',
+            'links': [
+                {'label': 'Incident Reports', 'url': url_for('safety.incident_report'), 'meta': 'Form 10 workspace'},
+                {'label': 'Investigations', 'url': url_for('safety.incident_investigation'), 'meta': 'Form 11 workspace'},
+            ],
+            'action': {'label': 'Add Incident Report', 'url': url_for('safety.incident_report')},
+        },
+        {
+            'title': 'Violations and Spot Checks',
+            'description': 'Track enforcement reports, penalties, and on-spot observations from the same dashboard area.',
+            'badge': f'{violation_total + spot_check_total} total',
+            'links': [
+                {'label': 'Violations', 'url': url_for('safety.violation_form'), 'meta': 'Form 15 workspace'},
+                {'label': 'Spot Checks', 'url': url_for('safety.spot_check'), 'meta': 'Form 16 workspace'},
+                {'label': 'FOD Walk Schedule', 'url': url_for('safety.fod_walk_schedule'), 'meta': 'Campaign planning'},
+            ],
+            'action': {'label': 'Add Violation Report', 'url': url_for('safety.violation_form')},
+        },
+    ]
+
+    return render_template(
+        'shared/section_overview.html',
+        overview_title='Safety Dashboard',
+        overview_subtitle='Use each report family as an overview heading, then go deeper into incidents, investigations, violations, and spot checks.',
+        summary_cards=[
+            {'label': 'Open Incidents', 'value': open_incidents, 'help_text': 'Incidents still being processed or investigated'},
+            {'label': 'All Incidents', 'value': incident_total, 'help_text': 'Captured incident records'},
+            {'label': 'Violations', 'value': violation_total, 'help_text': 'Recorded Form 15 enforcement reports'},
+            {'label': 'Spot Checks', 'value': spot_check_total, 'help_text': 'Recorded Form 16 observations'},
+        ],
+        sections=sections,
+        primary_action={'label': 'Add Incident Report', 'url': url_for('safety.incident_report')},
+    )
+
+
 @safety_bp.route('/incident-report', methods=['GET', 'POST'])
 @login_required
 def incident_report():
@@ -75,7 +146,31 @@ def incident_report():
         return redirect(url_for('safety.incident_report'))
 
     incidents = Incident.query.order_by(Incident.created_at.desc()).limit(20).all()
-    return render_template('safety/incident_report.html', incidents=incidents)
+    critical_incidents = Incident.query.filter_by(severity='critical').count()
+    page_overview = _page_overview(
+        'Incident Reports Workspace',
+        'See the current incident workload before entering a new incident report below.',
+        [
+            {'label': 'Total Incidents', 'value': Incident.query.count(), 'help_text': 'All incident reports on record'},
+            {'label': 'Open Cases', 'value': Incident.query.filter(Incident.status.in_(['open', 'under_investigation', 'under_review'])).count(), 'help_text': 'Cases still awaiting closure'},
+            {'label': 'Critical', 'value': critical_incidents, 'help_text': 'Critical severity incidents logged'},
+            {'label': 'Latest Status', 'value': incidents[0].status.replace('_', ' ').title() if incidents else 'None', 'help_text': incidents[0].created_at.strftime('%d %b %Y %H:%M') if incidents else 'No incidents yet'},
+        ],
+        [
+            {
+                'reference': incident.incident_number or f'INC-{incident.id}',
+                'title': incident.location or 'Incident report',
+                'meta': (incident.incident_type or 'incident').replace('_', ' ').title(),
+                'status_label': (incident.status or 'open').replace('_', ' ').title(),
+                'status_tone': _status_tone(incident.status),
+                'workflow_label': (incident.severity or 'normal').title(),
+                'workflow_tone': 'danger' if incident.severity == 'critical' else 'secondary',
+                'updated_at': incident.created_at.strftime('%d %b %Y %H:%M') if incident.created_at else '-',
+            }
+            for incident in incidents[:6]
+        ],
+    )
+    return render_template('safety/incident_report.html', incidents=incidents, page_overview=page_overview)
 
 
 @safety_bp.route('/incident-investigation', methods=['GET', 'POST'])
@@ -96,7 +191,31 @@ def incident_investigation():
         return redirect(url_for('safety.incident_investigation'))
 
     incidents = Incident.query.filter(Incident.status.in_(['open', 'under_investigation', 'under_review'])).all()
-    return render_template('safety/incident_investigation.html', incidents=incidents)
+    page_overview = _page_overview(
+        'Investigation Workspace',
+        'Review all active cases first, then capture findings for the selected incident.',
+        [
+            {'label': 'Active Cases', 'value': len(incidents), 'help_text': 'Incidents still under investigation or review'},
+            {'label': 'Open', 'value': sum(1 for incident in incidents if incident.status == 'open'), 'help_text': 'Not yet picked up for investigation'},
+            {'label': 'Under Review', 'value': sum(1 for incident in incidents if incident.status == 'under_review'), 'help_text': 'Investigation findings already submitted'},
+            {'label': 'Investigator Load', 'value': len({incident.investigator_user_id for incident in incidents if incident.investigator_user_id}), 'help_text': 'Investigators currently assigned'},
+        ],
+        [
+            {
+                'reference': incident.incident_number or f'INC-{incident.id}',
+                'title': incident.location or 'Investigation case',
+                'meta': (incident.incident_type or 'incident').replace('_', ' ').title(),
+                'status_label': (incident.status or 'open').replace('_', ' ').title(),
+                'status_tone': _status_tone(incident.status),
+                'workflow_label': 'Investigation',
+                'workflow_tone': 'info',
+                'updated_at': incident.updated_at.strftime('%d %b %Y %H:%M') if incident.updated_at else '-',
+            }
+            for incident in incidents[:6]
+        ],
+        add_label='Insert Investigation Record',
+    )
+    return render_template('safety/incident_investigation.html', incidents=incidents, page_overview=page_overview)
 
 
 @safety_bp.route('/violation', methods=['GET', 'POST'])
@@ -139,7 +258,30 @@ def violation_form():
 
     violations = Violation.query.order_by(Violation.created_at.desc()).limit(20).all()
     violation_types = ViolationType.query.filter_by(is_active=True).order_by(ViolationType.description).all()
-    return render_template('safety/violation_form.html', violations=violations, violation_types=violation_types)
+    page_overview = _page_overview(
+        'Violations Workspace',
+        'Track issued violations, their status, and then add a new violation below.',
+        [
+            {'label': 'Total Violations', 'value': Violation.query.filter_by(form_type='form_15').count(), 'help_text': 'All Form 15 records'},
+            {'label': 'Open Cases', 'value': Violation.query.filter_by(form_type='form_15', status='open').count(), 'help_text': 'Violations still unresolved'},
+            {'label': 'Violation Types', 'value': len(violation_types), 'help_text': 'Configured active violation categories'},
+            {'label': 'Latest Record', 'value': violations[0].created_at.strftime('%d %b') if violations else 'None', 'help_text': violations[0].offender_name if violations else 'No violations yet'},
+        ],
+        [
+            {
+                'reference': f'VIO-{violation.id}',
+                'title': violation.offender_name or 'Violation report',
+                'meta': violation.violation_location or 'Airside',
+                'status_label': (violation.status or 'open').replace('_', ' ').title(),
+                'status_tone': _status_tone(violation.status),
+                'workflow_label': 'Enforcement',
+                'workflow_tone': 'danger',
+                'updated_at': violation.created_at.strftime('%d %b %Y %H:%M') if violation.created_at else '-',
+            }
+            for violation in violations[:6]
+        ],
+    )
+    return render_template('safety/violation_form.html', violations=violations, violation_types=violation_types, page_overview=page_overview)
 
 
 @safety_bp.route('/spot-check', methods=['GET', 'POST'])
@@ -177,7 +319,30 @@ def spot_check():
         return redirect(url_for('safety.spot_check'))
 
     records = Violation.query.filter_by(form_type='form_16').order_by(Violation.created_at.desc()).limit(20).all()
-    return render_template('safety/spot_check.html', records=records)
+    page_overview = _page_overview(
+        'Spot Check Workspace',
+        'See all spot check reports already inserted, then add the next report from the form below.',
+        [
+            {'label': 'Total Spot Checks', 'value': Violation.query.filter_by(form_type='form_16').count(), 'help_text': 'All Form 16 observations'},
+            {'label': 'Open Follow-up', 'value': Violation.query.filter_by(form_type='form_16', status='open').count(), 'help_text': 'Spot checks still awaiting action'},
+            {'label': 'Closed', 'value': Violation.query.filter_by(form_type='form_16', status='closed').count(), 'help_text': 'Spot checks already cleared'},
+            {'label': 'Latest Record', 'value': records[0].created_at.strftime('%d %b') if records else 'None', 'help_text': records[0].offender_name if records else 'No records yet'},
+        ],
+        [
+            {
+                'reference': f'SPOT-{record.id}',
+                'title': record.offender_name or 'Spot check',
+                'meta': record.violation_location or 'Airside',
+                'status_label': (record.status or 'open').replace('_', ' ').title(),
+                'status_tone': _status_tone(record.status),
+                'workflow_label': 'Observation',
+                'workflow_tone': 'warning',
+                'updated_at': record.created_at.strftime('%d %b %Y %H:%M') if record.created_at else '-',
+            }
+            for record in records[:6]
+        ],
+    )
+    return render_template('safety/spot_check.html', records=records, page_overview=page_overview)
 
 
 @safety_bp.route('/fod-walk-schedule', methods=['GET', 'POST'])

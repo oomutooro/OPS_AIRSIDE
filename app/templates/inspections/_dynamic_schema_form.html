@@ -1,7 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}Form {{ form_number }} - {{ schema.title }}{% endblock %}
 {% block content %}
+{% include 'partials/report_page_overview.html' %}
 <div class="card panel-card mb-3">
+  <div id="new-report-form"></div>
   <div class="card-header">Form {{ form_number }} - {{ schema.title }}</div>
   <div class="card-body">
     <form method="post" class="row g-3 generic-form signature-enabled-form" enctype="multipart/form-data">
@@ -189,17 +191,5 @@
   </div>
 </div>
 
-<div class="card panel-card">
-  <div class="card-header">Recent Entries</div>
-  <div class="card-body table-responsive">
-    <table class="table table-sm table-hover">
-      <thead><tr><th>Reference</th><th>Status</th><th>Location</th><th>Date</th></tr></thead>
-      <tbody>
-      {% for s in recent %}
-      <tr><td>{{ s.reference_number or ('SUB-' ~ s.id) }}</td><td>{{ s.status }}</td><td>{{ s.location_ref }}</td><td>{{ s.created_at|datetime_fmt }}</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+{% include 'inspections/_submission_history.html' %}
 {% endblock %}

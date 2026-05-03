@@ -31,7 +31,7 @@
             <div class="card border-primary">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Approved Amount</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(line_item.approved_amount) }}</h4>
+                    <h4 class="mb-0">{{ line_item.approved_amount|currency_ugx }}</h4>
                 </div>
             </div>
         </div>
@@ -39,7 +39,7 @@
             <div class="card border-warning">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Committed (POs)</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(total_committed) }}</h4>
+                    <h4 class="mb-0">{{ total_committed|currency_ugx }}</h4>
                     <small class="text-muted">{{ progress['pending'] }} pending, {{ progress['ordered'] }} ordered</small>
                 </div>
             </div>
@@ -48,7 +48,7 @@
             <div class="card border-success">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Received/Delivered</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(total_received) }}</h4>
+                    <h4 class="mb-0">{{ total_received|currency_ugx }}</h4>
                     <small class="text-muted">{{ progress['delivered'] }} delivered</small>
                 </div>
             </div>
@@ -57,7 +57,7 @@
             <div class="card border-info">
                 <div class="card-body">
                     <h6 class="card-title text-muted">Remaining Budget</h6>
-                    <h4 class="mb-0">UGX {{ "%.0f"|format(remaining) }}</h4>
+                    <h4 class="mb-0">{{ remaining|currency_ugx }}</h4>
                     <small class="text-muted">{% if remaining > 0 %}Available{% else %}Exceeded!{% endif %}</small>
                 </div>
             </div>
@@ -76,13 +76,14 @@
                     <span>Committed (POs Issued)</span>
                     <span>{{ "%.1f"|format((total_committed / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0) }}%</span>
                 </div>
+                {% set committed_pct = (total_committed / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 %}
                 <div class="progress" style="height: 25px;">
                     <div class="progress-bar bg-warning" role="progressbar" 
-                         style="width: {{ (total_committed / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 }}%;">
-                        UGX {{ "%.0f"|format(total_committed) }}
+                         style="width: {{ committed_pct if committed_pct <= 100 else 100 }}%;">
+                        {{ total_committed|currency_ugx }}
                     </div>
                 </div>
-                <small class="text-muted d-block mt-1">Out of UGX {{ "%.0f"|format(line_item.approved_amount) }} approved</small>
+                <small class="text-muted d-block mt-1">Out of {{ line_item.approved_amount|currency_ugx }} approved</small>
             </div>
 
             <!-- Received vs Approved -->
@@ -91,13 +92,14 @@
                     <span>Received / Delivered</span>
                     <span>{{ "%.1f"|format((total_received / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0) }}%</span>
                 </div>
+                {% set received_pct = (total_received / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 %}
                 <div class="progress" style="height: 25px;">
                     <div class="progress-bar bg-success" role="progressbar" 
-                         style="width: {{ (total_received / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 }}%;">
-                        UGX {{ "%.0f"|format(total_received) }}
+                         style="width: {{ received_pct if received_pct <= 100 else 100 }}%;">
+                        {{ total_received|currency_ugx }}
                     </div>
                 </div>
-                <small class="text-muted d-block mt-1">Out of UGX {{ "%.0f"|format(line_item.approved_amount) }} approved</small>
+                <small class="text-muted d-block mt-1">Out of {{ line_item.approved_amount|currency_ugx }} approved</small>
             </div>
 
             <!-- Combined -->
@@ -110,15 +112,15 @@
                     {% set total_used = total_committed + total_received %}
                     {% set usage_pct = (total_used / line_item.approved_amount * 100) if line_item.approved_amount > 0 else 0 %}
                     <div class="progress-bar {% if usage_pct <= 80 %}bg-success{% elif usage_pct <= 100 %}bg-warning{% else %}bg-danger{% endif %}" role="progressbar" 
-                         style="width: {{ min(usage_pct, 100) }}%;">
-                        UGX {{ "%.0f"|format(total_used) }}
+                         style="width: {{ usage_pct if usage_pct <= 100 else 100 }}%;">
+                        {{ total_used|currency_ugx }}
                     </div>
                 </div>
                 <small class="text-muted d-block mt-1">
                     {% if remaining > 0 %}
-                        <i class="bi bi-check-circle text-success"></i> UGX {{ "%.0f"|format(remaining) }} still available
+                        <i class="bi bi-check-circle text-success"></i> {{ remaining|currency_ugx }} still available
                     {% else %}
-                        <i class="bi bi-exclamation-circle text-danger"></i> Budget exceeded by UGX {{ "%.0f"|format(-remaining) }}!
+                        <i class="bi bi-exclamation-circle text-danger"></i> Budget exceeded by {{ -remaining|currency_ugx }}!
                     {% endif %}
                 </small>
             </div>
@@ -154,9 +156,9 @@
                                 </td>
                                 <td>{{ po.vendor.vendor_name if po.vendor else 'N/A' }}</td>
                                 <td class="text-end">{{ po.quantity }}</td>
-                                <td class="text-end">UGX {{ "%.0f"|format(po.unit_price) }}</td>
+                                <td class="text-end">{{ po.unit_price|currency_ugx }}</td>
                                 <td class="text-end">
-                                    <strong>UGX {{ "%.0f"|format(po.total_cost) }}</strong>
+                                    <strong>{{ po.total_cost|currency_ugx }}</strong>
                                 </td>
                                 <td>
                                     {% if po.status == 'rfq_pending' %}
@@ -206,7 +208,7 @@
                         <tfoot class="table-light">
                             <tr>
                                 <td colspan="4" class="text-end"><strong>Total:</strong></td>
-                                <td class="text-end"><strong>UGX {{ "%.0f"|format(procurements|sum(attribute='total_cost')) }}</strong></td>
+                                <td class="text-end"><strong>{{ procurements|sum(attribute='total_cost')|currency_ugx }}</strong></td>
                                 <td colspan="3"></td>
                             </tr>
                         </tfoot>
@@ -240,11 +242,11 @@
                     </div>
                     <div class="row mb-3">
                         <div class="col-sm-4"><strong>Unit Cost:</strong></div>
-                        <div class="col-sm-8">UGX {{ "%.0f"|format(line_item.unit_cost) }}</div>
+                        <div class="col-sm-8">{{ line_item.unit_cost|currency_ugx }}</div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-sm-4"><strong>Approved Amount:</strong></div>
-                        <div class="col-sm-8"><strong>UGX {{ "%.0f"|format(line_item.approved_amount) }}</strong></div>
+                        <div class="col-sm-8"><strong>{{ line_item.approved_amount|currency_ugx }}</strong></div>
                     </div>
                     {% if line_item.justification %}
                     <div class="row">
