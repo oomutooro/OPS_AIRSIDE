@@ -60,13 +60,17 @@
                     <th>Scheduled</th>
                     <th>ETA/ETD</th>
                     <th>Status</th>
-                    <th></th>
+                    <th>Assign</th>
                 </tr>
             </thead>
             <tbody>
             {% for f in aodb_flights %}
                 {% set flight_code = ((f.flight_icao_code or '') ~ (f.flight_number or '')).strip() %}
-                <tr>
+                <tr class="alloc-flight-row"
+                    data-flight="{{ flight_code or f.flight_number or '' }}"
+                    data-registration="{{ (f.raw_payload or {}).get('aircraftRegistration') or (f.raw_payload or {}).get('registration') or '' }}"
+                    data-aircraft-type="{{ (f.raw_payload or {}).get('acType') or (f.raw_payload or {}).get('aircraftType') or '' }}"
+                    data-aodb-stand="{{ f.stand or '' }}">
                     <td><span class="badge {% if f.arr_or_dep == 'ARR' %}bg-info{% else %}bg-warning text-dark{% endif %}">{{ f.arr_or_dep }}</span></td>
                     <td class="flight-col"><strong>{{ flight_code or f.flight_number or '-' }}</strong></td>
                     <td>{{ (f.raw_payload or {}).get('aircraftRegistration') or (f.raw_payload or {}).get('registration') or '—' }}</td>
@@ -76,10 +80,7 @@
                     <td>{{ f.estimated_datetime.strftime('%H:%M') if f.estimated_datetime else '—' }}</td>
                     <td><span class="badge bg-secondary">{{ f.operation_status or '—' }}</span></td>
                     <td>
-                        <button class="btn btn-xs btn-outline-primary py-0 px-1 use-flight-btn"
-                                data-flight="{{ flight_code or f.flight_number or '' }}"
-                                data-stand="{{ f.stand or '' }}"
-                                title="Pre-fill allocation form">&#9654;</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary assign-flight-btn">Assign Stand</button>
                     </td>
                 </tr>
             {% else %}
@@ -90,33 +91,145 @@
     </div>
 </div>
 
-{# ── Allocation Form ──────────────────────────────────────────────────── #}
-<div class="card panel-card mb-3">
-    <div class="card-header">Aircraft Stand Allocation</div>
-    <div class="card-body">
-        <form method="post" class="row g-3" id="allocationForm" data-flight-form>
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div class="col-md-3"><label class="form-label">Flight Number</label>
-            <input id="inp_flight" name="flight_number" class="form-control form-control-lg" list="flight_numbers_stand" required>
-            <datalist id="flight_numbers_stand" data-aodb-datalist data-aodb-date="{{ alloc_date.isoformat() }}"></datalist>
-            </div>
-            <div class="col-md-3"><label class="form-label">Aircraft Registration</label><input name="aircraft_registration" class="form-control form-control-lg"></div>
-            <div class="col-md-3"><label class="form-label">Aircraft Type</label><input name="aircraft_type" class="form-control form-control-lg"></div>
-            <div class="col-md-3"><label class="form-label">Flight Type</label><select name="flight_type" class="form-select form-select-lg"><option>scheduled</option><option>non_scheduled</option><option>cargo</option><option>vvip</option></select></div>
-            <div class="col-md-4"><label class="form-label">Allocated Stand</label><select id="inp_stand" name="allocated_stand" class="form-select form-select-lg" required>{% for s in stands %}<option value="{{ s.stand_code }}">{{ s.stand_code }}</option>{% endfor %}</select></div>
-            <div class="col-md-4"><label class="form-label">Requested Stand</label><input name="requested_stand" class="form-control form-control-lg"></div>
-            <div class="col-md-4 d-flex align-items-end"><div class="form-check"><input type="checkbox" name="requires_follow_me" class="form-check-input" id="followMe"><label class="form-check-label" for="followMe">Follow Me Required</label></div></div>
-            <div class="col-12"><button class="btn btn-primary btn-touch">Save Allocation</button></div>
-        </form>
+{# ── Assign Modal ─────────────────────────────────────────────────────── #}
+<div class="modal fade" id="assignStandModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" id="assignStandForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="allocation_date" value="{{ alloc_date.isoformat() }}">
+                <input type="hidden" name="flight_number" id="modalFlightNumber">
+                <input type="hidden" name="aircraft_registration" id="modalAircraftReg">
+                <input type="hidden" name="aircraft_type" id="modalAircraftType">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign Stand</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2"><strong id="modalFlightLabel">Flight</strong></div>
+                    <div class="small text-muted mb-3" id="modalAodbStandHint"></div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Available Stand</label>
+                        <select name="allocated_stand" id="modalStandSelect" class="form-select" required>
+                            <option value="">Select available stand...</option>
+                            {% for s in stands %}
+                            <option value="{{ s.stand_code }}" data-stand-code="{{ s.stand_code|upper }}">{{ s.stand_code }} (Apron {{ s.apron }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Only stands not already allocated on this date are enabled.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Flight Type</label>
+                        <select name="flight_type" class="form-select">
+                            <option value="scheduled" selected>scheduled</option>
+                            <option value="non_scheduled">non_scheduled</option>
+                            <option value="cargo">cargo</option>
+                            <option value="vvip">vvip</option>
+                        </select>
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" name="requires_follow_me" class="form-check-input" id="modalFollowMe">
+                        <label class="form-check-label" for="modalFollowMe">Follow Me Required</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Allocation</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
 {# ── Recent Allocations ───────────────────────────────────────────────── #}
 <div class="card panel-card">
-    <div class="card-header">Recent Allocations</div>
+    <div class="card-header">Allocations for {{ alloc_date.strftime('%d %b %Y') }}</div>
     <div class="card-body table-responsive">
-        <table class="table table-striped" id="allocationsTable"><thead><tr><th>Flight</th><th>Aircraft</th><th>Stand</th><th>Status</th><th>Date</th></tr></thead><tbody>{% for a in allocations %}<tr><td>{{ a.flight_number }}</td><td>{{ a.aircraft_registration }}</td><td>{{ a.allocated_stand_code }}</td><td>{{ a.status }}</td><td>{{ a.created_at|datetime_fmt }}</td></tr>{% endfor %}</tbody></table>
+        <table class="table table-striped" id="allocationsTable">
+            <thead><tr><th>Flight</th><th>Aircraft</th><th>Stand</th><th>Status</th><th>Saved</th></tr></thead>
+            <tbody>
+                {% for a in allocations %}
+                <tr data-flight="{{ (a.flight_number or '')|upper }}" data-stand="{{ (a.allocated_stand_code or '')|upper }}">
+                    <td>{{ a.flight_number }}</td>
+                    <td>{{ a.aircraft_registration or '—' }}</td>
+                    <td>{{ a.allocated_stand_code }}</td>
+                    <td>{{ a.status }}</td>
+                    <td>{{ a.created_at|datetime_fmt }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted">No allocations saved for this date yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const modalEl = document.getElementById('assignStandModal');
+    const modal = new bootstrap.Modal(modalEl);
+    const flightLabel = document.getElementById('modalFlightLabel');
+    const flightInput = document.getElementById('modalFlightNumber');
+    const regInput = document.getElementById('modalAircraftReg');
+    const typeInput = document.getElementById('modalAircraftType');
+    const standHint = document.getElementById('modalAodbStandHint');
+    const standSelect = document.getElementById('modalStandSelect');
+
+    function occupiedStandsForDate(exceptFlight) {
+        const occupied = new Set();
+        document.querySelectorAll('#allocationsTable tbody tr[data-stand]').forEach((row) => {
+            const rowFlight = (row.dataset.flight || '').trim().toUpperCase();
+            if (exceptFlight && rowFlight === exceptFlight.toUpperCase()) return;
+            const stand = (row.dataset.stand || '').trim().toUpperCase();
+            if (stand) occupied.add(stand);
+        });
+        return occupied;
+    }
+
+    function refreshAvailableStands(currentFlight) {
+        const occupied = occupiedStandsForDate(currentFlight);
+        [...standSelect.options].forEach((opt) => {
+            const code = (opt.dataset.standCode || '').toUpperCase();
+            if (!code) return;
+            opt.disabled = occupied.has(code);
+        });
+    }
+
+    function openAssignModal(row) {
+        const flight = (row.dataset.flight || '').trim();
+        const reg = (row.dataset.registration || '').trim();
+        const type = (row.dataset.aircraftType || '').trim();
+        const aodbStand = (row.dataset.aodbStand || '').trim();
+
+        flightLabel.textContent = flight || 'Flight';
+        flightInput.value = flight;
+        regInput.value = reg;
+        typeInput.value = type;
+        standHint.textContent = aodbStand ? `AODB stand hint: ${aodbStand}` : 'No AODB stand currently assigned.';
+
+        refreshAvailableStands(flight);
+        standSelect.value = '';
+        modal.show();
+    }
+
+    document.querySelectorAll('.alloc-flight-row').forEach((row) => {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function (ev) {
+            // Prevent double-trigger when button is clicked.
+            if (ev.target.closest('.assign-flight-btn')) {
+                openAssignModal(row);
+                return;
+            }
+            openAssignModal(row);
+        });
+    });
+})();
+</script>
 {% endblock %}
 

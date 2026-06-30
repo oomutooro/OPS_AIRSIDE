@@ -119,6 +119,7 @@ class FlightMovement(db.Model):
             'arr_or_dep': self.arr_or_dep,
             'flight_number': self.flight_number,
             'flight_iata_code': self.flight_iata_code,
+            'flight_icao_code': self.flight_icao_code,
             'airline_name': self.airline_name,
             'callsign': self.callsign,
             'scheduled_date': self.scheduled_date,

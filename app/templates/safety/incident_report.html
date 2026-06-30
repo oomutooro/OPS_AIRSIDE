@@ -16,7 +16,11 @@
             <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
             <div class="col-md-6"><label class="form-label">Company/Airline</label><input name="company_airline" class="form-control form-control-lg"></div>
             <div class="col-md-4"><label class="form-label">Operator</label><input name="operator" class="form-control form-control-lg"></div>
-            <div class="col-md-4"><label class="form-label">Flight No.</label><input name="flight_no" class="form-control form-control-lg"></div>
+            <div class="col-md-4">
+                <label class="form-label">Flight No.</label>
+                <input name="flight_no" class="form-control form-control-lg" list="incident_flight_options" autocomplete="off" placeholder="Type IATA or ICAO code">
+                <datalist id="incident_flight_options" data-aodb-datalist data-aodb-date-source="input[name='occurrence_date']"></datalist>
+            </div>
             <div class="col-md-4"><label class="form-label">POB</label><input name="pob" class="form-control form-control-lg" placeholder="Persons on board"></div>
             <div class="col-md-4"><label class="form-label">Aircraft/Equip't Reg No.</label><input name="aircraft_equipment_reg_no" class="form-control form-control-lg"></div>
             <div class="col-md-4"><label class="form-label">Aircraft/Equip't Type</label><input name="aircraft_equipment_type" class="form-control form-control-lg"></div>

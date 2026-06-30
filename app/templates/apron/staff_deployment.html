@@ -67,7 +67,7 @@
                 </select>
             </div>
 
-            <div class="col-md-6"><label class="form-label">TPBB Operations Desk</label>
+            <div class="col-md-6"><label class="form-label">TPBB Operations</label>
                 <select name="tpbb_operations" class="form-select form-select-lg" required>
                     <option value="">Select officer</option>
                     {% for u in on_duty_users %}<option value="{{ u.id }}">{{ u.full_name }} ({{ u.badge_number or u.username }})</option>{% endfor %}

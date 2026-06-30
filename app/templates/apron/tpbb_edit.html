@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Edit TPBB Record{% endblock %}
+
+{% block content %}
+<div class="card panel-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Edit TPBB Record</span>
+        <a href="{{ url_for('apron.tpbb_operations', date=tpbb_date.isoformat()) }}" class="btn btn-sm btn-outline-secondary">Back</a>
+    </div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <input type="hidden" name="tpbb_date" value="{{ tpbb_date.isoformat() }}">
+
+            <div class="col-md-3">
+                <label class="form-label">Bridge No</label>
+                <select name="bridge_no" class="form-select form-select-lg" required>
+                    <option value="" disabled {% if not data.get('bridge_no') %}selected{% endif %}>-- Select PBB --</option>
+                    <option value="PBB 01" {% if data.get('bridge_no') == 'PBB 01' %}selected{% endif %}>PBB 01 -- Stand A1S05</option>
+                    <option value="PBB 02" {% if data.get('bridge_no') == 'PBB 02' %}selected{% endif %}>PBB 02 -- Stand A1S06</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Flight Number</label>
+                <input name="flight_number" class="form-control form-control-lg" value="{{ data.get('flight_number', '') }}" list="flight_numbers_tpbb_edit" required>
+                <datalist id="flight_numbers_tpbb_edit" data-aodb-datalist data-aodb-date="{{ tpbb_date.isoformat() }}"></datalist>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Pre-Arrival Test</label>
+                <select name="pre_arrival_test" class="form-select form-select-lg">
+                    <option value="PASS" {% if data.get('pre_arrival_test') == 'PASS' %}selected{% endif %}>PASS</option>
+                    <option value="FAIL" {% if data.get('pre_arrival_test') == 'FAIL' %}selected{% endif %}>FAIL</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Docking Time (Bridge On)</label>
+                <input type="time" name="docking_time" class="form-control form-control-lg" value="{{ data.get('docking_time', '') }}">
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Back-off Time (Bridge Off)</label>
+                <input type="time" name="backoff_time" class="form-control form-control-lg" value="{{ data.get('backoff_time', '') }}">
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Remarks</label>
+                <textarea name="remarks" class="form-control" rows="3">{{ data.get('remarks', '') }}</textarea>
+            </div>
+
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-primary">Update TPBB Record</button>
+                <a href="{{ url_for('apron.tpbb_operations', date=tpbb_date.isoformat()) }}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

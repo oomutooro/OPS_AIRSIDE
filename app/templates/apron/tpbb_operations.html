@@ -44,11 +44,7 @@
                 <label class="form-label">Flight Number</label>
                 <input name="flight_number" class="form-control form-control-lg"
                        list="flight_numbers_tpbb" required autocomplete="off">
-                <datalist id="flight_numbers_tpbb">
-                    {% for row in tpbb_allocations %}
-                    <option value="{{ row.flight_number }}" label="{{ row.flight_number }} | {{ row.arr_or_dep }} | {{ row.stand }} | {{ row.scheduled.strftime('%H:%M') if row.scheduled else '--:--' }}"></option>
-                    {% endfor %}
-                </datalist>
+                <datalist id="flight_numbers_tpbb" data-aodb-datalist data-aodb-date="{{ tpbb_date.isoformat() }}"></datalist>
             </div>
 
             <div class="col-md-3">
@@ -154,6 +150,68 @@
     </div>
 </div>
 
+<!-- ── TPBB coverage table (AODB + manual) ─────────────────────────── -->
+<div class="card panel-card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>TPBB Docking Coverage (All Flights on A1S05/A1S06)</span>
+        <small class="text-muted">Shows AODB milestones plus your manual Form 5 inputs</small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 tpbb-alloc-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Scheduled</th>
+                        <th>Type</th>
+                        <th>Flight</th>
+                        <th>Bridge</th>
+                        <th>Stand</th>
+                        <th>AODB Dock</th>
+                        <th>AODB Back-off</th>
+                        <th>Manual Dock</th>
+                        <th>Manual Back-off</th>
+                        <th>Coverage</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in coverage_rows %}
+                <tr>
+                    <td>{{ row.scheduled.strftime('%H:%M') if row.scheduled else '—' }}</td>
+                    <td>
+                        {% if row.arr_or_dep == 'ARR' %}
+                        <span class="badge bg-primary">ARR</span>
+                        {% elif row.arr_or_dep == 'DEP' %}
+                        <span class="badge bg-secondary">DEP</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">{{ row.arr_or_dep or '—' }}</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ row.flight_number }}</strong></td>
+                    <td>{{ row.bridge_no }}</td>
+                    <td>{{ row.stand }}</td>
+                    <td>{{ row.aodb_docking or '—' }}</td>
+                    <td>{{ row.aodb_backoff or '—' }}</td>
+                    <td>{{ row.manual_docking or '—' }}</td>
+                    <td>{{ row.manual_backoff or '—' }}</td>
+                    <td>
+                        {% if row.status_ok %}
+                        <span class="badge bg-success">{{ row.status_text }}</span>
+                        {% else %}
+                        <span class="badge bg-danger">{{ row.status_text }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ row.source }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="11" class="text-center text-muted py-3">No TPBB stand flights found for this date.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <!-- ── Logs table ────────────────────────────────────────────────────── -->
 <div class="card panel-card">
     <div class="card-header">Recent TPBB Records</div>
@@ -172,6 +230,7 @@
                         <th>Back-off (Off)</th>
                         <th>Status</th>
                         <th>Recorded by</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,7 +238,7 @@
                 {% set d = s.data or {} %}
                 {% set flag = d.get('bridge_flag', 'no_dock') %}
                 {% set on_pbb_stand = d.get('flight_stand') in pbb_stands %}
-                <tr class="{% if flag == 'incomplete' %}table-danger{% elif flag == 'ok' %}table-success{% endif %}">
+                <tr class="{% if flag in ['incomplete'] %}table-danger{% elif flag == 'ok' %}table-success{% endif %}">
                     <td>{{ s.created_at.strftime('%d %b %Y %H:%M') if s.created_at else '—' }}</td>
                     <td>{{ d.get('bridge_no') or '—' }}</td>
                     <td><strong>{{ d.get('flight_number') or '—' }}</strong></td>
@@ -203,16 +262,28 @@
                     <td>
                         {% if flag == 'ok' %}
                         <span class="flag-ok">&#10003; Complete</span>
+                        {% elif flag == 'pending_backoff' %}
+                        <span class="text-warning fw-semibold">&#9203; Dock-on only</span>
+                        {% elif flag == 'ug_backoff_only' %}
+                        <span class="text-warning fw-semibold">Uganda exception</span>
                         {% elif flag == 'incomplete' %}
                         <span class="flag-incomplete">&#9888; Incomplete</span>
                         {% else %}
                         <span class="flag-no-dock">&#8212; No dock</span>
                         {% endif %}
                     </td>
-                    <td>{{ s.submitted_by.name if s.submitted_by else '—' }}</td>
+                    <td>{{ s.submitted_by.full_name if s.submitted_by else '—' }}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <a href="{{ url_for('apron.tpbb_edit_entry', submission_id=s.id, date=tpbb_date.isoformat()) }}" class="btn btn-sm btn-outline-primary">Edit</a>
+                            <form method="post" action="{{ url_for('apron.tpbb_delete_entry', submission_id=s.id) }}" onsubmit="return confirm('Delete this TPBB record?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="10" class="text-center text-muted py-3">No TPBB records yet.</td></tr>
+                <tr><td colspan="11" class="text-center text-muted py-3">No TPBB records yet.</td></tr>
                 {% endfor %}
                 </tbody>
             </table>

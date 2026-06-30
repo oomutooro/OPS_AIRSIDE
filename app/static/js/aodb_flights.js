@@ -5,6 +5,8 @@
  */
 
 (function () {
+  const datalistAliasMaps = new WeakMap();
+
   /**
    * Initialize AODB flight autocomplete for inputs with data-aodb-autocomplete attribute.
    * Also provides "click-to-fill" buttons to pre-populate form fields from a flight.
@@ -14,6 +16,33 @@
     const datalists = document.querySelectorAll('[data-aodb-datalist]');
     for (const dlist of datalists) {
       await populateFlightDatalist(dlist);
+
+      // Normalize typed aliases (IATA/ICAO/base) to one canonical value.
+      const listId = dlist.id;
+      if (listId) {
+        const linkedInputs = document.querySelectorAll(`input[list="${listId}"]`);
+        linkedInputs.forEach((inp) => {
+          const normalize = () => {
+            const map = datalistAliasMaps.get(dlist) || new Map();
+            const typed = (inp.value || '').replace(/\s+/g, '').toUpperCase();
+            if (!typed) return;
+            const canonical = map.get(typed);
+            if (canonical) inp.value = canonical;
+          };
+          inp.addEventListener('change', normalize);
+          inp.addEventListener('blur', normalize);
+        });
+      }
+
+      const dateSourceSelector = dlist.dataset.aodbDateSource || '';
+      if (dateSourceSelector) {
+        const dateSource = document.querySelector(dateSourceSelector);
+        if (dateSource) {
+          dateSource.addEventListener('change', async () => {
+            await populateFlightDatalist(dlist);
+          });
+        }
+      }
     }
 
     // Wire up flight selection buttons (.use-flight-btn)
@@ -48,7 +77,17 @@
    * Fetch flights for a datalist and populate the <option> elements.
    */
   async function populateFlightDatalist(datalist) {
-    const dateStr = datalist.dataset.aodbDate || new Date().toISOString().split('T')[0];
+    let dateStr = datalist.dataset.aodbDate || '';
+    const dateSourceSelector = datalist.dataset.aodbDateSource || '';
+    if (dateSourceSelector) {
+      const dateSource = document.querySelector(dateSourceSelector);
+      if (dateSource && dateSource.value) {
+        dateStr = dateSource.value;
+      }
+    }
+    if (!dateStr) {
+      dateStr = new Date().toISOString().split('T')[0];
+    }
     const typeFilter = datalist.dataset.aodbType || 'all';
 
     try {
@@ -61,17 +100,31 @@
 
       const flights = await resp.json();
       datalist.innerHTML = '';
+      const aliasMap = new Map();
+      const seenCanonical = new Set();
       flights.forEach((f) => {
-        const label = f.flight_number ? 
-          `${f.flight_number} (${f.arr_or_dep} - ${f.airline || ''})` :
-          '';
-        if (label) {
-          const opt = document.createElement('option');
-          opt.value = f.flight_number;
-          opt.label = label;
-          datalist.appendChild(opt);
-        }
+        const base = (f.flight_number || '').trim();
+        const iata = `${(f.flight_iata_code || '').trim()}${base}`.trim();
+        const icao = `${(f.flight_icao_code || '').trim()}${base}`.trim();
+        const variants = [icao, iata, base].filter((v) => !!v);
+        if (!variants.length) return;
+
+        const canonical = icao || iata || base;
+        const canonicalKey = canonical.toUpperCase();
+        variants.forEach((v) => aliasMap.set(v.toUpperCase(), canonical));
+        if (seenCanonical.has(canonicalKey)) return;
+        seenCanonical.add(canonicalKey);
+
+        const labelCore = [icao || '-', iata || '-', base || '-'].join(' / ');
+        const airline = (f.airline_name || f.airline || '').trim();
+        const labelMeta = `${f.arr_or_dep || '-'} - ${airline}`.trim();
+
+        const opt = document.createElement('option');
+        opt.value = canonical;
+        opt.label = `${labelCore} (${labelMeta})`;
+        datalist.appendChild(opt);
       });
+      datalistAliasMaps.set(datalist, aliasMap);
     } catch (err) {
       console.error('AODB datalist fetch error:', err);
     }

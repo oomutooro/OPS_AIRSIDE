@@ -22,7 +22,7 @@ def index():
     recent_submissions = FormSubmission.query.order_by(FormSubmission.created_at.desc()).limit(10).all()
     current_shift = Shift.query.filter_by(status='active').order_by(Shift.created_at.desc()).first()
     workflow_data = WorkflowService.dashboard_data_for_user(current_user)
-    today_flights = AodbSyncService.flights_for_date(date.today())
+    today_flights = AodbSyncService.flights_for_date(date.today(), apply_recent_window=False)
     last_sync = AodbSyncService.last_sync_time()
     return render_template(
         'dashboard.html',

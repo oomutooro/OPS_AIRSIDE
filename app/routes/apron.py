@@ -2,7 +2,9 @@
 Apron management routes: stand allocation, shift handover, staff deployment, TPBB ops.
 """
 from datetime import date, datetime, timedelta
+import re
 from pathlib import Path
+from types import SimpleNamespace
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user, login_required
 from app import db
@@ -33,8 +35,24 @@ def _page_overview(title, subtitle, summary_cards, related_reports, add_href='#n
 @apron_bp.route('/overview')
 @role_required('admin', 'supervisor', 'inspector', 'operator')
 def overview():
+    today = date.today()
+    flights_today = AodbSyncService.flights_for_date(today, apply_recent_window=False)
+    stand_allocated_today = sum(1 for f in flights_today if (f.stand or '').strip())
+    stand_pending_today = max(0, len(flights_today) - stand_allocated_today)
+    tpbb_daily = _tpbb_daily_status(today)
+    tpbb_problem_count = tpbb_daily['tpbb_not_allocated'] + tpbb_daily['tpbb_incomplete']
+    tpbb_problem_ratio = (tpbb_problem_count / tpbb_daily['tpbb_allocations']) if tpbb_daily['tpbb_allocations'] else 0
+
+    if tpbb_problem_ratio <= 0.15:
+        tpbb_tone = 'good'
+    elif tpbb_problem_ratio <= 0.45:
+        tpbb_tone = 'caution'
+    elif tpbb_problem_ratio <= 0.75:
+        tpbb_tone = 'warning'
+    else:
+        tpbb_tone = 'bad'
+
     staff_deployment_count = FormSubmission.query.join(FormTemplate).filter(FormTemplate.form_number == 23).count()
-    tpbb_report_count = FormSubmission.query.join(FormTemplate).filter(FormTemplate.form_number == 5).count()
     sections = [
         {
             'title': 'Shift Operations',
@@ -50,7 +68,7 @@ def overview():
         {
             'title': 'Apron Traffic and Equipment',
             'description': 'Stand allocation, TPBB operations, and map-driven apron controls.',
-            'badge': f'{StandAllocation.query.count()} allocations',
+            'badge': f"{stand_allocated_today} allocated / {stand_pending_today} pending today",
             'links': [
                 {'label': 'Stand Allocation', 'url': url_for('apron.stand_allocation'), 'meta': 'Allocation workspace'},
                 {'label': 'TPBB Operations', 'url': url_for('apron.tpbb_operations'), 'meta': 'Form 5 workspace'},
@@ -65,10 +83,30 @@ def overview():
         overview_title='Apron Dashboard',
         overview_subtitle='Open each apron report family from here, see the dashboard cues for that area, and jump straight into new form entry.',
         summary_cards=[
+            {'label': 'AODB Flights (Today)', 'value': len(flights_today), 'help_text': 'Full-day synced flights for today'},
+            {'label': 'Stand Allocated (AODB)', 'value': stand_allocated_today, 'help_text': 'Flights with stand assigned in AODB'},
+            {'label': 'Stand Pending (AODB)', 'value': stand_pending_today, 'help_text': 'Flights missing stand assignment in AODB'},
+            {
+                'label': 'TPBB Allocated (A1S05/A1S06)',
+                'value': tpbb_daily['tpbb_allocations'],
+                'help_text': f"All flights on TPBB stands today | Risk {(tpbb_problem_ratio * 100):.0f}%",
+                'tone': tpbb_tone,
+            },
+            {
+                'label': 'TPBB Not Allocated',
+                'value': tpbb_daily['tpbb_not_allocated'],
+                'help_text': 'Flights on stand 5/6 with no docking captured',
+                'tone': 'bad' if tpbb_daily['tpbb_not_allocated'] else 'good',
+            },
+            {
+                'label': 'TPBB Incomplete',
+                'value': tpbb_daily['tpbb_incomplete'],
+                'help_text': 'Docking/back-off partially captured',
+                'tone': 'warning' if tpbb_daily['tpbb_incomplete'] else 'good',
+            },
             {'label': 'Handover Reports', 'value': HandoverReport.query.count(), 'help_text': 'Submitted shift handovers'},
             {'label': 'Staff Deployment', 'value': staff_deployment_count, 'help_text': 'Captured Form 23 deployment reports'},
-            {'label': 'TPBB Reports', 'value': tpbb_report_count, 'help_text': 'Captured Form 5 bridge operation reports'},
-            {'label': 'Stand Allocations', 'value': StandAllocation.query.count(), 'help_text': 'Saved stand allocation records'},
+            {'label': 'Stand Allocations (Local)', 'value': StandAllocation.query.count(), 'help_text': 'Saved stand allocation records in this app'},
         ],
         sections=sections,
         primary_action={'label': 'Add Handover Report', 'url': url_for('apron.shift_handover')},
@@ -119,12 +157,13 @@ def _resolve_pbb_stand(stand_raw: str):
 def _build_tpbb_allocations(for_date: date):
     """Return all AODB flights for the date allocated to TPBB stands (A1S05/A1S06)."""
     rows = []
-    for f in AodbSyncService.flights_for_date(for_date):
+    for f in AodbSyncService.flights_for_date(for_date, apply_recent_window=False):
         bridge_no, canonical_stand = _resolve_pbb_stand(f.stand)
         if not bridge_no:
             continue
 
         icao_num = f"{(f.flight_icao_code or '').strip()}{(f.flight_number or '').strip()}".strip()
+        iata_num = f"{(f.flight_iata_code or '').strip()}{(f.flight_number or '').strip()}".strip()
         flight_label = icao_num or (f.flight_number or '').strip()
         if not flight_label:
             continue
@@ -134,6 +173,7 @@ def _build_tpbb_allocations(for_date: date):
         rows.append({
             'aodb_flight_id': f.aodb_flight_id,
             'flight_number': flight_label,
+            'iata_flight_number': iata_num,
             'base_flight_number': (f.flight_number or '').strip(),
             'arr_or_dep': (f.arr_or_dep or '').upper(),
             'bridge_no': bridge_no,
@@ -143,10 +183,109 @@ def _build_tpbb_allocations(for_date: date):
             'actual': f.actual_datetime,
             'status': f.operation_status,
             'aircraft_type': aircraft_type,
+            'aodb_docking_time': f.milestone_3.strftime('%H:%M') if f.milestone_3 else None,
+            'aodb_backoff_time': f.milestone_1.strftime('%H:%M') if f.milestone_1 else None,
         })
 
     rows.sort(key=lambda r: r['scheduled'] or datetime.max)
     return rows
+
+
+def _normalized_flight_key(value: str) -> str:
+    return (value or '').replace(' ', '').strip().upper()
+
+
+def _is_tpbb_bridge_serviceable(canonical_stand: str) -> bool:
+    """Treat active stand mapping as serviceable bridge status."""
+    if not canonical_stand:
+        return False
+    stand = ParkingStand.query.filter_by(stand_code=canonical_stand).first()
+    if not stand:
+        return False
+    return bool(stand.has_pbb and stand.is_active)
+
+
+def _tpbb_daily_status(for_date: date):
+    """Compute TPBB allocation quality counts for the Apron dashboard."""
+    allocations = _build_tpbb_allocations(for_date)
+    submissions = FormSubmission.query.join(FormTemplate).filter(
+        FormTemplate.form_number == 5
+    ).all()
+
+    records_by_flight = {}
+    for sub in submissions:
+        data = sub.data or {}
+        rec_date = None
+        raw_tpbb_date = (data.get('tpbb_date') or '').strip()
+        if raw_tpbb_date:
+            try:
+                rec_date = datetime.strptime(raw_tpbb_date, '%Y-%m-%d').date()
+            except ValueError:
+                rec_date = None
+        if rec_date is None and sub.created_at:
+            rec_date = sub.created_at.date()
+        if rec_date != for_date:
+            continue
+
+        key = _normalized_flight_key(data.get('flight_number'))
+        if not key:
+            continue
+
+        has_dock = bool((data.get('docking_time') or '').strip())
+        has_backoff = bool((data.get('backoff_time') or '').strip())
+        records_by_flight.setdefault(key, []).append({
+            'has_dock': has_dock,
+            'has_backoff': has_backoff,
+            'created_at': sub.created_at,
+        })
+
+    not_allocated = 0
+    incomplete = 0
+    complete = 0
+
+    for row in allocations:
+        alloc_keys = {
+            _normalized_flight_key(row.get('flight_number')),
+            _normalized_flight_key(row.get('iata_flight_number')),
+            _normalized_flight_key(row.get('base_flight_number')),
+        }
+        alloc_keys = {k for k in alloc_keys if k}
+
+        flight_key = next(iter(alloc_keys), None)
+        if not flight_key:
+            continue
+
+        matched_manual = []
+        for k in alloc_keys:
+            matched_manual.extend(records_by_flight.get(k, []))
+
+        latest_manual = None
+        for rec in matched_manual:
+            if latest_manual is None:
+                latest_manual = rec
+            elif rec.get('created_at') and latest_manual.get('created_at') and rec['created_at'] > latest_manual['created_at']:
+                latest_manual = rec
+
+        has_dock = bool(row.get('aodb_docking_time'))
+        has_backoff = bool(row.get('aodb_backoff_time'))
+
+        if latest_manual:
+            has_dock = has_dock or latest_manual.get('has_dock', False)
+            has_backoff = has_backoff or latest_manual.get('has_backoff', False)
+
+        if not has_dock and not has_backoff:
+            not_allocated += 1
+        elif has_dock and has_backoff:
+            complete += 1
+        else:
+            incomplete += 1
+
+    return {
+        'tpbb_allocations': len(allocations),
+        'tpbb_not_allocated': not_allocated,
+        'tpbb_incomplete': incomplete,
+        'tpbb_complete': complete,
+    }
 
 
 def _user_is_on_shift(user_id: int, duty_date: date, shift_type: str) -> bool:
@@ -237,32 +376,62 @@ def _upsert_shift_records_for_range(start_date: date, end_date: date, preferred_
 @apron_bp.route('/stand-allocation', methods=['GET', 'POST'])
 @role_required('admin', 'supervisor', 'inspector', 'operator')
 def stand_allocation():
+    alloc_date = _parse_iso_date(request.values.get('date') or request.values.get('allocation_date'))
+
     if request.method == 'POST':
-        allocation = StandAllocation(
-            allocation_date=date.today(),
-            flight_number=request.form.get('flight_number'),
-            aircraft_registration=request.form.get('aircraft_registration'),
-            aircraft_type=request.form.get('aircraft_type'),
-            allocated_stand_code=request.form.get('allocated_stand'),
-            requested_stand_code=request.form.get('requested_stand'),
-            requires_follow_me=bool(request.form.get('requires_follow_me')),
-            flight_type=request.form.get('flight_type'),
-            status='allocated',
-            allocated_by_user_id=current_user.id,
-        )
-        db.session.add(allocation)
+        flight_number = (request.form.get('flight_number') or '').strip()
+        allocated_stand = (request.form.get('allocated_stand') or '').strip().upper()
+        if not flight_number or not allocated_stand:
+            flash('Select a flight and stand before saving.', 'danger')
+            return redirect(url_for('apron.stand_allocation', date=alloc_date.isoformat()))
+
+        allocation = StandAllocation.query.filter_by(
+            allocation_date=alloc_date,
+            flight_number=flight_number,
+        ).first()
+
+        if not allocation:
+            allocation = StandAllocation(
+                allocation_date=alloc_date,
+                flight_number=flight_number,
+                status='allocated',
+                allocated_by_user_id=current_user.id,
+            )
+            db.session.add(allocation)
+
+        allocation.aircraft_registration = (request.form.get('aircraft_registration') or '').strip() or allocation.aircraft_registration
+        allocation.aircraft_type = (request.form.get('aircraft_type') or '').strip() or allocation.aircraft_type
+        allocation.allocated_stand_code = allocated_stand
+        allocation.requested_stand_code = (request.form.get('requested_stand') or '').strip() or None
+        allocation.requires_follow_me = bool(request.form.get('requires_follow_me'))
+        allocation.flight_type = (request.form.get('flight_type') or '').strip() or allocation.flight_type or 'scheduled'
+        allocation.status = 'allocated'
+        allocation.allocated_by_user_id = current_user.id
+
         db.session.commit()
         flash('Stand allocation saved.', 'success')
-        return redirect(url_for('apron.stand_allocation'))
+        return redirect(url_for('apron.stand_allocation', date=alloc_date.isoformat()))
 
     stands = ParkingStand.query.filter_by(is_active=True).order_by(ParkingStand.stand_code).all()
-    allocations = StandAllocation.query.order_by(StandAllocation.created_at.desc()).limit(20).all()
-    alloc_date = _parse_iso_date(request.args.get('date'))
-    aodb_flights = AodbSyncService.flights_for_date(alloc_date)
+    if not stands:
+        # Fallback so operations can continue even if reference stand master data is not seeded yet.
+        fallback_codes = ['02', '03', '04', '05', '06', '07', '08', '09', '10', '20', '21', '22', '23', '24', '25']
+        stands = [
+            SimpleNamespace(
+                stand_code=f'A1S{code}',
+                apron='1' if code in {'02', '03', '04', '05', '06', '07', '08', '09', '10'} else 'Extended',
+            )
+            for code in fallback_codes
+        ]
+        flash('Stand master data is empty; showing fallback stand list (02-10, 20-25).', 'warning')
+    allocations = StandAllocation.query.filter_by(allocation_date=alloc_date).order_by(StandAllocation.created_at.desc()).all()
+    assigned_stands = sorted({(a.allocated_stand_code or '').upper() for a in allocations if (a.allocated_stand_code or '').strip()})
+    aodb_flights = AodbSyncService.flights_for_date(alloc_date, apply_recent_window=False)
     last_sync = AodbSyncService.last_sync_time()
     return render_template(
         'apron/stand_allocation.html',
         stands=stands,
+        assigned_stands=assigned_stands,
         allocations=allocations,
         aodb_flights=aodb_flights,
         alloc_date=alloc_date,
@@ -362,7 +531,7 @@ def api_stand_map_data():
     valid_stands = _valid_map_stands()
 
     # 1) AODB schedule view for selected date
-    flights = AodbSyncService.flights_for_date(query_date)
+    flights = AodbSyncService.flights_for_date(query_date, apply_recent_window=False)
 
     # 2) Local allocations created in this system for selected date
     allocations = StandAllocation.query.filter_by(allocation_date=query_date).order_by(StandAllocation.created_at.desc()).all()
@@ -377,6 +546,8 @@ def api_stand_map_data():
             continue
 
         icao_num = f"{(f.flight_icao_code or '').strip()}{(f.flight_number or '').strip()}".strip()
+        iata_num = f"{(f.flight_iata_code or '').strip()}{(f.flight_number or '').strip()}".strip()
+        base_num = (f.flight_number or '').strip()
         flight_label = icao_num or (f.flight_number or '').strip()
         if not flight_label:
             continue
@@ -398,6 +569,10 @@ def api_stand_map_data():
 
         flight_options.append({
             'flight_number': flight_label,
+            'flight_iata': iata_num,
+            'flight_icao': icao_num,
+            'flight_base': base_num,
+            'aliases': [alias for alias in [icao_num, iata_num, base_num] if alias],
             'aircraft_type': aircraft_type,
             'stand_id': stand_id,
             'source': 'aodb',
@@ -423,6 +598,10 @@ def api_stand_map_data():
 
         flight_options.append({
             'flight_number': flight_number,
+            'flight_iata': '',
+            'flight_icao': '',
+            'flight_base': flight_number,
+            'aliases': [flight_number],
             'aircraft_type': (a.aircraft_type or '').strip(),
             'stand_id': stand_id,
             'source': 'system',
@@ -835,6 +1014,119 @@ def _is_bridge_capable_type(actype: str) -> bool:
     return not any(t.startswith(pfx) for pfx in _NON_BRIDGE_TYPE_PREFIXES)
 
 
+def _is_uganda_airlines_flight(flight_number: str, flight: FlightMovement = None) -> bool:
+    key = (flight_number or '').replace(' ', '').upper()
+    if key.startswith('UR') or key.startswith('UGX'):
+        return True
+    if not flight:
+        return False
+
+    airline = (flight.airline_name or '').lower()
+    if 'uganda' in airline:
+        return True
+    if (flight.flight_iata_code or '').upper() == 'UR':
+        return True
+    if (flight.flight_icao_code or '').upper() == 'UGX':
+        return True
+    return False
+
+
+def _flight_search_tokens(raw_value: str) -> set[str]:
+    """Build lookup tokens from typed input: ICAO+num, IATA+num, and bare flight number."""
+    value = (raw_value or '').replace(' ', '').upper().strip()
+    if not value:
+        return set()
+
+    tokens = {value}
+    match = re.match(r'^([A-Z]{2,3})([0-9].*)$', value)
+    if match:
+        tokens.add(match.group(2))
+    return tokens
+
+
+def _resolve_tpbb_flight(flight_input: str, tpbb_allocations: list[dict], selected_date: date):
+    """Resolve typed flight value to FlightMovement, accepting ICAO/IATA/base identifiers."""
+    if not flight_input:
+        return None
+
+    search_tokens = _flight_search_tokens(flight_input)
+
+    for row in tpbb_allocations:
+        candidate_labels = {
+            (row.get('flight_number') or '').replace(' ', '').upper(),
+            (row.get('iata_flight_number') or '').replace(' ', '').upper(),
+            (row.get('base_flight_number') or '').replace(' ', '').upper(),
+        }
+        if search_tokens & candidate_labels:
+            return FlightMovement.query.filter_by(aodb_flight_id=row.get('aodb_flight_id')).first()
+
+    date_str = selected_date.strftime('%Y%m%d')
+    rows = FlightMovement.query.filter_by(scheduled_date=date_str).all()
+    for f in rows:
+        aliases = {
+            f"{(f.flight_icao_code or '').strip()}{(f.flight_number or '').strip()}".replace(' ', '').upper(),
+            f"{(f.flight_iata_code or '').strip()}{(f.flight_number or '').strip()}".replace(' ', '').upper(),
+            (f.flight_number or '').replace(' ', '').upper(),
+        }
+        if search_tokens & aliases:
+            return f
+    return None
+
+
+def _compute_bridge_flag_and_validate(docking_time: str, backoff_time: str, is_uganda_airlines: bool):
+    """
+    Allowed:
+      - docking + backoff  => complete
+      - docking only       => in progress (waiting for backoff)
+      - no docking/backoff => no_dock
+      - backoff only       => allowed only for Uganda Airlines
+    """
+    has_dock = bool((docking_time or '').strip())
+    has_backoff = bool((backoff_time or '').strip())
+
+    if has_dock and has_backoff:
+        return 'ok', None
+    if has_dock and not has_backoff:
+        return 'pending_backoff', None
+    if not has_dock and not has_backoff:
+        return 'no_dock', None
+    if has_backoff and not has_dock:
+        if is_uganda_airlines:
+            return 'ug_backoff_only', None
+        return None, 'Back-off Time cannot be entered without Docking Time (except Uganda Airlines flights).'
+
+    return None, 'Invalid TPBB timing combination.'
+
+
+def _find_tpbb_submission(submission_id: int):
+    return FormSubmission.query.join(FormTemplate).filter(
+        FormSubmission.id == submission_id,
+        FormTemplate.form_number == 5,
+    ).first()
+
+
+def _ensure_tpbb_form_template() -> tuple[FormTemplate, bool]:
+    """Get Form 5 template, auto-creating a baseline one when missing."""
+    template = FormTemplate.query.filter_by(form_number=5).first()
+    if template:
+        return template, False
+
+    template = FormTemplate(
+        form_number=5,
+        title='TPBB Docking Record and Inspection',
+        description='Passenger Boarding Bridge operation record (dock/back-off).',
+        category='apron',
+        route_endpoint='apron.tpbb_operations',
+        is_active=True,
+        requires_signature=False,
+        requires_approval=False,
+        allowed_roles=['admin', 'supervisor', 'inspector', 'operator'],
+    )
+    db.session.add(template)
+    db.session.flush()
+    return template, True
+
+
 @apron_bp.route('/tpbb-operations', methods=['GET', 'POST'])
 @login_required
 def tpbb_operations():
@@ -844,7 +1136,7 @@ def tpbb_operations():
     if request.method == 'POST':
         from app.services.aodb_writeback import AodbWritebackService
 
-        template = FormTemplate.query.filter_by(form_number=5).first()
+        template, template_created = _ensure_tpbb_form_template()
         if template:
             flight_number = request.form.get('flight_number', '').strip()
             docking_time = request.form.get('docking_time', '').strip()
@@ -866,22 +1158,7 @@ def tpbb_operations():
             flight_actype = None
             flight = None
             if flight_number:
-                search_key = flight_number.replace(' ', '').upper()
-                for row in tpbb_allocations:
-                    candidate_labels = {
-                        (row.get('flight_number') or '').replace(' ', '').upper(),
-                        (row.get('base_flight_number') or '').replace(' ', '').upper(),
-                    }
-                    if search_key in candidate_labels:
-                        flight = FlightMovement.query.filter_by(aodb_flight_id=row.get('aodb_flight_id')).first()
-                        break
-
-                if not flight:
-                    date_str = selected_date.strftime('%Y%m%d')
-                    flight = FlightMovement.query.filter_by(
-                        flight_number=flight_number,
-                        scheduled_date=date_str,
-                    ).first()
+                flight = _resolve_tpbb_flight(flight_number, tpbb_allocations, selected_date)
 
                 if flight:
                     _, canonical = _resolve_pbb_stand(flight.stand)
@@ -889,7 +1166,18 @@ def tpbb_operations():
                     raw = flight.raw_payload or {}
                     flight_actype = (raw.get('acType') or raw.get('aircraftType') or '').strip() or None
 
+            is_uganda_airlines = _is_uganda_airlines_flight(flight_number, flight)
+            bridge_flag, validation_error = _compute_bridge_flag_and_validate(
+                docking_time,
+                backoff_time,
+                is_uganda_airlines,
+            )
+            if validation_error:
+                flash(validation_error, 'danger')
+                return redirect(url_for('apron.tpbb_operations', date=selected_date.isoformat()))
+
             data = {
+                'tpbb_date': selected_date.isoformat(),
                 'bridge_no': bridge_no,
                 'flight_number': flight_number,
                 'pre_arrival_test': request.form.get('pre_arrival_test'),
@@ -911,14 +1199,18 @@ def tpbb_operations():
             WorkflowService.ensure_issue_for_submission(submission, current_user)
             db.session.flush()  # Get submission.id
 
-            # Flash bridge-flag warning before AODB write-back
-            if bridge_flag == 'incomplete':
-                missing = 'Back-off Time' if has_dock else 'Docking Time'
+            # User guidance for partial/exception entries
+            if bridge_flag == 'pending_backoff':
                 flash(
-                    f'\u26a0\ufe0f RED FLAG — Bridge record for {flight_number or bridge_no} is incomplete: '
-                    f'{missing} is missing. A record must have both Docking Time and Back-off Time, '
-                    f'or neither if the bridge was not used.',
-                    'danger',
+                    f'Dock-on for {flight_number or bridge_no} has been recorded. '
+                    'Complete this entry later by adding Back-off Time.',
+                    'info',
+                )
+            elif bridge_flag == 'ug_backoff_only':
+                flash(
+                    f'Uganda Airlines exception applied for {flight_number or bridge_no}: '
+                    'Back-off recorded without Dock-on.',
+                    'warning',
                 )
             elif bridge_flag == 'no_dock' and _resolve_pbb_stand(flight_stand)[0]:
                 bridge_capable = _is_bridge_capable_type(flight_actype)
@@ -1005,15 +1297,169 @@ def tpbb_operations():
 
             db.session.commit()
             flash('TPBB operation recorded.', 'success')
+            if template_created:
+                flash('Form 5 template was initialized automatically.', 'info')
         return redirect(url_for('apron.tpbb_operations', date=selected_date.isoformat()))
 
     logs = FormSubmission.query.join(FormTemplate).filter(
         FormTemplate.form_number == 5
     ).order_by(FormSubmission.created_at.desc()).limit(30).all()
+
+    # Coverage view: all AODB flights on TPBB stands, with AODB milestones and manual overlays.
+    selected_date_iso = selected_date.isoformat()
+    manual_date_rows = []
+    for s in logs:
+        data = s.data or {}
+        rec_date = (data.get('tpbb_date') or '').strip()
+        if rec_date == selected_date_iso or (not rec_date and s.created_at and s.created_at.date() == selected_date):
+            manual_date_rows.append(s)
+
+    def _tokens_for_allocation(row: dict) -> set[str]:
+        return {
+            (row.get('flight_number') or '').replace(' ', '').upper(),
+            (row.get('iata_flight_number') or '').replace(' ', '').upper(),
+            (row.get('base_flight_number') or '').replace(' ', '').upper(),
+        }
+
+    coverage_rows = []
+    for row in tpbb_allocations:
+        alloc_tokens = {t for t in _tokens_for_allocation(row) if t}
+
+        matched_manual = None
+        for s in manual_date_rows:
+            d = s.data or {}
+            input_tokens = _flight_search_tokens(d.get('flight_number') or '')
+            if alloc_tokens & input_tokens:
+                if not matched_manual or (s.created_at and matched_manual.created_at and s.created_at > matched_manual.created_at):
+                    matched_manual = s
+
+        md = matched_manual.data if matched_manual else {}
+        manual_docking = (md.get('docking_time') or '').strip() or None
+        manual_backoff = (md.get('backoff_time') or '').strip() or None
+        aodb_docking = row.get('aodb_docking_time')
+        aodb_backoff = row.get('aodb_backoff_time')
+
+        # For ARR, primary signal is docking; for DEP, primary signal is back-off.
+        if row.get('arr_or_dep') == 'ARR':
+            primary_present = bool(manual_docking or aodb_docking)
+            status_text = 'Docking captured' if primary_present else 'No docking'
+        else:
+            primary_present = bool(manual_backoff or aodb_backoff)
+            status_text = 'Back-off captured' if primary_present else 'No back-off'
+
+        source_bits = []
+        if aodb_docking or aodb_backoff:
+            source_bits.append('AODB')
+        if manual_docking or manual_backoff:
+            source_bits.append('Manual')
+
+        coverage_rows.append({
+            'scheduled': row.get('scheduled'),
+            'arr_or_dep': row.get('arr_or_dep'),
+            'flight_number': row.get('flight_number'),
+            'bridge_no': row.get('bridge_no'),
+            'stand': row.get('stand'),
+            'aircraft_type': row.get('aircraft_type'),
+            'aodb_docking': aodb_docking,
+            'aodb_backoff': aodb_backoff,
+            'manual_docking': manual_docking,
+            'manual_backoff': manual_backoff,
+            'status_text': status_text,
+            'status_ok': primary_present,
+            'source': ' + '.join(source_bits) if source_bits else 'None',
+        })
+
     return render_template(
         'apron/tpbb_operations.html',
         logs=logs,
+        coverage_rows=coverage_rows,
         pbb_stands=_PBB_STANDS,
         tpbb_date=selected_date,
         tpbb_allocations=tpbb_allocations,
     )
+
+
+@apron_bp.route('/tpbb-operations/<int:submission_id>/edit', methods=['GET', 'POST'])
+@login_required
+def tpbb_edit_entry(submission_id):
+    submission = _find_tpbb_submission(submission_id)
+    if not submission:
+        flash('TPBB record not found.', 'danger')
+        return redirect(url_for('apron.tpbb_operations'))
+
+    existing_data = submission.data or {}
+    selected_date = _parse_iso_date(
+        request.values.get('tpbb_date') or
+        existing_data.get('tpbb_date') or
+        request.args.get('date')
+    )
+
+    if request.method == 'POST':
+        flight_number = (request.form.get('flight_number') or '').strip()
+        bridge_no = (request.form.get('bridge_no') or '').strip()
+        docking_time = (request.form.get('docking_time') or '').strip()
+        backoff_time = (request.form.get('backoff_time') or '').strip()
+
+        tpbb_allocations = _build_tpbb_allocations(selected_date)
+
+        flight_stand = None
+        flight_actype = None
+        flight = None
+        if flight_number:
+            flight = _resolve_tpbb_flight(flight_number, tpbb_allocations, selected_date)
+
+            if flight:
+                _, canonical = _resolve_pbb_stand(flight.stand)
+                flight_stand = canonical or ((flight.stand or '').strip().upper() or None)
+                raw = flight.raw_payload or {}
+                flight_actype = (raw.get('acType') or raw.get('aircraftType') or '').strip() or None
+
+        is_uganda_airlines = _is_uganda_airlines_flight(flight_number, flight)
+        bridge_flag, validation_error = _compute_bridge_flag_and_validate(
+            docking_time,
+            backoff_time,
+            is_uganda_airlines,
+        )
+        if validation_error:
+            flash(validation_error, 'danger')
+            return redirect(url_for('apron.tpbb_edit_entry', submission_id=submission.id, date=selected_date.isoformat()))
+
+        updated = dict(existing_data)
+        updated.update({
+            'tpbb_date': selected_date.isoformat(),
+            'bridge_no': bridge_no,
+            'flight_number': flight_number,
+            'pre_arrival_test': request.form.get('pre_arrival_test'),
+            'docking_time': docking_time,
+            'backoff_time': backoff_time,
+            'remarks': request.form.get('remarks'),
+            'bridge_flag': bridge_flag,
+            'flight_stand': flight_stand,
+            'flight_actype': flight_actype,
+        })
+        submission.data = updated
+        db.session.commit()
+        flash('TPBB record updated.', 'success')
+        return redirect(url_for('apron.tpbb_operations', date=selected_date.isoformat()))
+
+    return render_template(
+        'apron/tpbb_edit.html',
+        submission=submission,
+        tpbb_date=selected_date,
+        data=existing_data,
+    )
+
+
+@apron_bp.route('/tpbb-operations/<int:submission_id>/delete', methods=['POST'])
+@login_required
+def tpbb_delete_entry(submission_id):
+    submission = _find_tpbb_submission(submission_id)
+    if not submission:
+        flash('TPBB record not found.', 'danger')
+        return redirect(url_for('apron.tpbb_operations'))
+
+    entry_date = _parse_iso_date((submission.data or {}).get('tpbb_date'))
+    db.session.delete(submission)
+    db.session.commit()
+    flash('TPBB record deleted.', 'success')
+    return redirect(url_for('apron.tpbb_operations', date=entry_date.isoformat()))

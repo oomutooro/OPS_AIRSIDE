@@ -361,8 +361,16 @@
         });
     });
 
+    function normFlight(v) {
+        return (v || "").replace(/\s+/g, "").toUpperCase();
+    }
+
     flightNo.addEventListener("change", () => {
-        const selected = [...flightOptions.options].find((o) => o.value === flightNo.value.trim());
+        const typed = normFlight(flightNo.value.trim());
+        const selected = [...flightOptions.options].find((o) => {
+            const aliases = (o.dataset.aliases || "").split("|").map(normFlight).filter(Boolean);
+            return aliases.includes(typed) || normFlight(o.value) === typed;
+        });
         if (!selected) return;
         const standHint = selected.dataset.stand || "";
         const codeHint = selected.dataset.code || "";
@@ -597,8 +605,14 @@
 
         flightOptions.innerHTML = '';
         (data.flight_options || []).forEach((o) => {
+            const aliases = Array.isArray(o.aliases) ? o.aliases.filter(Boolean) : [o.flight_number].filter(Boolean);
+            const canonical = o.flight_icao || o.flight_iata || o.flight_base || o.flight_number || '';
+            if (!canonical) return;
+
             const op = document.createElement('option');
-            op.value = o.flight_number;
+            op.value = canonical;
+            op.label = `${o.flight_icao || '-'} / ${o.flight_iata || '-'} / ${o.flight_base || '-'} (${o.source || 'aodb'})`;
+            op.dataset.aliases = aliases.join('|');
             op.dataset.stand = o.stand_id || '';
             op.dataset.code = (o.aircraft_type || '').substring(0, 1).toUpperCase();
             flightOptions.appendChild(op);

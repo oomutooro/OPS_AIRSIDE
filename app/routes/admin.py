@@ -172,6 +172,32 @@ def edit_user(user_id):
     )
 
 
+@admin_bp.route('/users/<int:user_id>/delete', methods=['POST'])
+@role_required('admin', 'supervisor', 'auditor', 'inspector')
+def delete_user(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin.user_management'))
+
+    if not _can_manage_user(current_user, user):
+        flash('You are not allowed to delete this user.', 'danger')
+        return redirect(url_for('admin.user_management'))
+
+    if user.id == current_user.id:
+        flash('You cannot delete your own account while logged in.', 'warning')
+        return redirect(url_for('admin.user_management'))
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        flash('User deleted.', 'success')
+    except Exception:
+        db.session.rollback()
+        flash('User cannot be deleted because the account is referenced by records. Set it inactive instead.', 'warning')
+    return redirect(url_for('admin.user_management'))
+
+
 @admin_bp.route('/reference-data')
 @role_required('admin', 'supervisor')
 def reference_data():
