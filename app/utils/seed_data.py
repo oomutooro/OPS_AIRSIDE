@@ -72,7 +72,7 @@ def seed_form_templates(db):
         1: 'inspection', 2: 'apron', 3: 'apron', 4: 'inspection', 5: 'apron', 6: 'inspection', 7: 'inspection',
         8: 'inspection', 9: 'inspection', 10: 'safety', 11: 'safety', 12: 'report', 13: 'inspection', 14: 'inspection',
         15: 'safety', 16: 'safety', 17: 'permit', 18: 'inspection', 19: 'inspection', 20: 'inspection',
-        21: 'inspection', 22: 'inspection', 23: 'apron', 24: 'inspection', 25: 'inspection'
+        21: 'inspection', 22: 'inspection', 23: 'apron', 24: 'inspection', 25: 'inspection', 26: 'report'
     }
     for number, title in FORM_DEFINITIONS.items():
         if not FormTemplate.query.filter_by(form_number=number).first():

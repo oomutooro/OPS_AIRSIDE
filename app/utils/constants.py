@@ -96,4 +96,5 @@ FORM_DEFINITIONS = {
     23: 'Staff Deployment/Parking Plan Form',
     24: 'Tank Farm Inspection Checklist',
     25: 'Low Visibility Procedure Implementation Form',
+    26: 'Weekly Airside Report',
 }

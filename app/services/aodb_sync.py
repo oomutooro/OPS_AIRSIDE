@@ -198,3 +198,120 @@ class AodbSyncService:
                 seen.add(fn)
                 result.append({'flight_number': fn, 'arr_or_dep': ad, 'airline': al or ''})
         return result
+
+    # ------------------------------------------------------------------
+    # POB helpers (DANS ATM endpoints)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_arr_dep(value: str) -> str:
+        raw = (value or '').strip().upper()
+        if raw in ('A', 'ARR', 'ARRIVAL'):
+            return 'A'
+        if raw in ('D', 'DEP', 'DEPARTURE'):
+            return 'D'
+        return raw
+
+    @staticmethod
+    def _to_int(value):
+        if value is None:
+            return None
+        raw = str(value).strip()
+        if not raw:
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def pob_rows_for_date(cls, for_date: date, app=None) -> list[dict]:
+        """Fetch POB rows from AODB DANS endpoint for one date (YYYYMMDD)."""
+        try:
+            client = AodbClient.from_app_config(app)
+        except ValueError as exc:
+            logger.warning('AODB POB is not configured: %s', exc)
+            return []
+
+        try:
+            with client as c:
+                body = c._post('/dansatm/dof', {'date': for_date.strftime('%Y%m%d')})
+                rows = c._extract_list(body)
+        except RuntimeError as exc:
+            logger.warning('AODB POB query failed for %s: %s', for_date.isoformat(), exc)
+            return []
+
+        normalized = []
+        for row in rows:
+            flight_icao = (row.get('flightIcaoCode') or '').strip().upper()
+            flight_number = (row.get('flightNumber') or '').strip().upper()
+            normalized.append({
+                'date': for_date,
+                'flight_icao_code': flight_icao,
+                'flight_number': flight_number,
+                'flight_key': f'{flight_icao}{flight_number}'.strip(),
+                'arr_or_dep': cls._normalize_arr_dep(row.get('arrOrDep') or row.get('arr_or_dep')),
+                'scheduled_time': row.get('scheduledTime') or row.get('scheduled_time'),
+                'aircraft_registration': (row.get('aircraftReg') or row.get('registration') or '').strip(),
+                'pob': cls._to_int(row.get('POB', row.get('pob'))),
+                'raw': row,
+            })
+        return normalized
+
+    @classmethod
+    def pob_stats_for_date(cls, for_date: date, app=None) -> dict:
+        rows = cls.pob_rows_for_date(for_date, app=app)
+        arrivals = [r for r in rows if r.get('arr_or_dep') == 'A']
+        departures = [r for r in rows if r.get('arr_or_dep') == 'D']
+
+        pob_arrivals = sum(r.get('pob') or 0 for r in arrivals)
+        pob_departures = sum(r.get('pob') or 0 for r in departures)
+
+        return {
+            'date': for_date,
+            'rows': rows,
+            'arrivals': len(arrivals),
+            'departures': len(departures),
+            'total_flights': len(rows),
+            'pob_arrivals': pob_arrivals,
+            'pob_departures': pob_departures,
+            'pob_total': pob_arrivals + pob_departures,
+        }
+
+    @classmethod
+    def pob_stats_for_range(cls, start_date: date, end_date: date, app=None) -> dict:
+        """Aggregate POB and movement counts for each date in [start_date, end_date]."""
+        if end_date < start_date:
+            start_date, end_date = end_date, start_date
+
+        daily = []
+        week_arrivals = 0
+        week_departures = 0
+        week_total = 0
+        week_pob_arrivals = 0
+        week_pob_departures = 0
+        week_pob_total = 0
+
+        d = start_date
+        while d <= end_date:
+            stats = cls.pob_stats_for_date(d, app=app)
+            daily.append(stats)
+            week_arrivals += stats['arrivals']
+            week_departures += stats['departures']
+            week_total += stats['total_flights']
+            week_pob_arrivals += stats['pob_arrivals']
+            week_pob_departures += stats['pob_departures']
+            week_pob_total += stats['pob_total']
+            d += timedelta(days=1)
+
+        return {
+            'start_date': start_date,
+            'end_date': end_date,
+            'daily': daily,
+            'arrivals': week_arrivals,
+            'departures': week_departures,
+            'total_flights': week_total,
+            'pob_arrivals': week_pob_arrivals,
+            'pob_departures': week_pob_departures,
+            'pob_total': week_pob_total,
+        }

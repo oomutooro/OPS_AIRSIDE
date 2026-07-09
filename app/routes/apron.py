@@ -489,14 +489,141 @@ def api_flights():
     Query params:
       date=YYYY-MM-DD  (defaults to today)
       type=arr|dep|all (defaults to all)
+      service_type=all|scheduled|general|charter|private|<exact code> (defaults to J for today, all otherwise)
     """
     raw_date = request.args.get('date', date.today().isoformat())
     query_date = _parse_iso_date(raw_date)
     arr_or_dep = (request.args.get('type') or 'all').upper()
+    service_type = (request.args.get('service_type') or '').strip().upper()
+    include_pob = (request.args.get('include_pob') or '').strip().lower() in {'1', 'true', 'yes'}
     if arr_or_dep == 'ALL':
         arr_or_dep = None
+    if not service_type and query_date == date.today():
+        service_type = 'J'
+    if service_type in {'ALL', 'ANY'}:
+        service_type = ''
+
+    service_type_aliases = {
+        'SCHEDULED': 'J',
+        'COMMERCIAL': 'J',
+        'GENERAL': 'G',
+        'CHARTER': 'B',
+        'PRIVATE': 'D',
+        'TRAINING': 'T',
+        'MILITARY': 'M',
+        'OTHER': 'X',
+    }
+    service_type = service_type_aliases.get(service_type, service_type)
+
     flights = AodbSyncService.flights_for_date(query_date, arr_or_dep)
-    return jsonify([f.to_dict() for f in flights])
+
+    pob_by_token = {}
+    if include_pob:
+        pob_stats = AodbSyncService.pob_stats_for_date(query_date)
+        for row in pob_stats.get('rows', []):
+            icao = (row.get('flight_icao_code') or '').strip().upper()
+            num = (row.get('flight_number') or '').strip().upper()
+            if not num:
+                continue
+            tokens = {
+                num,
+                f'{icao}{num}'.strip(),
+            }
+            for token in tokens:
+                if token:
+                    pob_by_token[token] = row
+
+    payload = []
+    seen_tokens = set()
+    for f in flights:
+        item = f.to_dict()
+        raw = f.raw_payload or {}
+
+        flight_service_type = (raw.get('flightServiceType') or '').strip().upper()
+        if service_type and flight_service_type != service_type:
+            continue
+
+        item['aircraft_registration'] = (raw.get('aircraftRegistration') or raw.get('registration') or '').strip() or None
+        item['aircraft_type'] = (raw.get('acType') or raw.get('aircraftType') or '').strip() or None
+        item['service_type'] = flight_service_type or None
+
+        if include_pob:
+            base = (f.flight_number or '').strip().upper()
+            iata = (f.flight_iata_code or '').strip().upper()
+            icao = (f.flight_icao_code or '').strip().upper()
+            tokens = [
+                f'{icao}{base}'.strip(),
+                f'{iata}{base}'.strip(),
+                base,
+            ]
+            matched = None
+            for token in tokens:
+                if token and token in pob_by_token:
+                    matched = pob_by_token[token]
+                    break
+
+            if matched:
+                item['pob'] = matched.get('pob')
+                item['pob_arr_or_dep'] = matched.get('arr_or_dep')
+                item['pob_scheduled_time'] = matched.get('scheduled_time')
+            else:
+                item['pob'] = None
+                item['pob_arr_or_dep'] = None
+                item['pob_scheduled_time'] = None
+
+        base = (f.flight_number or '').strip().upper()
+        iata = (f.flight_iata_code or '').strip().upper()
+        icao = (f.flight_icao_code or '').strip().upper()
+        for token in (f'{icao}{base}'.strip(), f'{iata}{base}'.strip(), base):
+            if token:
+                seen_tokens.add(token)
+
+        payload.append(item)
+
+    # Fallback: include flights from POB endpoint when local cache is missing rows for the date.
+    if include_pob:
+        if service_type:
+            return jsonify(payload)
+        for row in pob_by_token.values():
+            base = (row.get('flight_number') or '').strip().upper()
+            icao = (row.get('flight_icao_code') or '').strip().upper()
+            canonical = f'{icao}{base}'.strip() or base
+            if not canonical:
+                continue
+            if canonical in seen_tokens:
+                continue
+
+            pseudo = {
+                'id': None,
+                'aodb_flight_id': None,
+                'arr_or_dep': 'ARR' if row.get('arr_or_dep') == 'A' else 'DEP' if row.get('arr_or_dep') == 'D' else None,
+                'flight_number': base,
+                'flight_iata_code': '',
+                'flight_icao_code': icao,
+                'airline_name': '',
+                'callsign': '',
+                'scheduled_date': query_date.strftime('%Y%m%d'),
+                'scheduled_datetime': row.get('scheduled_time'),
+                'estimated_datetime': None,
+                'actual_datetime': None,
+                'origin_airport': None,
+                'destination_airport': None,
+                'terminal': None,
+                'stand': None,
+                'operation_status': None,
+                'synced_at': None,
+                'aircraft_registration': row.get('aircraft_registration'),
+                'aircraft_type': None,
+                'pob': row.get('pob'),
+                'pob_arr_or_dep': row.get('arr_or_dep'),
+                'pob_scheduled_time': row.get('scheduled_time'),
+            }
+            payload.append(pseudo)
+            for token in (canonical, base):
+                if token:
+                    seen_tokens.add(token)
+
+    return jsonify(payload)
 
 
 @apron_bp.route('/stand-map')

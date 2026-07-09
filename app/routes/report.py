@@ -1,15 +1,20 @@
 """
-Reporting routes: daily ops report, analytics dashboard, custom report builder, exports.
+Reporting routes: daily ops report, weekly airside report, analytics dashboard, custom report builder, exports.
 """
 from collections import Counter
 from io import BytesIO
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import Blueprint, Response, flash, redirect, render_template, request, send_file, url_for
 from flask_login import login_required
+from app import db
 from app.models.form import FormSubmission, FormTemplate
+from app.models.flight import FlightMovement
+from app.models.apron import HandoverReport
+from app.models.incident import Incident, Violation
 from app.models.reference import Company
 from app.services.export_service import ExportService
 from app.services.analytics_service import AnalyticsService
+from app.services.aodb_sync import AodbSyncService
 from app.services.pdf_generator import PDFGeneratorService
 from app.services.workflow_service import WorkflowService
 from flask_login import current_user
@@ -64,6 +69,332 @@ def _safe_date_from_submission(submission, field_name='occurrence_date'):
     if submission.submission_date:
         return submission.submission_date
     return submission.created_at.date()
+
+
+def _parse_date(value, fallback=None):
+    raw = (value or '').strip()
+    if raw:
+        try:
+            return datetime.fromisoformat(raw).date()
+        except ValueError:
+            pass
+    return fallback or date.today()
+
+
+def _start_of_week(anchor_date: date) -> date:
+    return anchor_date - timedelta(days=anchor_date.weekday())
+
+
+def _week_window(anchor_date: date):
+    week_start = _start_of_week(anchor_date)
+    week_end = week_start + timedelta(days=6)
+    return week_start, week_end
+
+
+def _flight_counts_for_day(day: date):
+    day_key = day.strftime('%Y%m%d')
+    flights = FlightMovement.query.filter(FlightMovement.scheduled_date == day_key).all()
+    arrivals = sum(1 for flight in flights if (flight.arr_or_dep or '').upper() == 'ARR')
+    departures = sum(1 for flight in flights if (flight.arr_or_dep or '').upper() == 'DEP')
+    return {
+        'date': day,
+        'date_label': day.strftime('%a, %d %b %Y'),
+        'arrivals': arrivals,
+        'departures': departures,
+        'total': arrivals + departures,
+    }
+
+
+def _count_flights_between(start_date: date, end_date: date):
+    start_key = start_date.strftime('%Y%m%d')
+    end_key = end_date.strftime('%Y%m%d')
+    arrivals = FlightMovement.query.filter(
+        FlightMovement.scheduled_date >= start_key,
+        FlightMovement.scheduled_date <= end_key,
+        FlightMovement.arr_or_dep == 'ARR',
+    ).count()
+    departures = FlightMovement.query.filter(
+        FlightMovement.scheduled_date >= start_key,
+        FlightMovement.scheduled_date <= end_key,
+        FlightMovement.arr_or_dep == 'DEP',
+    ).count()
+    return arrivals, departures, arrivals + departures
+
+
+def _weekly_activity_rows(start_dt: datetime, end_dt: datetime):
+    submissions = FormSubmission.query.join(FormTemplate).filter(
+        FormSubmission.created_at >= start_dt,
+        FormSubmission.created_at < end_dt,
+    ).order_by(FormSubmission.created_at.asc()).all()
+
+    breakdown = Counter()
+    rows = []
+    for submission in submissions:
+        form_number = submission.template.form_number if submission.template else None
+        breakdown[form_number] += 1
+        rows.append({
+            'submission': submission,
+            'form_number': form_number,
+            'title': submission.template.title if submission.template else 'Unknown Form',
+            'created_at': submission.created_at,
+            'reference_number': submission.reference_number or f'SUB-{submission.id}',
+        })
+
+    top_forms = []
+    for form_number, count in breakdown.most_common():
+        template = FormTemplate.query.filter_by(form_number=form_number).first() if form_number else None
+        top_forms.append({
+            'form_number': form_number,
+            'title': template.title if template else 'Unknown Form',
+            'count': count,
+        })
+
+    return rows, top_forms
+
+
+def _submission_week_date(submission: FormSubmission):
+    if submission.submission_date:
+        return submission.submission_date
+    return submission.created_at.date() if submission.created_at else None
+
+
+def _submission_text_blob(submission: FormSubmission) -> str:
+    """Flatten submission payload to lowercase text for keyword scanning."""
+    data = submission.data or {}
+    chunks = []
+
+    def walk(value):
+        if isinstance(value, dict):
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, list):
+            for v in value:
+                walk(v)
+        elif value is None:
+            return
+        else:
+            chunks.append(str(value))
+
+    walk(data)
+    return ' '.join(chunks).lower()
+
+
+def _safe_extract(data: dict, *keys):
+    for key in keys:
+        value = (data.get(key) or '').strip() if isinstance(data, dict) else ''
+        if value:
+            return value
+    return ''
+
+
+def _incident_weekly_summary(week_start: date, week_end: date):
+    incidents = Incident.query.filter(
+        Incident.occurrence_date >= week_start,
+        Incident.occurrence_date <= week_end,
+    ).order_by(Incident.occurrence_date.asc(), Incident.created_at.asc()).all()
+
+    phase_counts = Counter()
+    rows = []
+    for inc in incidents:
+        weather = inc.weather_conditions or {}
+        phase = (weather.get('phase_of_operation') or '').strip() or 'Unspecified'
+        phase_counts[phase] += 1
+        rows.append({
+            'date': inc.occurrence_date,
+            'incident_type': (inc.incident_type or 'incident').replace('_', ' ').title(),
+            'severity': (inc.severity or 'minor').title(),
+            'phase': phase,
+            'location': inc.location or 'Unspecified location',
+            'description': (inc.description or '').strip(),
+            'flight_number': inc.flight_number or '',
+            'airline': inc.airline_operator or '',
+        })
+
+    return rows, phase_counts
+
+
+def _handover_weekly_summary(week_start: date, week_end: date):
+    handovers = HandoverReport.query.filter(
+        HandoverReport.handover_date >= week_start,
+        HandoverReport.handover_date <= week_end,
+    ).order_by(HandoverReport.handover_date.asc(), HandoverReport.created_at.asc()).all()
+
+    rows = []
+    for h in handovers:
+        rows.append({
+            'date': h.handover_date,
+            'reference': h.reference_no or f'HDR-{h.id}',
+            'major_events': (h.major_events or '').strip(),
+            'pending_issues': (h.pending_issues or '').strip(),
+            'outgoing': h.outgoing_name or '',
+            'incoming': h.incoming_name or '',
+        })
+    return rows
+
+
+def _violation_weekly_summary(week_start: date, week_end: date):
+    violations = Violation.query.filter(
+        Violation.violation_date >= week_start,
+        Violation.violation_date <= week_end,
+    ).order_by(Violation.violation_date.asc(), Violation.created_at.asc()).all()
+
+    rows = []
+    for v in violations:
+        company = ''
+        if v.offender_company:
+            company = v.offender_company.name
+        rows.append({
+            'date': v.violation_date,
+            'reference': v.violation_number or f'VIO-{v.id}',
+            'person': v.offender_name or 'Unspecified',
+            'company': company or 'Unspecified',
+            'description': (v.violation_description or '').strip(),
+            'status': (v.status or 'open').replace('_', ' ').title(),
+        })
+    return rows
+
+
+def _inspection_and_ops_weekly_summary(week_start: date, week_end: date):
+    forms = FormSubmission.query.join(FormTemplate).filter(
+        FormSubmission.created_at >= datetime.combine(week_start, datetime.min.time()),
+        FormSubmission.created_at < datetime.combine(week_end + timedelta(days=1), datetime.min.time()),
+    ).order_by(FormSubmission.created_at.asc()).all()
+
+    inspection_keywords = (
+        'runway', 'pothole', 'crack', 'surface', 'fod', 'fuel', 'spillage',
+        'unserviceable', 'fault', 'defect', 'ac', 'air conditioning', 'bridge', 'tpbb',
+    )
+    works_keywords = ('painting', 'repair', 'surface repair', 'slashing', 'works', 'maintenance', 'marking')
+
+    inspection_rows = []
+    tpbb_issue_rows = []
+    works_rows = []
+
+    for sub in forms:
+        data = sub.data or {}
+        form_no = sub.template.form_number if sub.template else None
+        title = sub.template.title if sub.template else 'Unknown Form'
+        text_blob = _submission_text_blob(sub)
+
+        note = _safe_extract(
+            data,
+            'remarks', 'notes', 'issues', 'pending_issues', 'major_events',
+            'observations', 'findings', 'defects', 'description',
+        )
+
+        if form_no in {4, 6, 7, 8, 9, 20, 21, 22, 24, 25, 18, 19} or any(k in text_blob for k in inspection_keywords):
+            inspection_rows.append({
+                'date': _submission_week_date(sub),
+                'form_number': form_no,
+                'title': title,
+                'reference': sub.reference_number or f'SUB-{sub.id}',
+                'summary': note or 'Inspection/operational finding recorded.',
+            })
+
+        if form_no == 5 and any(k in text_blob for k in ('unserviceable', 'fault', 'defect', 'ac', 'air conditioning', 'bridge')):
+            tpbb_issue_rows.append({
+                'date': _submission_week_date(sub),
+                'reference': sub.reference_number or f'SUB-{sub.id}',
+                'flight_number': _safe_extract(data, 'flight_number'),
+                'bridge_no': _safe_extract(data, 'bridge_no'),
+                'summary': note or 'TPBB issue captured in remarks.',
+            })
+
+        if any(k in text_blob for k in works_keywords):
+            works_rows.append({
+                'date': _submission_week_date(sub),
+                'reference': sub.reference_number or f'SUB-{sub.id}',
+                'form_number': form_no,
+                'title': title,
+                'summary': note or 'Airside works activity recorded.',
+            })
+
+    return inspection_rows, tpbb_issue_rows, works_rows
+
+
+def _ensure_weekly_airside_form_template():
+    template = FormTemplate.query.filter_by(form_number=26).first()
+    if template:
+        return template, False
+
+    template = FormTemplate(
+        form_number=26,
+        title='Weekly Airside Report',
+        description='Weekly report for airside activity, flights, incidents, and passenger totals.',
+        category='report',
+        route_endpoint='report.weekly_airside_report',
+        is_active=True,
+        requires_signature=False,
+        requires_approval=False,
+        allowed_roles=['admin', 'supervisor', 'inspector', 'operator'],
+    )
+    db.session.add(template)
+    db.session.flush()
+    return template, True
+
+
+def _weekly_airside_payload(anchor_date: date):
+    week_start, week_end = _week_window(anchor_date)
+    week_start_dt = datetime.combine(week_start, datetime.min.time())
+    week_end_dt = datetime.combine(week_end + timedelta(days=1), datetime.min.time())
+
+    pob_week = AodbSyncService.pob_stats_for_range(week_start, week_end)
+    daily_rows = [
+        {
+            'date': row['date'],
+            'date_label': row['date'].strftime('%a, %d %b %Y'),
+            'arrivals': row['arrivals'],
+            'departures': row['departures'],
+            'total': row['total_flights'],
+            'pob_arrivals': row['pob_arrivals'],
+            'pob_departures': row['pob_departures'],
+            'pob_total': row['pob_total'],
+        }
+        for row in pob_week['daily']
+    ]
+    week_arrivals = pob_week['arrivals']
+    week_departures = pob_week['departures']
+    week_total = pob_week['total_flights']
+    week_pob_arrivals = pob_week['pob_arrivals']
+    week_pob_departures = pob_week['pob_departures']
+    week_pob_total = pob_week['pob_total']
+
+    incident_rows, phase_counts = _incident_weekly_summary(week_start, week_end)
+    handover_rows = _handover_weekly_summary(week_start, week_end)
+    violation_rows = _violation_weekly_summary(week_start, week_end)
+    inspection_rows, tpbb_issue_rows, works_rows = _inspection_and_ops_weekly_summary(week_start, week_end)
+
+    activity_rows, top_forms = _weekly_activity_rows(week_start_dt, week_end_dt)
+    latest_weekly_report = FormSubmission.query.join(FormTemplate).filter(
+        FormTemplate.form_number == 26,
+        FormSubmission.created_at >= week_start_dt,
+        FormSubmission.created_at < week_end_dt,
+    ).order_by(FormSubmission.created_at.desc()).first()
+
+    return {
+        'anchor_date': anchor_date,
+        'week_start': week_start,
+        'week_end': week_end,
+        'daily_rows': daily_rows,
+        'week_arrivals': week_arrivals,
+        'week_departures': week_departures,
+        'week_total': week_total,
+        'week_pob_arrivals': week_pob_arrivals,
+        'week_pob_departures': week_pob_departures,
+        'week_pob_total': week_pob_total,
+        'incident_count': len(incident_rows),
+        'incident_rows': incident_rows,
+        'phase_counts': dict(phase_counts.most_common()),
+        'handover_rows': handover_rows,
+        'violation_rows': violation_rows,
+        'inspection_rows': inspection_rows,
+        'tpbb_issue_rows': tpbb_issue_rows,
+        'works_rows': works_rows,
+        'activity_rows': activity_rows,
+        'activity_total': len(activity_rows),
+        'top_forms': top_forms,
+        'latest_weekly_report': latest_weekly_report,
+    }
 
 
 def _is_checked(value) -> bool:
@@ -306,6 +637,84 @@ def daily_ops_report():
         FormTemplate.form_number == 12
     ).order_by(FormSubmission.created_at.desc()).limit(30).all()
     return render_template('reports/daily_ops_report.html', reports=reports)
+
+
+@report_bp.route('/weekly-airside-report', methods=['GET', 'POST'])
+@login_required
+def weekly_airside_report():
+    anchor_date = _parse_date(request.values.get('week_start') or request.values.get('date'))
+    template, template_created = _ensure_weekly_airside_form_template()
+    payload = _weekly_airside_payload(anchor_date)
+
+    if request.method == 'POST':
+        report = FormSubmission(
+            form_template_id=template.id,
+            status='submitted',
+            submitted_by_user_id=current_user.id,
+            location_ref='Airside Ops',
+            submission_date=payload['week_end'],
+            data={
+                'week_start': payload['week_start'].isoformat(),
+                'week_end': payload['week_end'].isoformat(),
+                'pax_arriving_total': payload['week_pob_arrivals'],
+                'pax_departing_total': payload['week_pob_departures'],
+                'pax_total': payload['week_pob_total'],
+                'incident_count': payload['incident_count'],
+                'week_flight_total': payload['week_total'],
+                'week_arrivals': payload['week_arrivals'],
+                'week_departures': payload['week_departures'],
+                'week_pob_arrivals': payload['week_pob_arrivals'],
+                'week_pob_departures': payload['week_pob_departures'],
+                'week_pob_total': payload['week_pob_total'],
+                'phase_counts': payload['phase_counts'],
+                'daily_rows': [
+                    {
+                        'date': row['date'].isoformat(),
+                        'arrivals': row['arrivals'],
+                        'departures': row['departures'],
+                        'total': row['total'],
+                        'pob_arrivals': row['pob_arrivals'],
+                        'pob_departures': row['pob_departures'],
+                        'pob_total': row['pob_total'],
+                    }
+                    for row in payload['daily_rows']
+                ],
+                'activity_total': payload['activity_total'],
+                'top_forms': payload['top_forms'],
+                'handover_rows': payload['handover_rows'],
+                'violation_rows': payload['violation_rows'],
+                'inspection_rows': payload['inspection_rows'],
+                'tpbb_issue_rows': payload['tpbb_issue_rows'],
+                'works_rows': payload['works_rows'],
+                'activities_summary': request.form.get('activities_summary', '').strip(),
+                'incident_summary': request.form.get('incident_summary', '').strip(),
+                'remarks': request.form.get('remarks', '').strip(),
+            },
+        )
+        db.session.add(report)
+        WorkflowService.ensure_issue_for_submission(report, current_user)
+        db.session.flush()
+        report.generate_reference_number(prefix='WEEKLY')
+        db.session.commit()
+        flash('Weekly airside report saved.', 'success')
+        if template_created:
+            flash('Weekly Airside Report template was initialized automatically.', 'info')
+        return redirect(url_for('report.weekly_airside_report', week_start=payload['week_start'].isoformat()))
+
+    saved_reports = FormSubmission.query.join(FormTemplate).filter(
+        FormTemplate.form_number == 26,
+        FormSubmission.created_at >= datetime.combine(payload['week_start'], datetime.min.time()),
+        FormSubmission.created_at < datetime.combine(payload['week_end'] + timedelta(days=1), datetime.min.time()),
+    ).order_by(FormSubmission.created_at.desc()).all()
+
+    return render_template(
+        'reports/weekly_airside_report.html',
+        template=template,
+        saved_reports=saved_reports,
+        saved_report_data=payload['latest_weekly_report'].data if payload['latest_weekly_report'] else {},
+        selected_week=payload['week_start'],
+        **payload,
+    )
 
 
 @report_bp.route('/analytics-dashboard')

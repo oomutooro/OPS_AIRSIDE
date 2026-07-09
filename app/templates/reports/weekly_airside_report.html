@@ -1,0 +1,351 @@
+{% extends 'base.html' %}
+{% block title %}Weekly Airside Report{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        <h4 class="mb-1">Weekly Airside Report</h4>
+        <div class="text-muted small">Week of {{ week_start.strftime('%d %b %Y') }} to {{ week_end.strftime('%d %b %Y') }}</div>
+    </div>
+    <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+        <label class="form-label mb-0 small fw-semibold">Week start</label>
+        <input type="date" name="week_start" value="{{ week_start.isoformat() }}" class="form-control form-control-sm">
+        <button class="btn btn-sm btn-outline-primary" type="submit">Load Week</button>
+    </form>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-primary">{{ week_total }}</div>
+            <div class="small text-muted">Flights this week</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-success">{{ week_arrivals }}</div>
+            <div class="small text-muted">Arrivals this week</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-warning">{{ week_departures }}</div>
+            <div class="small text-muted">Departures this week</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-danger">{{ incident_count }}</div>
+            <div class="small text-muted">Incidents this week</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-4">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-success">{{ week_pob_arrivals }}</div>
+            <div class="small text-muted">POB In (Arrivals)</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-warning">{{ week_pob_departures }}</div>
+            <div class="small text-muted">POB Out (Departures)</div>
+        </div></div>
+    </div>
+    <div class="col-md-4">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-primary">{{ week_pob_total }}</div>
+            <div class="small text-muted">Total POB This Week</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-12">
+        <div class="card panel-card h-100"><div class="card-body text-center">
+            <div class="display-6 fw-bold text-dark">{{ activity_total }}</div>
+            <div class="small text-muted">Form-based activities logged</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-8">
+        <div class="card panel-card h-100">
+            <div class="card-header">Daily Flight Counts</div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Arrivals</th>
+                            <th>Departures</th>
+                            <th>Total</th>
+                            <th>POB In</th>
+                            <th>POB Out</th>
+                            <th>POB Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in daily_rows %}
+                        <tr>
+                            <td>{{ row.date_label }}</td>
+                            <td>{{ row.arrivals }}</td>
+                            <td>{{ row.departures }}</td>
+                            <td><strong>{{ row.total }}</strong></td>
+                            <td>{{ row.pob_arrivals }}</td>
+                            <td>{{ row.pob_departures }}</td>
+                            <td><strong>{{ row.pob_total }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card panel-card h-100">
+            <div class="card-header">Top Forms This Week</div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Form</th>
+                            <th>Count</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in top_forms %}
+                        <tr>
+                            <td>Form {{ row.form_number }} - {{ row.title }}</td>
+                            <td><strong>{{ row.count }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card panel-card mb-3">
+    <div class="card-header">Incident Status</div>
+    <div class="card-body">
+        {% if incident_count %}
+        <div class="alert alert-warning mb-3">There were {{ incident_count }} incident report(s) logged this week.</div>
+        <ul class="mb-3">
+            {% for row in incident_rows %}
+            <li>
+                {{ row.date.strftime('%d %b %Y') if row.date else '' }} | {{ row.incident_type }} | {{ row.phase }}
+                {% if row.flight_number %}| Flight {{ row.flight_number }}{% endif %}
+                {% if row.airline %} ({{ row.airline }}){% endif %}
+                {% if row.description %} - {{ row.description }}{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% if phase_counts %}
+        <div><strong>Phase of Operation Breakdown:</strong></div>
+        <ul class="mb-0">
+            {% for phase, count in phase_counts.items() %}
+            <li>{{ phase }}: {{ count }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-success mb-0">No incidents were logged this week.</div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card panel-card h-100">
+            <div class="card-header">Handover Highlights</div>
+            <div class="card-body">
+                {% if handover_rows %}
+                <ul class="mb-0">
+                    {% for row in handover_rows %}
+                    <li>
+                        {{ row.date.strftime('%d %b %Y') if row.date else '' }} - {{ row.reference }}
+                        {% if row.major_events %} | Events: {{ row.major_events }}{% endif %}
+                        {% if row.pending_issues %} | Pending: {{ row.pending_issues }}{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-muted">No handover highlights recorded this week.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card panel-card h-100">
+            <div class="card-header">Violations Summary</div>
+            <div class="card-body">
+                {% if violation_rows %}
+                <ul class="mb-0">
+                    {% for row in violation_rows %}
+                    <li>{{ row.date.strftime('%d %b %Y') if row.date else '' }} - {{ row.person }} ({{ row.company }}): {{ row.description }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-muted">No violations were recorded this week.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card panel-card h-100">
+            <div class="card-header">Inspection Findings</div>
+            <div class="card-body">
+                {% if inspection_rows %}
+                <ul class="mb-0">
+                    {% for row in inspection_rows[:25] %}
+                    <li>{{ row.date.strftime('%d %b %Y') if row.date else '' }} - Form {{ row.form_number }}: {{ row.summary }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-muted">No inspection findings were captured this week.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card panel-card h-100">
+            <div class="card-header">TPBB Issues and Airside Works</div>
+            <div class="card-body">
+                {% if tpbb_issue_rows %}
+                <div><strong>TPBB:</strong></div>
+                <ul>
+                    {% for row in tpbb_issue_rows %}
+                    <li>{{ row.date.strftime('%d %b %Y') if row.date else '' }} - {{ row.bridge_no or 'Bridge' }} {{ row.flight_number or '' }}: {{ row.summary }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if works_rows %}
+                <div><strong>Works:</strong></div>
+                <ul class="mb-0">
+                    {% for row in works_rows[:25] %}
+                    <li>{{ row.date.strftime('%d %b %Y') if row.date else '' }} - Form {{ row.form_number }}: {{ row.summary }}</li>
+                    {% endfor %}
+                </ul>
+                {% elif not tpbb_issue_rows %}
+                <div class="text-muted">No TPBB faults or airside works were captured this week.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card panel-card mb-3">
+    <div class="card-header">Save Weekly Airside Report</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <input type="hidden" name="week_start" value="{{ week_start.isoformat() }}">
+            <div class="col-12">
+                <div class="alert alert-info mb-0">
+                    Passenger totals are auto-loaded from AODB for the selected week.
+                    <strong>POB In:</strong> {{ week_pob_arrivals }} |
+                    <strong>POB Out:</strong> {{ week_pob_departures }} |
+                    <strong>Total:</strong> {{ week_pob_total }}
+                </div>
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="autoSummaryBtn">Auto-update summaries from weekly records</button>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Incident Summary</label>
+                <textarea name="incident_summary" class="form-control" rows="3" placeholder="Summarize incidents, or state none if there were no incidents.">{{ saved_report_data.get('incident_summary', '') }}</textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Weekly Activities Summary</label>
+                <textarea name="activities_summary" class="form-control" rows="4" placeholder="Summarize stand work, TPBB, safety checks, inspections, operations, and other major activities.">{{ saved_report_data.get('activities_summary', '') }}</textarea>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Remarks</label>
+                <textarea name="remarks" class="form-control" rows="3" placeholder="Anything important about the week.">{{ saved_report_data.get('remarks', '') }}</textarea>
+            </div>
+            <div class="col-12">
+                <button class="btn btn-primary btn-touch" type="submit">Save Weekly Report</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card panel-card">
+    <div class="card-header">Saved Weekly Reports</div>
+    <div class="card-body table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Saved At</th>
+                    <th>Passengers Arriving</th>
+                    <th>Passengers Departing</th>
+                    <th>Total POB</th>
+                    <th>Flights</th>
+                    <th>Incidents</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in saved_reports %}
+                {% set data = report.data or {} %}
+                <tr>
+                    <td>{{ report.reference_number or 'Draft' }}</td>
+                    <td>{{ report.created_at.strftime('%d %b %Y %H:%M') }}</td>
+                    <td>{{ data.get('pax_arriving_total') or '0' }}</td>
+                    <td>{{ data.get('pax_departing_total') or '0' }}</td>
+                    <td>{{ data.get('pax_total') or data.get('week_pob_total') or '0' }}</td>
+                    <td>{{ data.get('week_flight_total') or '0' }}</td>
+                    <td>{{ data.get('incident_count') or '0' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-muted">No weekly reports have been saved for this week yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function () {
+    const autoBtn = document.getElementById('autoSummaryBtn');
+    const incidentBox = document.querySelector("textarea[name='incident_summary']");
+    const activityBox = document.querySelector("textarea[name='activities_summary']");
+    if (!autoBtn || !incidentBox || !activityBox) return;
+
+    const incidentLines = [];
+    {% for row in incident_rows %}
+    incidentLines.push({{ ((row.date.strftime('%d %b %Y') if row.date else '') ~ ' | ' ~ row.incident_type ~ ' | ' ~ row.phase ~ ((' | ' ~ row.description) if row.description else ''))|tojson }});
+    {% endfor %}
+
+    const activityLines = [];
+    {% for row in handover_rows %}
+    activityLines.push({{ (('Handover ' ~ (row.date.strftime('%d %b %Y') if row.date else '') ~ ': ' ~ (row.major_events or row.pending_issues or 'No details')))|tojson }});
+    {% endfor %}
+    {% for row in inspection_rows[:10] %}
+    activityLines.push({{ (('Inspection Form ' ~ row.form_number ~ ': ' ~ (row.summary or '')))|tojson }});
+    {% endfor %}
+    {% for row in tpbb_issue_rows[:10] %}
+    activityLines.push({{ (('TPBB: ' ~ (row.summary or '')))|tojson }});
+    {% endfor %}
+    {% for row in works_rows[:10] %}
+    activityLines.push({{ (('Works: ' ~ (row.summary or '')))|tojson }});
+    {% endfor %}
+    {% for row in violation_rows[:10] %}
+    activityLines.push({{ (('Violation: ' ~ (row.person or 'Unknown') ~ ' (' ~ (row.company or 'Unspecified') ~ ') - ' ~ (row.description or '')))|tojson }});
+    {% endfor %}
+
+    autoBtn.addEventListener('click', function () {
+        incidentBox.value = incidentLines.length ? incidentLines.join('\n') : 'No incidents/occurrences were recorded in this week.';
+        activityBox.value = activityLines.length ? activityLines.join('\n') : 'No additional weekly activities were detected from handovers, inspections, TPBB logs, or violations.';
+    });
+})();
+</script>
+{% endblock %}

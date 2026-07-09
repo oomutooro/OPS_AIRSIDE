@@ -233,5 +233,81 @@
         syncOtherCausePrompt();
     }
 })();
+
+(function () {
+    const flightInput = document.querySelector("input[name='flight_no']");
+    const dateInput = document.querySelector("input[name='occurrence_date']");
+    const companyInput = document.querySelector("input[name='company_airline']");
+    const operatorInput = document.querySelector("input[name='operator']");
+    const pobInput = document.querySelector("input[name='pob']");
+    const regInput = document.querySelector("input[name='aircraft_equipment_reg_no']");
+    const typeInput = document.querySelector("input[name='aircraft_equipment_type']");
+    const originInput = document.querySelector("input[name='origin']");
+    const destinationInput = document.querySelector("input[name='destination']");
+
+    if (!flightInput || !dateInput) {
+        return;
+    }
+
+    const normalize = (value) => (value || '').replace(/\s+/g, '').toUpperCase();
+    let detailsMap = new Map();
+
+    function aliasesForFlight(flight) {
+        const base = normalize(flight.flight_number);
+        const iata = normalize((flight.flight_iata_code || '') + (flight.flight_number || ''));
+        const icao = normalize((flight.flight_icao_code || '') + (flight.flight_number || ''));
+        return [icao, iata, base].filter(Boolean);
+    }
+
+    function applyFlightDetail() {
+        const key = normalize(flightInput.value);
+        if (!key) return;
+
+        const flight = detailsMap.get(key);
+        if (!flight) return;
+
+        const airline = (flight.airline_name || flight.airline || '').trim();
+        if (airline) {
+            if (companyInput) companyInput.value = airline;
+            if (operatorInput) operatorInput.value = airline;
+        }
+
+        if (originInput) originInput.value = (flight.origin_airport || '').trim();
+        if (destinationInput) destinationInput.value = (flight.destination_airport || '').trim();
+        if (regInput) regInput.value = (flight.aircraft_registration || '').trim();
+        if (typeInput) typeInput.value = (flight.aircraft_type || '').trim();
+
+        if (pobInput) {
+            const pob = flight.pob;
+            pobInput.value = pob === null || pob === undefined ? '' : String(pob);
+        }
+    }
+
+    async function loadFlightDetails() {
+        const selectedDate = dateInput.value || new Date().toISOString().slice(0, 10);
+        try {
+            const resp = await fetch(`/apron/api/flights?date=${encodeURIComponent(selectedDate)}&type=all&include_pob=1`);
+            if (!resp.ok) {
+                return;
+            }
+
+            const flights = await resp.json();
+            detailsMap = new Map();
+            flights.forEach((flight) => {
+                aliasesForFlight(flight).forEach((alias) => detailsMap.set(alias, flight));
+            });
+
+            applyFlightDetail();
+        } catch (err) {
+            console.error('Could not load flight details for incident form:', err);
+        }
+    }
+
+    dateInput.addEventListener('change', loadFlightDetails);
+    flightInput.addEventListener('change', applyFlightDetail);
+    flightInput.addEventListener('blur', applyFlightDetail);
+
+    loadFlightDetails();
+})();
 </script>
 {% endblock %}

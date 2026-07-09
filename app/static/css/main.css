@@ -8,21 +8,20 @@
 
 body {
   font-family: "Segoe UI", "Tahoma", sans-serif;
-  background: radial-gradient(circle at 15% 20%, #fefce8 0%, transparent 35%),
-              radial-gradient(circle at 90% 10%, #dbeafe 0%, transparent 35%),
-              var(--ebb-bg);
+  background: #f3f5f8;
   font-size: 16px;
 }
 
 .app-shell { min-height: 100vh; }
 .topbar {
-  background: linear-gradient(120deg, var(--ebb-blue), #1346b5);
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
   min-height: 64px;
 }
 .main-layout { display: flex; min-height: calc(100vh - 64px); }
 .sidebar {
   width: 280px;
-  background: var(--ebb-slate);
+  background: #031d3f;
   color: #fff;
   overflow-y: auto;
 }
@@ -42,11 +41,51 @@ body {
 }
 .sidebar-nav a:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .menu-group {
-  color: #93c5fd;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 0.9rem 0 0.35rem;
+  color: #c7ddff;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  margin: 0.5rem 0;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.menu-group::-webkit-details-marker {
+  display: none;
+}
+
+.menu-dropdown {
+  margin-bottom: 0.35rem;
+}
+
+.menu-dropdown .menu-links {
+  margin-top: 0.15rem;
+}
+
+.menu-dropdown .menu-links a {
+  padding-left: 1.35rem;
+}
+
+.menu-dropdown summary::after {
+  content: "\f107";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  font-size: 0.72rem;
+  opacity: 0.9;
+}
+
+.menu-dropdown[open] summary {
+  background: rgba(26, 86, 219, 0.28);
+  color: #ffffff;
+}
+
+.menu-dropdown[open] summary::after {
+  transform: rotate(180deg);
 }
 .content-area { flex: 1; min-width: 0; }
 .panel-card { border: 0; box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08); }
