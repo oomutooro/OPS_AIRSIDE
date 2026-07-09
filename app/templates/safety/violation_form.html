@@ -8,7 +8,7 @@
     <div class="card-body">
         <form method="post" class="row g-3">
             <div class="col-md-4"><label class="form-label">Offender Name</label><input name="offender_name" class="form-control form-control-lg" required></div>
-            <div class="col-md-4"><label class="form-label">Offender Badge</label><input name="offender_badge" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Offender Permit Number</label><input name="offender_badge" class="form-control form-control-lg" placeholder="e.g. A4.37934"></div>
             <div class="col-md-4"><label class="form-label">ADP Number</label><input name="offender_adp_number" class="form-control form-control-lg" placeholder="Optional but recommended"></div>
             <div class="col-md-4"><label class="form-label">Vehicle Registration</label><input name="vehicle_registration" class="form-control form-control-lg"></div>
             <div class="col-md-6"><label class="form-label">Violation Type</label><select name="violation_type_id" class="form-select form-select-lg">{% for v in violation_types %}<option value="{{ v.id }}">{{ v.description }}</option>{% endfor %}</select></div>

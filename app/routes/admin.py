@@ -71,7 +71,7 @@ def user_management():
             return redirect(url_for('admin.user_management'))
 
         if badge_number and User.query.filter_by(badge_number=badge_number).first():
-            flash('Badge number already exists.', 'danger')
+            flash('Permit number already exists.', 'danger')
             return redirect(url_for('admin.user_management'))
 
         user = User(
@@ -89,7 +89,7 @@ def user_management():
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-            flash('User could not be created due to duplicate unique fields (username, email, or badge number).', 'danger')
+            flash('User could not be created due to duplicate unique fields (username, email, or permit number).', 'danger')
             return redirect(url_for('admin.user_management'))
         flash('User created.', 'success')
         return redirect(url_for('admin.user_management'))
@@ -140,7 +140,7 @@ def edit_user(user_id):
         if badge_number:
             existing_badge = User.query.filter(User.badge_number == badge_number, User.id != user.id).first()
         if existing_badge:
-            flash('Badge number already exists.', 'danger')
+            flash('Permit number already exists.', 'danger')
             return redirect(url_for('admin.edit_user', user_id=user.id))
 
         user.username = username
@@ -159,7 +159,7 @@ def edit_user(user_id):
             db.session.commit()
         except IntegrityError:
             db.session.rollback()
-            flash('User could not be updated due to duplicate unique fields (username, email, or badge number).', 'danger')
+            flash('User could not be updated due to duplicate unique fields (username, email, or permit number).', 'danger')
             return redirect(url_for('admin.edit_user', user_id=user.id))
         flash('User access updated.', 'success')
         return redirect(url_for('admin.user_management'))

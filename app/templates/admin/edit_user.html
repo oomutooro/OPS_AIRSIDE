@@ -20,8 +20,8 @@
                         <input name="email" type="email" class="form-control form-control-lg" value="{{ user.email }}" required>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Badge Number</label>
-                        <input name="badge_number" class="form-control form-control-lg" value="{{ user.badge_number or '' }}">
+                        <label class="form-label">Permit Number (Airport Pass)</label>
+                        <input name="badge_number" class="form-control form-control-lg" value="{{ user.badge_number or '' }}" placeholder="e.g. A4.37934">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Department</label>
