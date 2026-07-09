@@ -8,7 +8,7 @@ This project provides:
 
 - Modular Flask architecture with blueprints for each operational domain.
 - Role-based access control for admin, supervisor, inspector, operator, viewer, and auditor.
-- Data model coverage for users, forms, inspections, permits, incidents, violations, stand allocations, handovers, and schedules.
+- Data model coverage for users, forms, inspections, permits, ADP registry records, incidents, violations, stand allocations, handovers, and schedules.
 - Digital form workflows for all required forms (1-25) with draft save, signatures, GPS fields, and attachment capability.
 - PWA foundation with service worker and offline draft storage via IndexedDB.
 - Dashboard KPIs, analytics endpoints, and workflow escalation visibility with Chart.js integration.
@@ -163,8 +163,9 @@ Key capabilities available in form templates:
 
 ### 6.3 Airside Vehicle Control
 
-- ADP application and renewal
+- ADP application, ADP registry, and renewal
 - Vehicle registration and permit metadata
+- ADP driver profiles with company details, training status, licence classes, and violation linkage
 - Company management and reference data
 
 ### 6.4 Budget Management
@@ -588,7 +589,7 @@ Each major module now has a dedicated dashboard landing page that provides a hig
 |-----------|-----|-------------|
 | Inspection Dashboard | `/inspection/forms` | Grouped Airfield Checks, Audit & Equipment, and ESSAT & Safety Checks sections |
 | Safety Dashboard | `/safety/overview` | Sections for Incidents, Investigations, Violations, and Spot Checks |
-| Permit Dashboard | `/permit/overview` | Sections for ADP Applications, Renewals, Vehicle Registration, Company Management |
+| Permit Dashboard | `/permit/overview` | Sections for ADP Registry, Applications, Renewals, Vehicle Registration, Company Management |
 | Apron Dashboard | `/apron/overview` | Sections for Shift Operations and Apron Traffic & Equipment |
 
 Each dashboard shows:

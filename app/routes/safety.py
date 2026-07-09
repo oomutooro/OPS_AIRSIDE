@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 from app import db
 from app.models.form import FormSubmission, FormTemplate
 from app.models.incident import Incident, Violation, ViolationType
+from app.models.permit import ADPProfile
 from app.models.inspection import FODWalk
 from app.services.workflow_service import WorkflowService
 
@@ -223,10 +224,14 @@ def incident_investigation():
 def violation_form():
     if request.method == 'POST':
         vt = request.form.get('violation_type_id')
+        offender_adp_number = (request.form.get('offender_adp_number') or '').strip() or None
+        matched_profile = ADPProfile.query.filter_by(adp_number=offender_adp_number).first() if offender_adp_number else None
         violation = Violation(
             form_type='form_15',
             offender_name=request.form.get('offender_name'),
             offender_badge=request.form.get('offender_badge'),
+            offender_adp_number=offender_adp_number,
+            offender_company_id=matched_profile.company_id if matched_profile else None,
             vehicle_registration=request.form.get('vehicle_registration'),
             violation_type_id=int(vt) if vt else None,
             violation_description=request.form.get('violation_description'),
@@ -288,10 +293,14 @@ def violation_form():
 @login_required
 def spot_check():
     if request.method == 'POST':
+        offender_adp_number = (request.form.get('offender_adp_number') or '').strip() or None
+        matched_profile = ADPProfile.query.filter_by(adp_number=offender_adp_number).first() if offender_adp_number else None
         violation = Violation(
             form_type='form_16',
             offender_name=request.form.get('offender_name'),
             offender_badge=request.form.get('offender_badge'),
+            offender_adp_number=offender_adp_number,
+            offender_company_id=matched_profile.company_id if matched_profile else None,
             vehicle_registration=request.form.get('vehicle_registration'),
             violation_description=request.form.get('observation'),
             violation_location=request.form.get('location'),

@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}ADP Registry{% endblock %}
+{% block content %}
+{% include 'partials/report_page_overview.html' %}
+<div class="card panel-card mb-3">
+    <div id="new-report-form"></div>
+    <div class="card-header">ADP Registry</div>
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-3"><label class="form-label">ADP Number</label><input name="adp_number" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Driver Name</label><input name="full_name" class="form-control form-control-lg" required></div>
+            <div class="col-md-2"><label class="form-label">Badge No.</label><input name="badge_number" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Company</label>
+                <select name="company_id" class="form-select form-select-lg" required>
+                    <option value="">Select company...</option>
+                    {% for company in companies %}
+                    <option value="{{ company.id }}">{{ company.name }}{% if company.code %} ({{ company.code }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3"><label class="form-label">Date of Birth</label><input type="date" name="date_of_birth" class="form-control form-control-lg"></div>
+            <div class="col-md-2"><label class="form-label">Gender</label>
+                <select name="gender" class="form-select form-select-lg">
+                    <option value="">Select...</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
+            </div>
+            <div class="col-md-3"><label class="form-label">Job Title</label><input name="job_title" class="form-control form-control-lg"></div>
+            <div class="col-md-2"><label class="form-label">Phone</label><input name="phone" class="form-control form-control-lg"></div>
+            <div class="col-md-2"><label class="form-label">Email</label><input type="email" name="email" class="form-control form-control-lg"></div>
+
+            <div class="col-md-3"><label class="form-label">ADP Training</label>
+                <select name="adp_training_completed" class="form-select form-select-lg">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div class="col-md-3"><label class="form-label">Training Date</label><input type="date" name="adp_training_date" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">UCAA Staff</label>
+                <select name="is_ucaa_staff" class="form-select form-select-lg">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div class="col-md-3"><label class="form-label">Touch Key</label>
+                <select name="has_touch_key" class="form-select form-select-lg">
+                    <option value="0">No</option>
+                    <option value="1">Yes</option>
+                </select>
+            </div>
+            <div class="col-md-4"><label class="form-label">Touch Key Number</label><input name="touch_key_number" class="form-control form-control-lg"></div>
+
+            <div class="col-md-4"><label class="form-label">Driver's Licence Number</label><input name="national_driving_license_no" class="form-control form-control-lg" required></div>
+            <div class="col-md-4"><label class="form-label">Licence Expiry</label><input type="date" name="ndl_expiry" class="form-control form-control-lg" required></div>
+            <div class="col-md-4">
+                <label class="form-label">Licence Class / Vehicle Category</label>
+                <select name="driver_license_classes" class="form-select form-select-lg" multiple required>
+                    {% for code, label in driver_license_classes %}
+                    <option value="{{ code }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text">Use the class or classes shown on the Uganda driving licence.</div>
+            </div>
+
+            <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" rows="3" class="form-control" placeholder="Optional remarks about access, training, or restrictions"></textarea></div>
+            <div class="col-12"><button class="btn btn-primary btn-touch">Save ADP Profile</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="card panel-card">
+    <div class="card-header">Registered ADP Drivers</div>
+    <div class="card-body table-responsive">
+        <table class="table table-striped align-middle" id="adpRegistryTable">
+            <thead>
+                <tr>
+                    <th>ADP No.</th>
+                    <th>Driver</th>
+                    <th>Company</th>
+                    <th>Training</th>
+                    <th>UCAA / Touch Key</th>
+                    <th>Licence</th>
+                    <th>Classes</th>
+                    <th>Violations</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for profile in profiles %}
+                <tr>
+                    <td>{{ profile.adp_number }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ profile.full_name }}</div>
+                        <div class="text-muted small">{{ profile.badge_number or '-' }}{% if profile.gender %} | {{ profile.gender|title }}{% endif %}{% if profile.date_of_birth %} | {{ profile.date_of_birth|date_fmt }}{% endif %}</div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ profile.company.name if profile.company else '-' }}</div>
+                        <div class="text-muted small">{{ profile.company.company_type if profile.company else '-' }}{% if profile.company and profile.company.code %} | {{ profile.company.code }}{% endif %}</div>
+                    </td>
+                    <td>
+                        <span class="badge {{ 'bg-success' if profile.adp_training_completed else 'bg-warning text-dark' }}">{{ profile.training_status_label }}</span>
+                        <div class="text-muted small">{{ profile.adp_training_date|date_fmt if profile.adp_training_date else 'No date recorded' }}</div>
+                    </td>
+                    <td>
+                        <span class="badge {{ 'bg-info text-dark' if profile.is_ucaa_staff else 'bg-secondary' }}">{{ 'UCAA' if profile.is_ucaa_staff else 'Not UCAA' }}</span>
+                        <div class="text-muted small">{{ profile.touch_key_status_label }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ profile.national_driving_license_no or '-' }}</div>
+                        <div class="text-muted small">Exp: {{ profile.ndl_expiry|date_fmt if profile.ndl_expiry else '-' }}</div>
+                    </td>
+                    <td>{{ profile.driver_license_class_labels|join(', ') if profile.driver_license_class_labels else '-' }}</td>
+                    <td>
+                        {% if profile.has_violations %}
+                        <span class="badge bg-danger">{{ profile.violation_count }} violation{{ '' if profile.violation_count == 1 else 's' }}</span>
+                        {% else %}
+                        <span class="badge bg-success">No violations</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted py-4">No ADP profiles registered yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

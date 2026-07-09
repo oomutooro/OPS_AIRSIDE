@@ -5,7 +5,8 @@ from datetime import date, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from app import db
-from app.models.permit import ADPApplication, ADPPermit
+from app.models.incident import Violation
+from app.models.permit import ADPApplication, ADPPermit, ADPProfile, UGANDA_ADP_DRIVER_CLASSES
 from app.models.reference import AirsideVehicle, Company
 from app.models.form import FormSubmission, FormTemplate
 from app.services.workflow_service import WorkflowService
@@ -36,21 +37,45 @@ def _status_tone(status):
     }.get((status or '').lower(), 'secondary')
 
 
+def _parse_optional_date(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _adp_profile_summary(profile: ADPProfile) -> dict:
+    return {
+        'reference': profile.adp_number,
+        'title': profile.full_name,
+        'meta': profile.company_details,
+        'status_label': profile.training_status_label,
+        'status_tone': 'success' if profile.adp_training_completed else 'warning',
+        'workflow_label': f"{profile.violation_count} violation{'s' if profile.violation_count != 1 else ''}" if profile.violation_count else 'No violations',
+        'workflow_tone': 'danger' if profile.has_violations else 'success',
+        'updated_at': profile.updated_at.strftime('%d %b %Y %H:%M') if profile.updated_at else '-',
+    }
+
+
 @permit_bp.route('/overview')
 @login_required
 def overview():
     today = date.today()
     expiring_soon = ADPPermit.query.filter(ADPPermit.expiry_date.isnot(None), ADPPermit.expiry_date <= today + timedelta(days=30)).count()
+    adp_profile_count = ADPProfile.query.count()
     sections = [
         {
-            'title': 'ADP Applications',
-            'description': 'New applications and applicant intake reports.',
-            'badge': f'{ADPApplication.query.count()} total',
+            'title': 'ADP Registry',
+            'description': 'Driver profiles, company details, training status, licence classes, and violation history.',
+            'badge': f'{adp_profile_count} profiles',
             'links': [
+                {'label': 'ADP Registry', 'url': url_for('permit.adp_registry'), 'meta': 'Driver profile workspace'},
                 {'label': 'ADP Applications', 'url': url_for('permit.adp_application'), 'meta': 'Form 17 workspace'},
                 {'label': 'ADP Renewals', 'url': url_for('permit.adp_renewal'), 'meta': 'Permit renewal workspace'},
             ],
-            'action': {'label': 'Add ADP Application', 'url': url_for('permit.adp_application')},
+            'action': {'label': 'Register ADP Driver', 'url': url_for('permit.adp_registry')},
         },
         {
             'title': 'Permit Registry',
@@ -69,13 +94,75 @@ def overview():
         overview_title='Permit Dashboard',
         overview_subtitle='Each permit area acts like a heading with its own report list, dashboard cues, and entry point for new forms.',
         summary_cards=[
-            {'label': 'Applications', 'value': ADPApplication.query.count(), 'help_text': 'ADP applications submitted'},
+            {'label': 'ADP Profiles', 'value': adp_profile_count, 'help_text': 'Registered ADP drivers'},
+            {'label': 'Training Complete', 'value': ADPProfile.query.filter_by(adp_training_completed=True).count(), 'help_text': 'Profiles with ADP training recorded'},
+            {'label': 'UCAA Touch Keys', 'value': ADPProfile.query.filter_by(is_ucaa_staff=True, has_touch_key=True).count(), 'help_text': 'UCAA staff with touch key recorded'},
+            {'label': 'Linked Violations', 'value': Violation.query.filter(Violation.offender_adp_number.isnot(None)).count(), 'help_text': 'Violation records carrying an ADP number'},
             {'label': 'Expiring Soon', 'value': expiring_soon, 'help_text': 'Permits expiring within 30 days'},
             {'label': 'Vehicles', 'value': AirsideVehicle.query.count(), 'help_text': 'Registered airside vehicles'},
             {'label': 'Companies', 'value': Company.query.count(), 'help_text': 'Managed companies and operators'},
         ],
         sections=sections,
-        primary_action={'label': 'Add ADP Application', 'url': url_for('permit.adp_application')},
+        primary_action={'label': 'Register ADP Driver', 'url': url_for('permit.adp_registry')},
+    )
+
+
+@permit_bp.route('/adp-registry', methods=['GET', 'POST'])
+@login_required
+def adp_registry():
+    if request.method == 'POST':
+        adp_number = (request.form.get('adp_number') or '').strip()
+        full_name = (request.form.get('full_name') or '').strip()
+        company_id = request.form.get('company_id') or None
+
+        if not adp_number or not full_name or not company_id:
+            flash('ADP number, driver name, and company are required.', 'danger')
+            return redirect(url_for('permit.adp_registry'))
+
+        profile = ADPProfile.query.filter_by(adp_number=adp_number).first() or ADPProfile(adp_number=adp_number)
+        profile.full_name = full_name
+        profile.company_id = int(company_id)
+        profile.badge_number = (request.form.get('badge_number') or '').strip() or None
+        profile.job_title = (request.form.get('job_title') or '').strip() or None
+        profile.date_of_birth = _parse_optional_date(request.form.get('date_of_birth'))
+        profile.gender = (request.form.get('gender') or '').strip() or None
+        profile.phone = (request.form.get('phone') or '').strip() or None
+        profile.email = (request.form.get('email') or '').strip() or None
+        profile.adp_training_completed = request.form.get('adp_training_completed') == '1'
+        profile.adp_training_date = _parse_optional_date(request.form.get('adp_training_date'))
+        profile.is_ucaa_staff = request.form.get('is_ucaa_staff') == '1'
+        profile.has_touch_key = request.form.get('has_touch_key') == '1'
+        profile.touch_key_number = (request.form.get('touch_key_number') or '').strip() or None
+        profile.national_driving_license_no = (request.form.get('national_driving_license_no') or '').strip() or None
+        profile.ndl_expiry = _parse_optional_date(request.form.get('ndl_expiry'))
+        profile.driver_license_classes = request.form.getlist('driver_license_classes')
+        profile.notes = (request.form.get('notes') or '').strip() or None
+        profile.created_by_user_id = current_user.id
+
+        db.session.add(profile)
+        db.session.commit()
+        flash('ADP registry profile saved.', 'success')
+        return redirect(url_for('permit.adp_registry'))
+
+    companies = Company.query.filter_by(is_active=True).order_by(Company.name).all()
+    profiles = ADPProfile.query.order_by(ADPProfile.created_at.desc()).limit(50).all()
+    return render_template(
+        'permits/adp_registry.html',
+        companies=companies,
+        profiles=profiles,
+        driver_license_classes=UGANDA_ADP_DRIVER_CLASSES.items(),
+        page_overview=_page_overview(
+            'ADP Registry Workspace',
+            'Register ADP holders with company data, training status, UCAA touch key details, licence classes, and violation history.',
+            [
+                {'label': 'Profiles', 'value': ADPProfile.query.count(), 'help_text': 'Registered ADP holders'},
+                {'label': 'Training Complete', 'value': ADPProfile.query.filter_by(adp_training_completed=True).count(), 'help_text': 'Profiles with training recorded'},
+                {'label': 'UCAA Touch Keys', 'value': ADPProfile.query.filter_by(is_ucaa_staff=True, has_touch_key=True).count(), 'help_text': 'UCAA staff with touch key'},
+                {'label': 'Linked Violations', 'value': Violation.query.filter(Violation.offender_adp_number.isnot(None)).count(), 'help_text': 'Violations captured against an ADP number'},
+            ],
+            [_adp_profile_summary(profile) for profile in profiles[:6]],
+            add_label='Register ADP Driver',
+        ),
     )
 
 
@@ -90,7 +177,7 @@ def adp_application():
             applicant_badge=request.form.get('applicant_badge'),
             company_id=request.form.get('company_id') or None,
             national_driving_license_no=request.form.get('national_driving_license_no'),
-            ndl_expiry=request.form.get('ndl_expiry') or None,
+            ndl_expiry=_parse_optional_date(request.form.get('ndl_expiry')),
             vehicle_categories_requested=request.form.getlist('vehicle_categories'),
             theory_test_score=float(request.form.get('theory_test_score') or 0),
             practical_test_passed=bool(request.form.get('practical_test_passed')),

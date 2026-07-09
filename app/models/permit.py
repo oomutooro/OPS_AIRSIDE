@@ -2,7 +2,27 @@
 Permit models: ADP Applications, ADP Permits, AVP tracking.
 """
 from datetime import datetime, date
+from sqlalchemy.orm import foreign
 from app import db
+from app.models.incident import Violation
+
+
+UGANDA_ADP_DRIVER_CLASSES = {
+    'A1': 'A1 - Light motorcycles',
+    'A': 'A - Motorcycles',
+    'B1': 'B1 - Light motor vehicles',
+    'B': 'B - Motor vehicles (cars)',
+    'BE': 'BE - Motor vehicles with trailer',
+    'C1': 'C1 - Light goods vehicles',
+    'C1E': 'C1E - C1 with trailer',
+    'C': 'C - Medium goods vehicles',
+    'CE': 'CE - C with trailer',
+    'D1': 'D1 - Small passenger vehicles / minibuses',
+    'D1E': 'D1E - D1 with trailer',
+    'D': 'D - Buses and coaches',
+    'DE': 'DE - D with trailer',
+    'G': 'G - Agricultural / special purpose machinery',
+}
 
 
 class ADPApplication(db.Model):
@@ -171,3 +191,97 @@ class ADPPermit(db.Model):
 
     def __repr__(self):
         return f'<ADPPermit {self.adp_number} ({self.colour_code.upper()}) - {self.holder_name}>'
+
+
+class ADPProfile(db.Model):
+    """ADP holder registry with company, training, licence, and violation history."""
+    __tablename__ = 'adp_profiles'
+
+    id = db.Column(db.Integer, primary_key=True)
+    adp_number = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    full_name = db.Column(db.String(128), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+    badge_number = db.Column(db.String(32), nullable=True)
+    job_title = db.Column(db.String(64), nullable=True)
+    date_of_birth = db.Column(db.Date, nullable=True)
+    gender = db.Column(db.String(16), nullable=True)
+    phone = db.Column(db.String(32), nullable=True)
+    email = db.Column(db.String(120), nullable=True)
+
+    adp_training_completed = db.Column(db.Boolean, default=False)
+    adp_training_date = db.Column(db.Date, nullable=True)
+    is_ucaa_staff = db.Column(db.Boolean, default=False)
+    has_touch_key = db.Column(db.Boolean, default=False)
+    touch_key_number = db.Column(db.String(32), nullable=True)
+
+    national_driving_license_no = db.Column(db.String(32), nullable=True)
+    ndl_expiry = db.Column(db.Date, nullable=True)
+    driver_license_classes = db.Column(db.JSON, default=list)
+
+    notes = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    company = db.relationship('Company', backref='adp_profiles')
+    created_by = db.relationship('User', backref='created_adp_profiles')
+    violations = db.relationship(
+        'Violation',
+        primaryjoin=lambda: foreign(Violation.offender_adp_number) == ADPProfile.adp_number,
+        viewonly=True,
+        lazy='dynamic',
+    )
+
+    @property
+    def company_details(self) -> str:
+        if not self.company:
+            return '-'
+        parts = [self.company.name]
+        if self.company.code:
+            parts.append(self.company.code)
+        if self.company.company_type:
+            parts.append(self.company.company_type)
+        return ' | '.join(parts)
+
+    @property
+    def training_status_label(self) -> str:
+        return 'Completed' if self.adp_training_completed else 'Not completed'
+
+    @property
+    def touch_key_status_label(self) -> str:
+        if not self.is_ucaa_staff:
+            return 'Not UCAA'
+        return 'Has touch key' if self.has_touch_key else 'No touch key'
+
+    @property
+    def driver_license_class_labels(self):
+        classes = self.driver_license_classes or []
+        return [UGANDA_ADP_DRIVER_CLASSES.get(code, code) for code in classes]
+
+    @property
+    def violation_count(self) -> int:
+        return self.violations.count() if self.adp_number else 0
+
+    @property
+    def has_violations(self) -> bool:
+        return self.violation_count > 0
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'adp_number': self.adp_number,
+            'full_name': self.full_name,
+            'company_id': self.company_id,
+            'company_details': self.company_details,
+            'adp_training_completed': self.adp_training_completed,
+            'adp_training_date': self.adp_training_date.isoformat() if self.adp_training_date else None,
+            'is_ucaa_staff': self.is_ucaa_staff,
+            'has_touch_key': self.has_touch_key,
+            'national_driving_license_no': self.national_driving_license_no,
+            'ndl_expiry': self.ndl_expiry.isoformat() if self.ndl_expiry else None,
+            'driver_license_classes': self.driver_license_classes,
+            'violation_count': self.violation_count,
+        }
+
+    def __repr__(self):
+        return f'<ADPProfile {self.adp_number} - {self.full_name}>'
