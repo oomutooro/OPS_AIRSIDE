@@ -127,7 +127,7 @@ def _normalize_stand_code(raw: str) -> str:
     if not raw:
         return ''
     stand = str(raw).strip().upper().replace(' ', '')
-    if stand.startswith('A1S') and len(stand) >= 5:
+    if (stand.startswith('A1S') or stand.startswith('A01S')) and len(stand) >= 5:
         return stand[-2:]
     if stand.startswith('S') and len(stand) >= 3 and stand[1:].isdigit():
         return stand[1:].zfill(2)

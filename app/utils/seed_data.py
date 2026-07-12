@@ -8,6 +8,24 @@ from app.utils.constants import FORM_DEFINITIONS, PARKING_STANDS, RUNWAYS, TAXIW
 from app.utils.form_schemas import FORM_SCHEMAS
 
 
+REQUESTED_STAND_DETAILS = {
+    'A1S03': {'category': 'C'},
+    'A1S04': {'category': 'E'},
+    'A1S05': {'category': 'E', 'has_pbb': True, 'pbb_number': 'PBB 01'},
+    'A1S06': {'category': 'E', 'has_pbb': True, 'pbb_number': 'PBB 02'},
+    'A1S07': {'category': 'F'},
+    'A1S08': {'category': 'C'},
+    'A1S09': {'category': 'E'},
+    'A1S10': {'category': 'B'},
+    'EXTS20': {'category': 'C'},
+    'EXTS21': {'category': 'C'},
+    'EXTS22': {'category': 'C'},
+    'EXTS23': {'category': 'C'},
+    'EXTS24': {'category': 'C'},
+    'EXTS25': {'category': 'C'},
+}
+
+
 def seed_companies(db):
     companies = [
         ('NAS', 'GHA'), ('DAS', 'GHA'), ('MONUSCO', 'UN'), ('UN', 'UN'), ('EJAF', 'government'),
@@ -22,18 +40,21 @@ def seed_companies(db):
 
 def seed_stands(db):
     for apron_name, stand_codes in PARKING_STANDS.items():
-        apron_num = apron_name.split()[-1]
+        apron_num = 'Extended' if apron_name == 'Extended Apron' else apron_name.split()[-1]
         for code in stand_codes:
-            if not ParkingStand.query.filter_by(stand_code=code).first():
-                stand_no = code.split('S')[-1]
-                db.session.add(ParkingStand(
-                    stand_code=code,
-                    stand_number=stand_no,
-                    apron=apron_num,
-                    category='C',
-                    has_pbb=code.startswith('A1S0') or code.startswith('A2S0'),
-                    is_active=True,
-                ))
+            details = REQUESTED_STAND_DETAILS.get(code, {})
+            stand_no = code.split('S')[-1]
+            stand = ParkingStand.query.filter_by(stand_code=code).first()
+            if not stand:
+                stand = ParkingStand(stand_code=code, stand_number=stand_no, apron=apron_num, is_active=True)
+                db.session.add(stand)
+
+            stand.stand_number = stand_no
+            stand.apron = apron_num
+            stand.category = details.get('category', 'C')
+            stand.has_pbb = bool(details.get('has_pbb', False))
+            stand.pbb_number = details.get('pbb_number')
+            stand.is_active = True
 
 
 def seed_locations(db):

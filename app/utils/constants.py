@@ -161,6 +161,7 @@ PARKING_STANDS = {
     'Apron 2': ['A2S01', 'A2S02', 'A2S03', 'A2S04', 'A2S05', 'A2S06'],
     'Apron 4': ['A4S01', 'A4S02', 'A4S03', 'A4S04', 'A4S05', 'A4S06', 'A4S07', 'A4S08', 'A4S09'],
     'Apron 5': ['A5S50', 'A5S51', 'A5S51A', 'A5S51B', 'A5S52', 'A5S53'],
+    'Extended Apron': ['EXTS20', 'EXTS21', 'EXTS22', 'EXTS23', 'EXTS24', 'EXTS25'],
 }
 
 # Form metadata

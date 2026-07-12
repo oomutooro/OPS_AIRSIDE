@@ -39,7 +39,7 @@ def _effective_dt(flight: FlightMovement):
 
 def _normalize_stand_code(raw: str) -> str:
     stand = (raw or '').strip().upper().replace(' ', '')
-    if stand.startswith('A1S') and len(stand) >= 5:
+    if (stand.startswith('A1S') or stand.startswith('A01S')) and len(stand) >= 5:
         stand = stand[-2:]
     if stand.startswith('S') and stand[1:].isdigit():
         stand = stand[1:].zfill(2)
