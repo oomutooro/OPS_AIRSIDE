@@ -16,10 +16,20 @@
             <div class="col-md-6"><label class="form-label">Recorded By</label><input class="form-control form-control-lg" value="{{ current_user.full_name }}" readonly></div>
             <div class="col-md-6"><label class="form-label">Company/Airline</label><input name="company_airline" class="form-control form-control-lg"></div>
             <div class="col-md-4"><label class="form-label">Operator</label><input name="operator" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Involved ADP Number</label><input name="involved_adp_number" id="involvedAdpNumber" class="form-control form-control-lg" placeholder="Use ADP to link incidents and violations"></div>
+            <div class="col-md-4"><label class="form-label">Involved Person</label><input name="involved_person_name" id="involvedPersonName" class="form-control form-control-lg" placeholder="Auto-filled from ADP where possible"></div>
             <div class="col-md-4">
                 <label class="form-label">Flight No.</label>
                 <input name="flight_no" class="form-control form-control-lg" list="incident_flight_options" autocomplete="off" placeholder="Type IATA or ICAO code">
                 <datalist id="incident_flight_options" data-aodb-datalist data-aodb-date-source="input[name='occurrence_date']"></datalist>
+            </div>
+
+            <div class="col-12 d-none" id="incidentAdpHistoryCard">
+                <div class="border rounded p-3 bg-light">
+                    <div class="fw-semibold mb-1">Linked ADP History</div>
+                    <div class="small text-muted mb-2" id="incidentAdpHistorySummary"></div>
+                    <ul class="small mb-0" id="incidentAdpHistoryHighlights"></ul>
+                </div>
             </div>
             <div class="col-md-4"><label class="form-label">POB</label><input name="pob" class="form-control form-control-lg" placeholder="Persons on board"></div>
             <div class="col-md-4"><label class="form-label">Aircraft/Equip't Reg No.</label><input name="aircraft_equipment_reg_no" class="form-control form-control-lg"></div>
@@ -308,6 +318,58 @@
     flightInput.addEventListener('blur', applyFlightDetail);
 
     loadFlightDetails();
+})();
+
+(function () {
+    const adpInput = document.getElementById('involvedAdpNumber');
+    const personInput = document.getElementById('involvedPersonName');
+    const card = document.getElementById('incidentAdpHistoryCard');
+    const summary = document.getElementById('incidentAdpHistorySummary');
+    const highlights = document.getElementById('incidentAdpHistoryHighlights');
+    if (!adpInput || !personInput || !card || !summary || !highlights) return;
+
+    async function loadAdpHistory() {
+        const adp = (adpInput.value || '').trim();
+        if (!adp) {
+            card.classList.add('d-none');
+            summary.textContent = '';
+            highlights.innerHTML = '';
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/safety/api/adp-history?adp_number=${encodeURIComponent(adp)}`);
+            if (!resp.ok) {
+                card.classList.add('d-none');
+                return;
+            }
+
+            const payload = await resp.json();
+            if (payload.person_name && !personInput.value.trim()) {
+                personInput.value = payload.person_name;
+            }
+
+            const name = payload.person_name || 'Unknown ADP holder';
+            const company = payload.company ? ` (${payload.company})` : '';
+            summary.textContent = `${name}${company} | Prior incidents: ${payload.incident_count} | Prior violations: ${payload.violation_count}`;
+
+            const rows = [];
+            (payload.recent_incidents || []).slice(0, 3).forEach((item) => {
+                rows.push(`<li>${item.reference}: ${item.severity || 'n/a'} severity, ${item.status || 'open'} status</li>`);
+            });
+            if (!rows.length) {
+                rows.push('<li>No linked incidents yet for this ADP number.</li>');
+            }
+            highlights.innerHTML = rows.join('');
+            card.classList.remove('d-none');
+        } catch (err) {
+            console.error('Unable to load ADP incident history:', err);
+            card.classList.add('d-none');
+        }
+    }
+
+    adpInput.addEventListener('change', loadAdpHistory);
+    adpInput.addEventListener('blur', loadAdpHistory);
 })();
 </script>
 {% endblock %}

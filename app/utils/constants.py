@@ -33,27 +33,121 @@ ADP_COLOUR_CODES = {
 
 # Violation penalties from Attachment 1
 VIOLATION_PENALTIES = {
-    'over_speeding': {'amount': 100000, 'currency': 'UGX'},
-    'spills_per_sqm': {'amount': 500000, 'currency': 'UGX', 'per_unit': True},
-    'no_reflective_vest': {'amount': 100000, 'currency': 'UGX'},
-    'no_national_license': {'amount': 100000, 'currency': 'UGX'},
-    'no_adp': {'amount': 100000, 'currency': 'UGX'},
-    'no_airside_vehicle_permit': {'amount': 200000, 'currency': 'UGX'},
-    'no_airside_safety_requirement': {'amount': 100000, 'currency': 'UGX', 'per_unit': True},
-    'no_essat_sticker': {'amount': 100000, 'currency': 'UGX'},
-    'dangerous_mechanical_condition': {'amount': 300000, 'currency': 'UGX'},
-    'grounded_equipment_no_essat': {'amount': 300000, 'currency': 'UGX'},
-    'traversing_aircraft_stands': {'amount': 300000, 'currency': 'UGX'},
-    'runway_incursion': {'amount': 500000, 'currency': 'UGX'},
-    'cross_taxiway_without_atc': {'amount': 300000, 'currency': 'UGX'},
-    'parking_outside_designated_area': {'amount': 100000, 'currency': 'UGX'},
-    'obstruct_fuel_emergency_stop': {'amount': 100000, 'currency': 'UGX'},
-    'failure_to_give_way_aircraft': {'amount': 300000, 'currency': 'UGX'},
-    'leave_equipment_on_stand': {'amount': 100000, 'currency': 'UGX', 'per_unit': True},
-    'dolly_without_brakes': {'amount': 300000, 'currency': 'UGX', 'per_unit': True},
-    'uld_unsecured': {'amount': 300000, 'currency': 'UGX', 'per_unit': True},
-    'smoking_airside': {'amount': 1000, 'currency': 'USD'},
-    'special_fire_cover': {'amount': 1000, 'currency': 'USD'},
+    'over_speeding': {
+        'description': 'Over speeding',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'spills_per_sqm': {
+        'description': 'Spills per every square meter',
+        'amount': 500000,
+        'currency': 'UGX',
+        'per_unit': True,
+        'unit_description': 'per square meter',
+    },
+    'no_reflective_vest': {
+        'description': 'Failure to put on reflective vest',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'no_national_license': {
+        'description': 'Driving without valid national driving permit',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'no_adp': {
+        'description': 'Driving without valid ADP',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'no_airside_vehicle_permit': {
+        'description': 'Driving equipment/vehicles without airside vehicle permit',
+        'amount': 200000,
+        'currency': 'UGX',
+    },
+    'no_airside_safety_requirement': {
+        'description': 'Driving equipment/vehicles without airside safety requirement',
+        'amount': 100000,
+        'currency': 'UGX',
+        'per_unit': True,
+        'unit_description': 'per requirement',
+    },
+    'no_essat_sticker': {
+        'description': 'Driving equipment/vehicles without ESSAT compliance sticker',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'dangerous_mechanical_condition': {
+        'description': 'Driving equipment/vehicles in dangerous mechanical condition at airside',
+        'amount': 300000,
+        'currency': 'UGX',
+    },
+    'grounded_equipment_no_essat': {
+        'description': 'Driving grounded equipment without verification inspection by ESSAT',
+        'amount': 300000,
+        'currency': 'UGX',
+    },
+    'traversing_aircraft_stands': {
+        'description': 'Traversing aircraft stands',
+        'amount': 300000,
+        'currency': 'UGX',
+    },
+    'runway_incursion': {
+        'description': 'Causing runway incursion',
+        'amount': 500000,
+        'currency': 'UGX',
+    },
+    'cross_taxiway_without_atc': {
+        'description': 'Entering/crossing taxiway or taxing lane areas without ATC permission',
+        'amount': 300000,
+        'currency': 'UGX',
+    },
+    'parking_outside_designated_area': {
+        'description': 'Parking outside designated parking areas',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'obstruct_fuel_emergency_stop': {
+        'description': 'Obstruction of fuel emergency stops and water hydrants',
+        'amount': 100000,
+        'currency': 'UGX',
+    },
+    'failure_to_give_way_aircraft': {
+        'description': 'Failure to give way to aircraft',
+        'amount': 300000,
+        'currency': 'UGX',
+    },
+    'leave_equipment_on_stand': {
+        'description': 'Leaving equipment and FOD bins on aircraft stand after servicing aircraft',
+        'amount': 100000,
+        'currency': 'UGX',
+        'per_unit': True,
+        'unit_description': 'per equipment',
+    },
+    'dolly_without_brakes': {
+        'description': 'Use of dollies and baggage carts without brakes',
+        'amount': 300000,
+        'currency': 'UGX',
+        'per_unit': True,
+        'unit_description': 'per equipment',
+    },
+    'uld_unsecured': {
+        'description': 'Leaving unit load devices unsecured',
+        'amount': 300000,
+        'currency': 'UGX',
+        'per_unit': True,
+        'unit_description': 'per equipment',
+    },
+    'smoking_airside': {
+        'description': 'Smoking at airside',
+        'amount': 1000,
+        'currency': 'USD',
+    },
+    'special_fire_cover': {
+        'description': 'Special fire cover to aircraft on the apron',
+        'amount': 1000,
+        'currency': 'USD',
+    },
 }
 
 # Runways and taxiways

@@ -54,17 +54,15 @@ def seed_locations(db):
 
 def seed_violation_types(db):
     for code, cfg in VIOLATION_PENALTIES.items():
-        if not ViolationType.query.filter_by(code=code).first():
-            db.session.add(ViolationType(
-                code=code,
-                description=code.replace('_', ' ').title(),
-                standard_penalty_ugx=cfg.get('amount') if cfg.get('currency') == 'UGX' else None,
-                standard_penalty_usd=cfg.get('amount') if cfg.get('currency') == 'USD' else None,
-                penalty_currency=cfg.get('currency', 'UGX'),
-                is_per_unit=cfg.get('per_unit', False),
-                unit_description='per unit' if cfg.get('per_unit') else None,
-                is_active=True,
-            ))
+        record = ViolationType.query.filter_by(code=code).first() or ViolationType(code=code)
+        record.description = cfg.get('description') or code.replace('_', ' ').title()
+        record.standard_penalty_ugx = cfg.get('amount') if cfg.get('currency') == 'UGX' else None
+        record.standard_penalty_usd = cfg.get('amount') if cfg.get('currency') == 'USD' else None
+        record.penalty_currency = cfg.get('currency', 'UGX')
+        record.is_per_unit = cfg.get('per_unit', False)
+        record.unit_description = cfg.get('unit_description') if cfg.get('per_unit') else None
+        record.is_active = True
+        db.session.add(record)
 
 
 def seed_form_templates(db):

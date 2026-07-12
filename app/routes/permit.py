@@ -4,6 +4,7 @@ Permit routes: ADP applications, renewals, vehicle registration, company managem
 from datetime import date, timedelta
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import func
 from app import db
 from app.models.incident import Violation
 from app.models.permit import ADPApplication, ADPPermit, ADPProfile, UGANDA_ADP_DRIVER_CLASSES
@@ -46,6 +47,22 @@ def _parse_optional_date(value):
         return None
 
 
+def _essat_linked_vehicles_query():
+    """Vehicles that are tied to ESSAT inspections and a registered company."""
+    return AirsideVehicle.query.filter(
+        AirsideVehicle.company_id.isnot(None),
+        AirsideVehicle.last_essat_date.isnot(None),
+    )
+
+
+def _operational_vehicles_query():
+    """Operational vehicles allowed for airside use by ESSAT state."""
+    return _essat_linked_vehicles_query().filter(
+        AirsideVehicle.is_active.is_(True),
+        AirsideVehicle.is_grounded.is_(False),
+    )
+
+
 def _adp_profile_summary(profile: ADPProfile) -> dict:
     return {
         'reference': profile.adp_number,
@@ -53,8 +70,8 @@ def _adp_profile_summary(profile: ADPProfile) -> dict:
         'meta': profile.company_details,
         'status_label': profile.training_status_label,
         'status_tone': 'success' if profile.adp_training_completed else 'warning',
-        'workflow_label': f"{profile.violation_count} violation{'s' if profile.violation_count != 1 else ''}" if profile.violation_count else 'No violations',
-        'workflow_tone': 'danger' if profile.has_violations else 'success',
+        'workflow_label': f"{profile.offender_level} | {profile.incident_count} incident{'s' if profile.incident_count != 1 else ''}",
+        'workflow_tone': 'danger' if profile.violation_count >= 3 else ('warning' if profile.has_violations else 'success'),
         'updated_at': profile.updated_at.strftime('%d %b %Y %H:%M') if profile.updated_at else '-',
     }
 
@@ -65,6 +82,41 @@ def overview():
     today = date.today()
     expiring_soon = ADPPermit.query.filter(ADPPermit.expiry_date.isnot(None), ADPPermit.expiry_date <= today + timedelta(days=30)).count()
     adp_profile_count = ADPProfile.query.count()
+    essat_linked_vehicle_count = _essat_linked_vehicles_query().count()
+    operational_vehicle_count = _operational_vehicles_query().count()
+    grounded_vehicle_count = _essat_linked_vehicles_query().filter(AirsideVehicle.is_grounded.is_(True)).count()
+    essat_unlinked_violations = Violation.query.filter(
+        Violation.vehicle_registration.isnot(None),
+        ~func.upper(Violation.vehicle_registration).in_(
+            db.session.query(func.upper(AirsideVehicle.registration)).filter(
+                AirsideVehicle.last_essat_date.isnot(None)
+            )
+        ),
+    ).count()
+
+    summary_cards = [
+        {'label': 'ADP Profiles', 'value': adp_profile_count, 'help_text': 'Registered ADP drivers'},
+        {'label': 'Training Complete', 'value': ADPProfile.query.filter_by(adp_training_completed=True).count(), 'help_text': 'Profiles with ADP training recorded'},
+        {'label': 'UCAA Touch Keys', 'value': ADPProfile.query.filter_by(is_ucaa_staff=True, has_touch_key=True).count(), 'help_text': 'UCAA staff with touch key recorded'},
+        {'label': 'Linked Violations', 'value': Violation.query.filter(Violation.offender_adp_number.isnot(None)).count(), 'help_text': 'Violation records carrying an ADP number'},
+        {'label': 'Expiring Soon', 'value': expiring_soon, 'help_text': 'Permits expiring within 30 days'},
+        {'label': 'Companies', 'value': Company.query.count(), 'help_text': 'Managed companies and operators'},
+    ]
+
+    if essat_linked_vehicle_count > 0:
+        summary_cards.extend([
+            {'label': 'Operational Vehicles', 'value': operational_vehicle_count, 'help_text': 'ESSAT-compliant vehicles allowed to operate airside'},
+            {'label': 'Grounded Vehicles', 'value': grounded_vehicle_count, 'help_text': 'Vehicles blocked from use per ESSAT state'},
+        ])
+
+    if essat_unlinked_violations > 0:
+        summary_cards.append({
+            'label': 'Unlinked Vehicle Violations',
+            'value': essat_unlinked_violations,
+            'help_text': 'Violations raised for vehicles not yet linked to ESSAT records',
+            'tone': 'warning',
+        })
+
     sections = [
         {
             'title': 'ADP Registry',
@@ -79,11 +131,12 @@ def overview():
         },
         {
             'title': 'Permit Registry',
-            'description': 'Vehicles, companies, and permit support records that sit around the permit workflow.',
-            'badge': f'{AirsideVehicle.query.count()} vehicles',
+            'description': 'Vehicles and operators synchronized with ESSAT inspection outcomes.',
+            'badge': f'{operational_vehicle_count} vehicles' if operational_vehicle_count > 0 else None,
             'links': [
-                {'label': 'Vehicle Registration', 'url': url_for('permit.vehicle_registration'), 'meta': 'Asset registry'},
+                {'label': 'Vehicle Registration', 'url': url_for('permit.vehicle_registration'), 'meta': 'ESSAT-linked airside vehicle registry'},
                 {'label': 'Company Management', 'url': url_for('permit.company_management'), 'meta': 'Operator registry'},
+                {'label': 'ESSAT Analytics', 'url': url_for('essat.analytics'), 'meta': 'Inspection and compliance dashboard'},
             ],
             'action': {'label': 'Register Vehicle', 'url': url_for('permit.vehicle_registration')},
         },
@@ -93,15 +146,7 @@ def overview():
         'shared/section_overview.html',
         overview_title='Permit Dashboard',
         overview_subtitle='Each permit area acts like a heading with its own report list, dashboard cues, and entry point for new forms.',
-        summary_cards=[
-            {'label': 'ADP Profiles', 'value': adp_profile_count, 'help_text': 'Registered ADP drivers'},
-            {'label': 'Training Complete', 'value': ADPProfile.query.filter_by(adp_training_completed=True).count(), 'help_text': 'Profiles with ADP training recorded'},
-            {'label': 'UCAA Touch Keys', 'value': ADPProfile.query.filter_by(is_ucaa_staff=True, has_touch_key=True).count(), 'help_text': 'UCAA staff with touch key recorded'},
-            {'label': 'Linked Violations', 'value': Violation.query.filter(Violation.offender_adp_number.isnot(None)).count(), 'help_text': 'Violation records carrying an ADP number'},
-            {'label': 'Expiring Soon', 'value': expiring_soon, 'help_text': 'Permits expiring within 30 days'},
-            {'label': 'Vehicles', 'value': AirsideVehicle.query.count(), 'help_text': 'Registered airside vehicles'},
-            {'label': 'Companies', 'value': Company.query.count(), 'help_text': 'Managed companies and operators'},
-        ],
+        summary_cards=summary_cards,
         sections=sections,
         primary_action={'label': 'Register ADP Driver', 'url': url_for('permit.adp_registry')},
     )
@@ -291,10 +336,15 @@ def adp_renewal():
 @login_required
 def vehicle_registration():
     if request.method == 'POST':
+        company_id = request.form.get('company_id', type=int)
+        if not company_id:
+            flash('Company is required. Vehicles must be linked to the responsible operator.', 'danger')
+            return redirect(url_for('permit.vehicle_registration'))
+
         vehicle = AirsideVehicle(
             registration=request.form.get('registration'),
             call_sign=request.form.get('call_sign'),
-            company_id=request.form.get('company_id') or None,
+            company_id=company_id,
             vehicle_type=request.form.get('vehicle_type'),
             make_model=request.form.get('make_model'),
             colour=request.form.get('colour'),
@@ -308,9 +358,15 @@ def vehicle_registration():
         flash('Vehicle registered.', 'success')
         return redirect(url_for('permit.vehicle_registration'))
 
-    vehicles = AirsideVehicle.query.order_by(AirsideVehicle.created_at.desc()).limit(50).all()
+    vehicles = _essat_linked_vehicles_query().order_by(AirsideVehicle.updated_at.desc()).limit(100).all()
     companies = Company.query.filter_by(is_active=True).order_by(Company.name).all()
-    return render_template('permits/vehicle_registration.html', vehicles=vehicles, companies=companies)
+    return render_template(
+        'permits/vehicle_registration.html',
+        vehicles=vehicles,
+        companies=companies,
+        operational_count=_operational_vehicles_query().count(),
+        grounded_count=_essat_linked_vehicles_query().filter(AirsideVehicle.is_grounded.is_(True)).count(),
+    )
 
 
 @permit_bp.route('/company-management', methods=['GET', 'POST'])

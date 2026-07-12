@@ -158,14 +158,22 @@ Key capabilities available in form templates:
 
 - Incident reporting and investigation
 - Violation management and penalty capture
+- ADP-linked safety history lookup on incident and violation forms (shows prior incidents, prior violations, and recent records for the entered ADP number)
+- Manual-aligned repeat-offender enforcement for Form 15 (first/second/third punch workflow with third-punch escalation for suspension action)
+- Form 15 now captures full offender and enforcement details from the paper form (offender identity, pass numbers, organization/designation, awareness/training responses, enforcer and SOO remarks/signature names)
+- Violation penalties are auto-derived from the manual contravention type catalog and stored on each record with amount and currency
 - FOD walk scheduling and records
 - Inspection forms index and routes
 
 ### 6.3 Airside Vehicle Control
 
 - ADP application, ADP registry, and renewal
-- Vehicle registration and permit metadata
+- Vehicle registry is now driven by ESSAT-inspected motorised equipment (Form 18) and linked to companies
+- Permit dashboard vehicle widgets only appear when ESSAT-linked vehicles exist (no synthetic/placeholder vehicle counts)
+- Vehicles marked grounded/non-compliant by ESSAT are excluded from operational counts and shown as blocked for use
+- Incident capture now auto-raises a violation when a grounded/uninspected ESSAT-tracked vehicle is reported as operating
 - ADP driver profiles with company details, training status, licence classes, and violation linkage
+- ADP registry includes linked incident counts and offender-tier status to support enforcement decisions
 - Company management and reference data
 
 ### 6.4 Budget Management

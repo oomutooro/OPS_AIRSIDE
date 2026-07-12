@@ -86,6 +86,8 @@
                     <th>Licence</th>
                     <th>Classes</th>
                     <th>Violations</th>
+                    <th>Incidents</th>
+                    <th>Offender Tier</th>
                 </tr>
             </thead>
             <tbody>
@@ -120,9 +122,27 @@
                         <span class="badge bg-success">No violations</span>
                         {% endif %}
                     </td>
+                    <td>
+                        {% if profile.has_incidents %}
+                        <span class="badge bg-warning text-dark">{{ profile.incident_count }} incident{{ '' if profile.incident_count == 1 else 's' }}</span>
+                        {% else %}
+                        <span class="badge bg-success">No incidents</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if profile.violation_count >= 3 %}
+                        <span class="badge bg-danger">Third offender</span>
+                        {% elif profile.violation_count == 2 %}
+                        <span class="badge bg-warning text-dark">Second offender</span>
+                        {% elif profile.violation_count == 1 %}
+                        <span class="badge bg-info text-dark">First offender</span>
+                        {% else %}
+                        <span class="badge bg-success">Clean record</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="8" class="text-center text-muted py-4">No ADP profiles registered yet.</td></tr>
+                <tr><td colspan="10" class="text-center text-muted py-4">No ADP profiles registered yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

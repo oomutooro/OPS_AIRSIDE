@@ -4,7 +4,7 @@ Permit models: ADP Applications, ADP Permits, AVP tracking.
 from datetime import datetime, date
 from sqlalchemy.orm import foreign
 from app import db
-from app.models.incident import Violation
+from app.models.incident import Incident, Violation
 
 
 UGANDA_ADP_DRIVER_CLASSES = {
@@ -266,6 +266,47 @@ class ADPProfile(db.Model):
     def has_violations(self) -> bool:
         return self.violation_count > 0
 
+    def _incident_ids(self) -> set[int]:
+        """Resolve linked incidents by tagged ADP number and operator name."""
+        linked_ids = set()
+        adp = (self.adp_number or '').strip().upper()
+
+        if self.full_name:
+            for incident_id, in Incident.query.with_entities(Incident.id).filter(
+                Incident.vehicle_operator_name == self.full_name
+            ).all():
+                linked_ids.add(incident_id)
+
+        if adp:
+            incidents = Incident.query.filter(Incident.weather_conditions.isnot(None)).all()
+            for incident in incidents:
+                if not isinstance(incident.weather_conditions, dict):
+                    continue
+                tagged_adp = (incident.weather_conditions.get('involved_adp_number') or '').strip().upper()
+                if tagged_adp and tagged_adp == adp:
+                    linked_ids.add(incident.id)
+
+        return linked_ids
+
+    @property
+    def incident_count(self) -> int:
+        return len(self._incident_ids())
+
+    @property
+    def has_incidents(self) -> bool:
+        return self.incident_count > 0
+
+    @property
+    def offender_level(self) -> str:
+        count = self.violation_count
+        if count >= 3:
+            return 'Third offender'
+        if count == 2:
+            return 'Second offender'
+        if count == 1:
+            return 'First offender'
+        return 'No violations'
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -281,6 +322,8 @@ class ADPProfile(db.Model):
             'ndl_expiry': self.ndl_expiry.isoformat() if self.ndl_expiry else None,
             'driver_license_classes': self.driver_license_classes,
             'violation_count': self.violation_count,
+            'incident_count': self.incident_count,
+            'offender_level': self.offender_level,
         }
 
     def __repr__(self):

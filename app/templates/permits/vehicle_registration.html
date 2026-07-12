@@ -7,7 +7,7 @@
         <form method="post" class="row g-3">
             <div class="col-md-3"><label class="form-label">Registration</label><input name="registration" class="form-control form-control-lg" required></div>
             <div class="col-md-3"><label class="form-label">Call Sign</label><input name="call_sign" class="form-control form-control-lg"></div>
-            <div class="col-md-3"><label class="form-label">Company</label><select name="company_id" class="form-select form-select-lg">{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+            <div class="col-md-3"><label class="form-label">Company</label><select name="company_id" class="form-select form-select-lg" required><option value="">Select company</option>{% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
             <div class="col-md-3"><label class="form-label">Vehicle Type</label><input name="vehicle_type" class="form-control form-control-lg"></div>
             <div class="col-md-3"><label class="form-label">Model</label><input name="make_model" class="form-control form-control-lg"></div>
             <div class="col-md-3"><label class="form-label">Colour</label><input name="colour" class="form-control form-control-lg"></div>
@@ -16,6 +16,65 @@
             <div class="col-md-6"><label class="form-label">ESSAT Sticker No</label><input name="essat_sticker_no" class="form-control form-control-lg"></div>
             <div class="col-12"><button class="btn btn-primary btn-touch">Register Vehicle</button></div>
         </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card panel-card h-100">
+            <div class="card-body">
+                <div class="text-uppercase small text-muted fw-semibold">Operational (ESSAT)</div>
+                <div class="display-6 fw-bold lh-1 my-2">{{ operational_count }}</div>
+                <div class="small text-muted">Vehicles currently allowed to operate airside</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card panel-card h-100">
+            <div class="card-body">
+                <div class="text-uppercase small text-muted fw-semibold">Grounded (ESSAT)</div>
+                <div class="display-6 fw-bold lh-1 my-2 text-danger">{{ grounded_count }}</div>
+                <div class="small text-muted">Vehicles blocked from operation per ESSAT status</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card panel-card">
+    <div class="card-header">ESSAT-Linked Vehicles</div>
+    <div class="card-body table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Registration</th>
+                    <th>Company</th>
+                    <th>Type</th>
+                    <th>Last ESSAT</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vehicle in vehicles %}
+                <tr>
+                    <td>{{ vehicle.registration }}</td>
+                    <td>{{ vehicle.company.name if vehicle.company else 'Unassigned' }}</td>
+                    <td>{{ vehicle.vehicle_type or '-' }}</td>
+                    <td>{{ vehicle.last_essat_date|date_fmt if vehicle.last_essat_date else '-' }}</td>
+                    <td>
+                        {% if vehicle.is_grounded %}
+                        <span class="badge bg-danger">Grounded</span>
+                        {% elif vehicle.is_active %}
+                        <span class="badge bg-success">Operational</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-3">No ESSAT-linked vehicles yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

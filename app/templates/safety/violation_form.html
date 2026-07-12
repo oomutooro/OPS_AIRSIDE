@@ -7,17 +7,227 @@
     <div class="card-header">Form 15 - Airside Violation</div>
     <div class="card-body">
         <form method="post" class="row g-3">
+            <div class="col-md-3"><label class="form-label">Date</label><input type="date" name="violation_date" class="form-control form-control-lg" value="{{ today|default('', true) }}"></div>
+            <div class="col-md-3"><label class="form-label">Time</label><input type="time" name="violation_time" class="form-control form-control-lg"></div>
+            <div class="col-md-3"><label class="form-label">Weather</label><input name="weather" class="form-control form-control-lg" placeholder="Clear, rainy, windy"></div>
+            <div class="col-md-3"><label class="form-label">Location</label><input name="violation_location" class="form-control form-control-lg" required></div>
+
+            <div class="col-12 mt-2"><h6 class="text-primary mb-1">Offender Details (Form 15)</h6></div>
             <div class="col-md-4"><label class="form-label">Offender Name</label><input name="offender_name" class="form-control form-control-lg" required></div>
-            <div class="col-md-4"><label class="form-label">Offender Permit Number</label><input name="offender_badge" class="form-control form-control-lg" placeholder="e.g. A4.37934"></div>
-            <div class="col-md-4"><label class="form-label">ADP Number</label><input name="offender_adp_number" class="form-control form-control-lg" placeholder="Optional but recommended"></div>
+            <div class="col-md-4"><label class="form-label">Other Names</label><input name="other_names" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Security Pass No.</label><input name="offender_badge" class="form-control form-control-lg" placeholder="e.g. A4.37934"></div>
+            <div class="col-md-4"><label class="form-label">ADP / AVOP No.</label><input name="offender_adp_number" id="offenderAdpNumber" class="form-control form-control-lg" placeholder="Recommended for lookup"></div>
+            <div class="col-md-4"><label class="form-label">Organization</label>
+                <select name="offender_company_id" class="form-select form-select-lg">
+                    <option value="">Select company (optional)</option>
+                    {% for company in companies %}
+                    <option value="{{ company.id }}">{{ company.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4"><label class="form-label">Organization Name (Free Text)</label><input name="organization_name" class="form-control form-control-lg" placeholder="Use when not in registry"></div>
+            <div class="col-md-4"><label class="form-label">Designation</label><input name="designation" class="form-control form-control-lg"></div>
             <div class="col-md-4"><label class="form-label">Vehicle Registration</label><input name="vehicle_registration" class="form-control form-control-lg"></div>
-            <div class="col-md-6"><label class="form-label">Violation Type</label><select name="violation_type_id" class="form-select form-select-lg">{% for v in violation_types %}<option value="{{ v.id }}">{{ v.description }}</option>{% endfor %}</select></div>
-            <div class="col-md-3"><label class="form-label">Penalty</label><input name="penalty_amount" type="number" step="0.01" class="form-control form-control-lg"></div>
-            <div class="col-md-3"><label class="form-label">Currency</label><select name="penalty_currency" class="form-select form-select-lg"><option>UGX</option><option>USD</option></select></div>
-            <div class="col-md-6"><label class="form-label">Location</label><input name="violation_location" class="form-control form-control-lg" required></div>
-            <div class="col-12"><label class="form-label">Description</label><textarea name="violation_description" rows="4" class="form-control" required></textarea></div>
+
+            <div class="col-12 d-none" id="adpHistoryCard">
+                <div class="border rounded p-3 bg-light">
+                    <div class="fw-semibold mb-1">ADP Safety History</div>
+                    <div class="small text-muted mb-2" id="adpHistorySummary"></div>
+                    <ul class="small mb-0" id="adpHistoryHighlights"></ul>
+                </div>
+            </div>
+            <div class="col-12 mt-2"><h6 class="text-primary mb-1">Violation and Penalty</h6></div>
+            <div class="col-md-6"><label class="form-label">Nature of Violation</label>
+                <select name="violation_type_id" id="violationTypeId" class="form-select form-select-lg" required>
+                    <option value="">Select contravention...</option>
+                    {% for v in violation_types %}
+                    <option
+                        value="{{ v.id }}"
+                        data-amount="{{ v.standard_penalty_usd if (v.penalty_currency or 'UGX') == 'USD' else v.standard_penalty_ugx }}"
+                        data-currency="{{ v.penalty_currency or 'UGX' }}"
+                        data-is-per-unit="{{ 1 if v.is_per_unit else 0 }}"
+                        data-unit-description="{{ v.unit_description or 'per unit' }}"
+                        data-description="{{ v.description }}"
+                    >{{ v.description }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3"><label class="form-label">Unit Quantity</label><input name="unit_quantity" id="unitQuantity" type="number" step="0.01" min="0" class="form-control form-control-lg" placeholder="For per-unit offences"></div>
+            <div class="col-md-3"><label class="form-label">Penalty (Auto)</label><input id="penaltyDisplay" class="form-control form-control-lg" readonly></div>
+            <div class="col-12"><label class="form-label">Violation Description</label><textarea name="violation_description" id="violationDescription" rows="3" class="form-control" required></textarea></div>
+            <div class="col-12"><label class="form-label">Cause of Violation</label><textarea name="cause_of_violation" rows="3" class="form-control"></textarea></div>
+
+            <div class="col-12 mt-2"><h6 class="text-primary mb-1">Offender Acknowledgement</h6></div>
+            <div class="col-md-4"><label class="form-label">Aware this violates rules?</label>
+                <select name="aware_of_violation" class="form-select form-select-lg" required>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+            <div class="col-md-4"><label class="form-label">Last Airside Safety Training Date</label><input type="date" name="last_training_date" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Who Trained You?</label><input name="trained_by" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Offender Signature (Name)</label><input name="offender_signature_name" class="form-control form-control-lg"></div>
+
+            <div class="col-12 mt-2"><h6 class="text-primary mb-1">UCAA Enforcer and SOO/AS/SC Remarks</h6></div>
+            <div class="col-md-4"><label class="form-label">Enforcer Surname</label><input name="enforcer_surname" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Enforcer Other Names</label><input name="enforcer_other_names" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">Enforcer Display Name</label><input name="enforcer_display_name" class="form-control form-control-lg" value="{{ current_user.full_name }}"></div>
+            <div class="col-12"><label class="form-label">UCAA Enforcer Remark</label><textarea name="enforcer_remark" rows="3" class="form-control"></textarea></div>
+            <div class="col-md-4"><label class="form-label">SOO Surname</label><input name="soo_surname" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">SOO Other Names</label><input name="soo_other_names" class="form-control form-control-lg"></div>
+            <div class="col-md-4"><label class="form-label">SOO Signature (Name)</label><input name="soo_signature_name" class="form-control form-control-lg"></div>
+            <div class="col-12"><label class="form-label">UCAA SOO/AS/SC Remark</label><textarea name="soo_remark" rows="3" class="form-control"></textarea></div>
+
             <div class="col-12"><button class="btn btn-danger btn-touch">Issue Violation</button></div>
         </form>
     </div>
 </div>
+
+<div class="card panel-card mt-3">
+    <div class="card-header">Recent Violation Records (Form 15)</div>
+    <div class="card-body table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th>Date/Time</th>
+                    <th>Offender</th>
+                    <th>Violation</th>
+                    <th>Penalty Issued</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in violations if record.form_type == 'form_15' %}
+                <tr>
+                    <td>
+                        <div class="fw-semibold">{{ record.violation_date|date_fmt if record.violation_date else '-' }}</div>
+                        <div class="text-muted small">{{ record.violation_time.strftime('%H:%M') if record.violation_time else '-' }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ record.offender_name or '-' }}</div>
+                        <div class="text-muted small">ADP: {{ record.offender_adp_number or '-' }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ record.violation_type_ref.description if record.violation_type_ref else (record.violation_description or '-') }}</div>
+                        <div class="text-muted small">{{ record.violation_location or 'Location not set' }}</div>
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ record.penalty_amount|currency_ugx if (record.penalty_currency or 'UGX') == 'UGX' else ('$' ~ ('%.2f'|format(record.penalty_amount or 0))) }}</div>
+                        <div class="text-muted small">{{ record.penalty_currency or 'UGX' }}</div>
+                    </td>
+                    <td><span class="badge {{ 'bg-warning text-dark' if record.status == 'adp_punched' else 'bg-secondary' }}">{{ (record.status or 'open').replace('_', ' ').title() }}</span></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-3">No Form 15 violations recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+(function () {
+    const adpInput = document.getElementById('offenderAdpNumber');
+    const card = document.getElementById('adpHistoryCard');
+    const summary = document.getElementById('adpHistorySummary');
+    const highlights = document.getElementById('adpHistoryHighlights');
+    const offenderName = document.querySelector("input[name='offender_name']");
+    const violationType = document.getElementById('violationTypeId');
+    const unitQuantity = document.getElementById('unitQuantity');
+    const penaltyDisplay = document.getElementById('penaltyDisplay');
+    const violationDescription = document.getElementById('violationDescription');
+    if (!adpInput || !card || !summary || !highlights) return;
+
+    function offenceLabel(level) {
+        switch (level) {
+            case 'third_offender': return 'Third offender';
+            case 'second_offender': return 'Second offender';
+            case 'first_offender': return 'First offender';
+            default: return 'No prior offence';
+        }
+    }
+
+    async function loadAdpHistory() {
+        const adp = (adpInput.value || '').trim();
+        if (!adp) {
+            card.classList.add('d-none');
+            highlights.innerHTML = '';
+            summary.textContent = '';
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/safety/api/adp-history?adp_number=${encodeURIComponent(adp)}`);
+            if (!resp.ok) {
+                card.classList.add('d-none');
+                return;
+            }
+
+            const payload = await resp.json();
+            const displayName = payload.person_name || 'Unknown holder';
+            const tier = offenceLabel(payload.offender_level);
+            const company = payload.company ? ` (${payload.company})` : '';
+            summary.textContent = `${displayName}${company} | ${payload.incident_count} incident(s) | ${payload.violation_count} violation(s) | ${tier}`;
+
+            if (payload.person_name && offenderName && !offenderName.value.trim()) {
+                offenderName.value = payload.person_name;
+            }
+
+            const rows = [];
+            const penaltyAdvice = payload.recommended_action || 'Apply Form 15 enforcement workflow.';
+            rows.push(`<li>${penaltyAdvice}</li>`);
+
+            (payload.recent_violations || []).slice(0, 2).forEach((item) => {
+                rows.push(`<li>Violation ${item.reference}: ${item.description || 'No description'} (${item.status || 'open'})</li>`);
+            });
+            (payload.recent_incidents || []).slice(0, 2).forEach((item) => {
+                rows.push(`<li>Incident ${item.reference}: ${item.severity || 'n/a'} at ${item.location || 'unspecified location'}</li>`);
+            });
+
+            highlights.innerHTML = rows.join('');
+            card.classList.remove('d-none');
+        } catch (err) {
+            console.error('Unable to load ADP history:', err);
+            card.classList.add('d-none');
+        }
+    }
+
+    adpInput.addEventListener('change', loadAdpHistory);
+    adpInput.addEventListener('blur', loadAdpHistory);
+
+    function syncPenaltyPreview() {
+        if (!violationType || !penaltyDisplay) return;
+        const selected = violationType.options[violationType.selectedIndex];
+        if (!selected || !selected.value) {
+            penaltyDisplay.value = '';
+            return;
+        }
+
+        const base = parseFloat(selected.getAttribute('data-amount') || '0');
+        const currency = (selected.getAttribute('data-currency') || 'UGX').toUpperCase();
+        const isPerUnit = selected.getAttribute('data-is-per-unit') === '1';
+        const unitLabel = selected.getAttribute('data-unit-description') || 'per unit';
+        const qty = parseFloat((unitQuantity && unitQuantity.value) || '');
+        const effectiveQty = isPerUnit ? (Number.isFinite(qty) && qty > 0 ? qty : 1) : 1;
+        const total = base * effectiveQty;
+
+        const formatted = currency === 'USD'
+            ? `$${total.toFixed(2)} ${currency}`
+            : `${Math.round(total).toLocaleString()} ${currency}`;
+        penaltyDisplay.value = isPerUnit ? `${formatted} (${unitLabel})` : formatted;
+
+        if (violationDescription && !violationDescription.value.trim()) {
+            violationDescription.value = selected.getAttribute('data-description') || '';
+        }
+    }
+
+    if (violationType) {
+        violationType.addEventListener('change', syncPenaltyPreview);
+    }
+    if (unitQuantity) {
+        unitQuantity.addEventListener('input', syncPenaltyPreview);
+    }
+    syncPenaltyPreview();
+})();
+</script>
 {% endblock %}

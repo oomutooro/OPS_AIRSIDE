@@ -1,13 +1,15 @@
 """
 Inspection routes for forms 1,4,5,6,7,8,9,13,14,18,19,20,21,22,24,25.
 """
+from datetime import date
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 from app import db
 from app.models.form import FormSubmission, FormTemplate
 from app.models.inspection import ESSTATMotorisedInspection, ESSTATNonMotorisedInspection
-from app.models.reference import Company
+from app.models.reference import AirsideVehicle, Company, EquipmentInventory
 from app.services.workflow_service import WorkflowService
 from app.utils.decorators import role_required
 from app.utils.form_schemas import FORM_SCHEMAS
@@ -20,6 +22,81 @@ WORKFLOW_LEVEL_LABELS = {
     'auditor': ('Manager Review', 'warning'),
     'supervisor': ('Senior Manager Review', 'danger'),
 }
+
+
+def _normalize_sticker_status(value: str | None) -> str:
+    raw = (value or '').strip().upper()
+    if raw in ('GREEN', 'SERVICEABLE', 'COMPLIANT'):
+        return 'GREEN'
+    if raw in ('YELLOW', 'ORANGE', 'CONDITIONAL', 'GRACE'):
+        return 'YELLOW'
+    if raw in ('RED', 'GROUNDED', 'NON-COMPLIANT'):
+        return 'RED'
+    return ''
+
+
+def _quarter_cycle_from_date(d: date) -> str:
+    q = (d.month - 1) // 3 + 1
+    return f'{d.year}-Q{q}'
+
+
+def _sync_vehicle_from_essat_submission(submission: FormSubmission):
+    """Persist Form 18 outcome into AirsideVehicle and link matching inventory rows."""
+    data = submission.data or {}
+    registration = (
+        (data.get('airside_vehicle_no') or '').strip()
+        or (data.get('vehicle_equipment_id_no') or '').strip()
+    )
+    if not registration:
+        return
+
+    company_name = (data.get('organization_company') or '').strip()
+    company = Company.query.filter(func.lower(Company.name) == company_name.lower()).first() if company_name else None
+    sticker_status = _normalize_sticker_status(data.get('sticker_status'))
+
+    inspection_date_raw = (data.get('inspection_date') or '').strip()
+    try:
+        inspection_date = date.fromisoformat(inspection_date_raw) if inspection_date_raw else date.today()
+    except ValueError:
+        inspection_date = date.today()
+
+    vehicle = AirsideVehicle.query.filter(
+        func.upper(AirsideVehicle.registration) == registration.upper()
+    ).first() or AirsideVehicle(registration=registration.upper())
+
+    vehicle.company_id = company.id if company else vehicle.company_id
+    vehicle.vehicle_type = (data.get('type') or '').strip() or vehicle.vehicle_type
+    vehicle.make_model = (data.get('vehicle_equipment_description') or '').strip() or vehicle.make_model
+    vehicle.colour = (data.get('colour') or '').strip() or vehicle.colour
+    vehicle.essat_sticker_no = (data.get('sticker_no') or '').strip() or vehicle.essat_sticker_no
+    vehicle.last_essat_date = inspection_date
+
+    if sticker_status == 'RED':
+        vehicle.is_grounded = True
+        vehicle.is_active = False
+        vehicle.grounded_reason = 'Grounded by ESSAT inspection outcome (RED status).'
+    else:
+        vehicle.is_grounded = False
+        vehicle.is_active = True
+        if vehicle.grounded_reason and 'ESSAT inspection outcome' in (vehicle.grounded_reason or ''):
+            vehicle.grounded_reason = None
+
+    db.session.add(vehicle)
+    db.session.flush()
+
+    cycle = _quarter_cycle_from_date(inspection_date)
+    if vehicle.company_id:
+        matching_inventory = EquipmentInventory.query.filter(
+            EquipmentInventory.company_id == vehicle.company_id,
+            EquipmentInventory.equipment_type == 'motorised',
+            EquipmentInventory.inspection_cycle == cycle,
+            EquipmentInventory.registration.isnot(None),
+            func.upper(EquipmentInventory.registration) == vehicle.registration,
+        ).all()
+
+        for row in matching_inventory:
+            row.inspection_submission_id = submission.id
+            db.session.add(row)
 
 
 def _status_tone(status):
@@ -110,6 +187,11 @@ def _save_generic_form(form_number: int, location='Airside'):
         data=data,
     )
     db.session.add(submission)
+    db.session.flush()
+
+    if form_number == 18:
+        _sync_vehicle_from_essat_submission(submission)
+
     WorkflowService.ensure_issue_for_submission(submission, current_user)
     from app.models.form import AuditLog
     AuditLog.log(
